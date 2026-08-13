@@ -32,41 +32,63 @@ CURRENT_YEAR = date.today().year
 st.set_page_config(page_title="Razync Pro", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 init_db()
 
-st.markdown("""
+if "ui_theme" not in st.session_state:
+    st.session_state["ui_theme"] = "Claro"
+
+UI_THEME = st.session_state["ui_theme"]
+IS_DARK = UI_THEME == "Escuro"
+PLOT_TEMPLATE = "plotly_dark" if IS_DARK else "plotly_white"
+
+THEME = {
+    "bg": "#0b1020" if IS_DARK else "#f5f7fb",
+    "surface": "#111827" if IS_DARK else "#ffffff",
+    "surface2": "#182235" if IS_DARK else "#f8fafc",
+    "sidebar": "#0f172a" if IS_DARK else "#ffffff",
+    "text": "#f8fafc" if IS_DARK else "#172033",
+    "muted": "#94a3b8" if IS_DARK else "#667085",
+    "border": "#263349" if IS_DARK else "#e4e9f1",
+    "primary": "#3b82f6" if IS_DARK else "#2563eb",
+    "primary_soft": "#172554" if IS_DARK else "#eff6ff",
+    "input": "#111827" if IS_DARK else "#ffffff",
+    "shadow": "0 8px 24px rgba(0,0,0,.18)" if IS_DARK else "0 5px 18px rgba(16,24,40,.05)",
+}
+
+st.markdown(f"""
 <style>
-:root{--rz-primary:#2563eb;--rz-bg:#f6f8fc;--rz-surface:#ffffff;--rz-text:#172033;--rz-muted:#667085;--rz-border:#e5e9f0}
-.stApp{background:#f6f8fc;color:#172033}
-[data-testid="stSidebar"]{background:#111827;border-right:0;color:#f8fafc}
-[data-testid="stSidebar"] *{color:#e5e7eb}
-[data-testid="stSidebar"] .rz-brand{color:#ffffff}
-[data-testid="stSidebar"] .rz-brand span{color:#60a5fa}
-[data-testid="stSidebar"] [data-baseweb="select"]>div{background:#1f2937;border-color:#374151}
-[data-testid="stSidebar"] [role="radiogroup"] label{color:#cbd5e1}
-[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){background:#1d4ed8;color:#fff}
-[data-testid="stSidebar"] .block-container{padding-top:1.15rem}
-.block-container{padding-top:1.1rem;padding-bottom:2.5rem;max-width:1240px}
-h1,h2,h3{color:#172033;letter-spacing:-.025em}
-[data-testid="stMetric"]{background:#fff;border:1px solid #e7ebf2;border-radius:14px;padding:15px 17px;box-shadow:0 4px 14px rgba(16,24,40,.035)}
-[data-testid="stMetricLabel"]{color:#667085;font-size:.82rem}
-[data-testid="stMetricValue"]{color:#172033;font-size:1.5rem;font-weight:760}
-.rz-brand{font-size:1.45rem;font-weight:900;color:#172033;letter-spacing:-.045em}.rz-brand span{color:#2563eb}
-.rz-kicker{color:#2563eb;font-weight:750;font-size:.7rem;margin-bottom:.12rem;text-transform:uppercase;letter-spacing:.08em}
-.rz-title{font-size:1.72rem;font-weight:820;color:#172033;margin:.05rem 0 .18rem;letter-spacing:-.035em}
-.rz-sub{color:#667085;margin-bottom:1.15rem;font-size:.93rem}
-.rz-alert{border-radius:11px;padding:12px 14px;margin-bottom:8px;background:#fff;border:1px solid #e5e9f0}
-.rz-ok{border-left:3px solid #12b76a}.rz-info{border-left:3px solid #2e90fa}.rz-warn{border-left:3px solid #f79009}.rz-danger{border-left:3px solid #f04438}
-.rz-small{color:#667085;font-size:.84rem;margin-top:2px}
-.rz-section{font-size:1.02rem;font-weight:760;color:#172033;margin:1.05rem 0 .62rem}
-.rz-welcome{background:linear-gradient(135deg,#1d4ed8,#2563eb);border:0;border-radius:16px;padding:18px 20px;margin-bottom:14px;box-shadow:0 8px 22px rgba(37,99,235,.12)}
-.rz-welcome-title{font-size:1.08rem;font-weight:760;color:#fff}.rz-welcome-sub{color:#dbeafe;font-size:.86rem;margin-top:3px}
-div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{border-radius:9px;min-height:2.5rem;border:1px solid #d9e0ea;font-weight:650;background:#fff}
-div[data-testid="stButton"] button:hover{border-color:#2563eb;color:#2563eb}
-div[data-testid="stDataFrame"]{border:1px solid #e5e9f0;border-radius:11px;overflow:hidden;background:#fff}
-[data-testid="stExpander"]{background:#fff;border:1px solid #e5e9f0;border-radius:11px}
-[data-baseweb="select"]>div{border-radius:9px}
-[data-testid="stSidebar"] [data-testid="stRadio"] label{padding:.25rem .4rem;border-radius:8px}
-[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{background:#1f2937}
-hr{border-color:#e5e9f0}
+:root{{--rz-primary:{THEME['primary']};--rz-bg:{THEME['bg']};--rz-surface:{THEME['surface']};--rz-text:{THEME['text']};--rz-muted:{THEME['muted']};--rz-border:{THEME['border']}}}
+html,body,[class*="css"]{{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}
+.stApp{{background:{THEME['bg']};color:{THEME['text']}}}
+[data-testid="stHeader"]{{background:{THEME['bg']};border-bottom:1px solid {THEME['border']}}}
+[data-testid="stSidebar"]{{background:{THEME['sidebar']};border-right:1px solid {THEME['border']}}}
+[data-testid="stSidebar"] .block-container{{padding-top:1.15rem}}
+.block-container{{padding-top:1.1rem;padding-bottom:2.5rem;max-width:1240px}}
+h1,h2,h3,h4,p,span,label{{color:{THEME['text']}}}
+[data-testid="stCaptionContainer"],.stCaption{{color:{THEME['muted']}!important}}
+[data-testid="stMetric"]{{background:{THEME['surface']};border:1px solid {THEME['border']};border-radius:14px;padding:15px 17px;box-shadow:{THEME['shadow']}}}
+[data-testid="stMetricLabel"] p{{color:{THEME['muted']}!important;font-size:.82rem}}
+[data-testid="stMetricValue"]{{color:{THEME['text']}!important;font-size:1.5rem;font-weight:760}}
+.rz-brand{{font-size:1.45rem;font-weight:900;color:{THEME['text']};letter-spacing:-.045em}}.rz-brand span{{color:{THEME['primary']}}}
+.rz-kicker{{color:{THEME['primary']};font-weight:750;font-size:.7rem;margin-bottom:.12rem;text-transform:uppercase;letter-spacing:.08em}}
+.rz-title{{font-size:1.72rem;font-weight:820;color:{THEME['text']};margin:.05rem 0 .18rem;letter-spacing:-.035em}}
+.rz-sub{{color:{THEME['muted']};margin-bottom:1.15rem;font-size:.93rem}}
+.rz-section{{font-size:1.02rem;font-weight:760;color:{THEME['text']};margin:1.05rem 0 .62rem}}
+.rz-alert{{border-radius:11px;padding:12px 14px;margin-bottom:8px;background:{THEME['surface']};border:1px solid {THEME['border']};box-shadow:{THEME['shadow']}}}
+.rz-ok{{border-left:3px solid #12b76a}}.rz-info{{border-left:3px solid #2e90fa}}.rz-warn{{border-left:3px solid #f79009}}.rz-danger{{border-left:3px solid #f04438}}
+.rz-small{{color:{THEME['muted']};font-size:.84rem;margin-top:2px}}
+.rz-welcome{{background:linear-gradient(135deg,{THEME['primary']},#60a5fa);border:0;border-radius:16px;padding:18px 20px;margin-bottom:14px;box-shadow:{THEME['shadow']}}}
+.rz-welcome-title{{font-size:1.08rem;font-weight:760;color:#fff}}.rz-welcome-sub{{color:#dbeafe;font-size:.86rem;margin-top:3px}}
+div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{{border-radius:9px;min-height:2.5rem;border:1px solid {THEME['border']};font-weight:650;background:{THEME['surface']};color:{THEME['text']}}}
+div[data-testid="stButton"] button:hover,div[data-testid="stFormSubmitButton"] button:hover{{border-color:{THEME['primary']};color:{THEME['primary']}}}
+div[data-testid="stDataFrame"]{{border:1px solid {THEME['border']};border-radius:11px;overflow:hidden;background:{THEME['surface']}}}
+[data-testid="stExpander"]{{background:{THEME['surface']};border:1px solid {THEME['border']};border-radius:11px}}
+[data-baseweb="select"]>div,[data-baseweb="input"]>div,input,textarea{{background:{THEME['input']}!important;color:{THEME['text']}!important;border-color:{THEME['border']}!important}}
+[data-baseweb="popover"] [role="listbox"]{{background:{THEME['surface']}!important;color:{THEME['text']}!important}}
+[data-baseweb="popover"] li{{background:{THEME['surface']}!important;color:{THEME['text']}!important}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label{{padding:.28rem .45rem;border-radius:8px}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{{background:{THEME['primary_soft']}}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked){{background:{THEME['primary_soft']}}}
+[data-testid="stProgressBar"]>div>div{{background:{THEME['primary']}!important}}
+hr{{border-color:{THEME['border']}}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -201,6 +223,7 @@ if pending_page:
 with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
     st.caption("Gestão simples para MEI")
+    st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme", label_visibility="collapsed")
     st.divider()
     groups = list(NAV_GROUPS.keys())
     if st.session_state.get("nav_group") not in groups:
@@ -252,7 +275,7 @@ if page == "Dashboard":
         st.markdown('<div class="rz-section">Entradas por mês</div>', unsafe_allow_html=True)
         chart = pd.DataFrame(monthly_rows(transactions,CURRENT_YEAR))
         fig = px.bar(chart,x="month_name",y="total")
-        fig.update_layout(height=330,margin=dict(l=0,r=0,t=8,b=0),xaxis_title="",yaxis_title="Receita")
+        fig.update_layout(template=PLOT_TEMPLATE,height=330,margin=dict(l=0,r=0,t=8,b=0),xaxis_title="",yaxis_title="Receita")
         st.plotly_chart(fig,use_container_width=True)
     with right:
         st.markdown('<div class="rz-section">Organização do MEI</div>', unsafe_allow_html=True)
@@ -375,10 +398,10 @@ elif page == "Fluxo de Caixa":
     c3.metric("Resultado", brl(float(flow["Resultado"].sum())))
     chart = flow.melt(id_vars=["Mês"], value_vars=["Entradas","Saídas"], var_name="Tipo", value_name="Valor")
     fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
-    fig.update_layout(height=350, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Valor")
+    fig.update_layout(template=PLOT_TEMPLATE,height=350, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Valor")
     st.plotly_chart(fig, use_container_width=True)
     fig2 = px.line(flow, x="Mês", y="Saldo acumulado", markers=True)
-    fig2.update_layout(height=300, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Saldo acumulado")
+    fig2.update_layout(template=PLOT_TEMPLATE,height=300, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Saldo acumulado")
     st.plotly_chart(fig2, use_container_width=True)
     st.dataframe(flow, use_container_width=True, hide_index=True, column_config={c:st.column_config.NumberColumn(c, format="R$ %.2f") for c in ["Entradas","Saídas","Resultado","Saldo acumulado"]})
 
@@ -400,7 +423,7 @@ elif page == "Análise Financeira":
         if not monthly.empty:
             chart = monthly.melt(id_vars=["Mês"], value_vars=["Receitas","Despesas"], var_name="Tipo", value_name="Valor")
             fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
-            fig.update_layout(height=340, margin=dict(l=0,r=0,t=8,b=0), xaxis_title="Mês", yaxis_title="Valor")
+            fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0), xaxis_title="Mês", yaxis_title="Valor")
             st.plotly_chart(fig, use_container_width=True)
     with right:
         exp = analysis["expense_categories"]
@@ -408,7 +431,7 @@ elif page == "Análise Financeira":
             st.info("Ainda não existem despesas no período.")
         else:
             fig = px.pie(exp, names="Categoria", values="Valor", hole=.45)
-            fig.update_layout(height=340, margin=dict(l=0,r=0,t=8,b=0))
+            fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0))
             st.plotly_chart(fig, use_container_width=True)
     st.subheader("Verificações de consistência")
     checks = pd.DataFrame(consistency_checks(transactions, invoices, das_rows))
