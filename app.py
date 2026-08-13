@@ -15,7 +15,7 @@ from database import (
     list_obligations, list_transactions, save_document, save_profile,
     update_obligation_status, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
-    DatabaseConnectionError,
+    load_user_snapshot, data_version, DatabaseConnectionError,
 )
 from database import database_runtime_info
 from fiscal_rules import (
@@ -76,6 +76,9 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 
 def ensure_login() -> dict:
+    existing = st.session_state.get("user")
+    if isinstance(existing, dict) and existing.get("id"):
+        return existing
     email = "dev@local"
     password = "dev"
     user = authenticate(email, password)
@@ -183,55 +186,61 @@ if page not in all_pages:
     page = "Dashboard"
     st.session_state["_current_page"] = page
 
-profile = get_profile(uid)
-transactions = pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
-invoices = pd.DataFrame()
-das_rows = []
-docs = []
-employees = []
-contacts = []
-obligations = []
+# PERFORMANCE V15: one Supabase round-trip per session/data change.
+_snapshot_key = f"_mei_snapshot_{uid}"
+_snapshot_version_key = f"_mei_snapshot_version_{uid}"
+_current_data_version = data_version(uid)
+if _snapshot_key not in st.session_state or st.session_state.get(_snapshot_version_key) != _current_data_version:
+    try:
+        st.session_state[_snapshot_key] = load_user_snapshot(uid)
+        st.session_state[_snapshot_version_key] = _current_data_version
+    except DatabaseConnectionError as exc:
+        st.error("Não foi possível sincronizar os dados do Razync Pro.")
+        st.warning(str(exc))
+        st.stop()
 
-tx_pages = {"Importar Extrato","Importar Extrato","Conciliação","Fluxo de Caixa","Análise Financeira","Central Fiscal","Fechamento Mensal","Relatório Mensal","Notas Fiscais","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
-invoice_pages = {"Dashboard","Conciliação","Central Fiscal","Fechamento Mensal","Notas Fiscais","Central de Relatórios","Assistente Razync","Backup"}
-das_pages = {"Dashboard","Central Fiscal","Fechamento Mensal","DAS","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
-doc_pages = {"Dashboard","Fechamento Mensal","Documentos","Central de Relatórios","Backup","Primeiros Passos"}
-employee_pages = {"Empregado","DASN-SIMEI","Backup"}
-contact_pages = {"Movimentações","Notas Fiscais","Clientes e Fornecedores","Backup"}
-obligation_pages = {"Dashboard","Central Fiscal","Fechamento Mensal","Obrigações","Central de Relatórios","Backup"}
+_snapshot = st.session_state[_snapshot_key]
+profile = dict(_snapshot.get("profile") or {})
 
-if page in tx_pages:
-    transactions = tx_df(uid)
-if page in invoice_pages:
-    invoices = invoice_df(uid)
-if page in das_pages:
-    das_rows = list_das(uid)
-if page in doc_pages:
-    docs = list_documents(uid)
-if page in employee_pages:
-    employees = list_employees(uid)
-if page in contact_pages:
-    contacts = list_contacts(uid)
-if page in obligation_pages:
-    obligations = list_obligations(uid)
+transactions = pd.DataFrame(_snapshot.get("transactions") or [])
+if transactions.empty:
+    transactions = pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
+else:
+    transactions["tx_date"] = pd.to_datetime(transactions["tx_date"])
 
+invoices = pd.DataFrame(_snapshot.get("invoices") or [])
+if not invoices.empty:
+    invoices["issue_date"] = pd.to_datetime(invoices["issue_date"])
+
+das_rows = list(_snapshot.get("das") or [])
+docs = list(_snapshot.get("documents") or [])
+employees = list(_snapshot.get("employees") or [])
+contacts = list(_snapshot.get("contacts") or [])
+obligations = list(_snapshot.get("obligations") or [])
+
+# Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
 _dashboard_stats = None
 if page == "Dashboard":
-    _dashboard_stats = dashboard_financial_summary(uid, CURRENT_YEAR, date.today().month)
-    _docs = transaction_document_numbers(uid)
-    transactions = pd.DataFrame({"document_number": _docs}) if _docs else pd.DataFrame(columns=["document_number"])
+    today = date.today()
+    year_local = transactions[transactions["tx_date"].dt.year == CURRENT_YEAR] if not transactions.empty else transactions
+    month_local = year_local[year_local["tx_date"].dt.month == today.month] if not year_local.empty else year_local
+    _dashboard_stats = {
+        "transaction_count": int(len(transactions)),
+        "year_revenue": float(year_local.loc[year_local["tx_type"] == "Receita", "value"].sum()) if not year_local.empty else 0.0,
+        "year_expense": float(year_local.loc[year_local["tx_type"] == "Despesa", "value"].sum()) if not year_local.empty else 0.0,
+        "month_in": float(month_local.loc[month_local["tx_type"] == "Receita", "value"].sum()) if not month_local.empty else 0.0,
+        "month_out": float(month_local.loc[month_local["tx_type"] == "Despesa", "value"].sum()) if not month_local.empty else 0.0,
+    }
+
+# Movimentações paginate the in-memory snapshot; changing pages does not touch Supabase.
 if page == "Movimentações":
     page_size = 50
+    total_tx = len(transactions)
     current_tx_page = int(st.session_state.get("tx_history_page", 1))
-    total_tx = count_transactions(uid)
     max_tx_page = max(1, (total_tx + page_size - 1) // page_size)
     current_tx_page = min(max(current_tx_page, 1), max_tx_page)
-    rows = list_transactions_page(uid, page_size, (current_tx_page - 1) * page_size)
-    transactions = pd.DataFrame(rows)
-    if transactions.empty:
-        transactions = pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
-    else:
-        transactions["tx_date"] = pd.to_datetime(transactions["tx_date"])
+    offset = (current_tx_page - 1) * page_size
+    transactions = transactions.iloc[offset:offset + page_size].copy()
 
 with st.sidebar:
     st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Contabilidade simples para MEI</div></div>', unsafe_allow_html=True)

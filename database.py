@@ -6,14 +6,15 @@ import os
 import tempfile
 import time
 import copy
+import json
 from functools import lru_cache
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, LargeBinary,
-    MetaData, String, Table, Text, create_engine, delete, insert, select, update, func, case, extract
+    MetaData, String, Table, Text, create_engine, delete, insert, select, update, func, case, extract, text
 )
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.engine import URL
@@ -89,7 +90,7 @@ def _diagnose_operational_error(exc: Exception) -> str:
 
 DATABASE_URL = _resolve_database_url()
 
-engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
+engine_kwargs: dict[str, Any] = {"pool_pre_ping": False}
 if str(DATABASE_URL).startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
@@ -97,7 +98,7 @@ else:
     engine_kwargs.update({
         "pool_size": 3,
         "max_overflow": 2,
-        "pool_recycle": 240,
+        "pool_recycle": 1800,
         "pool_timeout": 10,
         "pool_use_lifo": True,
     })
@@ -232,6 +233,7 @@ obligations = Table(
 )
 
 
+_USER_VERSION: dict[int, int] = {}
 _READ_CACHE: dict[tuple[str, int], tuple[float, Any]] = {}
 _READ_CACHE_TTL = 30.0
 
@@ -251,16 +253,70 @@ def _cache_set(domain: str, user_id: int, value):
     return copy.deepcopy(value)
 
 def _cache_invalidate(domain: str, user_id: int) -> None:
-    _READ_CACHE.pop((domain, int(user_id)), None)
+    uid = int(user_id)
+    _READ_CACHE.pop((domain, uid), None)
+    _USER_VERSION[uid] = _USER_VERSION.get(uid, 0) + 1
+
+def data_version(user_id: int) -> int:
+    return _USER_VERSION.get(int(user_id), 0)
 
 
 
 @lru_cache(maxsize=1)
 def init_db() -> None:
+    if not str(DATABASE_URL).startswith("sqlite"):
+        return
     try:
         metadata.create_all(engine)
     except OperationalError as exc:
         raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+
+
+def _snapshot_date(value):
+    if value is None or isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return value
+    return value
+
+
+def load_user_snapshot(user_id: int) -> dict[str, Any]:
+    try:
+        with engine.connect() as conn:
+            raw = conn.execute(
+                text("select public.razync_user_snapshot(:uid)"),
+                {"uid": int(user_id)},
+            ).scalar_one()
+    except OperationalError as exc:
+        raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    snapshot = dict(raw or {})
+    snapshot.setdefault("profile", {})
+    for key in ("transactions", "invoices", "das", "documents", "contacts", "employees", "obligations"):
+        snapshot.setdefault(key, [])
+
+    profile = snapshot.get("profile") or {}
+    if profile.get("opening_date"):
+        profile["opening_date"] = _snapshot_date(profile.get("opening_date"))
+    snapshot["profile"] = profile
+
+    for row in snapshot["transactions"]:
+        row["tx_date"] = _snapshot_date(row.get("tx_date"))
+    for row in snapshot["invoices"]:
+        row["issue_date"] = _snapshot_date(row.get("issue_date"))
+    for row in snapshot["das"]:
+        row["due_date"] = _snapshot_date(row.get("due_date"))
+        row["payment_date"] = _snapshot_date(row.get("payment_date"))
+    for row in snapshot["employees"]:
+        row["admission_date"] = _snapshot_date(row.get("admission_date"))
+    for row in snapshot["obligations"]:
+        row["due_date"] = _snapshot_date(row.get("due_date"))
+    return snapshot
 
 
 def _hash_password(password: str, salt: bytes | None = None) -> str:
