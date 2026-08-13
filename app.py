@@ -14,6 +14,7 @@ from database import (
     init_db, list_contacts, list_das, list_documents, list_employees, list_invoices,
     list_obligations, list_transactions, save_document, save_profile,
     update_obligation_status, upsert_das, link_transaction_document,
+    dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     DatabaseConnectionError,
 )
 from database import database_runtime_info
@@ -191,7 +192,7 @@ employees = []
 contacts = []
 obligations = []
 
-tx_pages = {"Dashboard","Movimentações","Importar Extrato","Conciliação","Fluxo de Caixa","Análise Financeira","Central Fiscal","Fechamento Mensal","Relatório Mensal","Notas Fiscais","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
+tx_pages = {"Importar Extrato","Importar Extrato","Conciliação","Fluxo de Caixa","Análise Financeira","Central Fiscal","Fechamento Mensal","Relatório Mensal","Notas Fiscais","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
 invoice_pages = {"Dashboard","Conciliação","Central Fiscal","Fechamento Mensal","Notas Fiscais","Central de Relatórios","Assistente Razync","Backup"}
 das_pages = {"Dashboard","Central Fiscal","Fechamento Mensal","DAS","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
 doc_pages = {"Dashboard","Fechamento Mensal","Documentos","Central de Relatórios","Backup","Primeiros Passos"}
@@ -213,6 +214,24 @@ if page in contact_pages:
     contacts = list_contacts(uid)
 if page in obligation_pages:
     obligations = list_obligations(uid)
+
+_dashboard_stats = None
+if page == "Dashboard":
+    _dashboard_stats = dashboard_financial_summary(uid, CURRENT_YEAR, date.today().month)
+    _docs = transaction_document_numbers(uid)
+    transactions = pd.DataFrame({"document_number": _docs}) if _docs else pd.DataFrame(columns=["document_number"])
+if page == "Movimentações":
+    page_size = 50
+    current_tx_page = int(st.session_state.get("tx_history_page", 1))
+    total_tx = count_transactions(uid)
+    max_tx_page = max(1, (total_tx + page_size - 1) // page_size)
+    current_tx_page = min(max(current_tx_page, 1), max_tx_page)
+    rows = list_transactions_page(uid, page_size, (current_tx_page - 1) * page_size)
+    transactions = pd.DataFrame(rows)
+    if transactions.empty:
+        transactions = pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
+    else:
+        transactions["tx_date"] = pd.to_datetime(transactions["tx_date"])
 
 with st.sidebar:
     st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Contabilidade simples para MEI</div></div>', unsafe_allow_html=True)
@@ -246,9 +265,14 @@ with st.sidebar:
 
 opening = opening_date_from(profile)
 limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))
-year_tx = transactions[(transactions["tx_date"].dt.year==CURRENT_YEAR)] if not transactions.empty else transactions
-year_revenue = float(year_tx[year_tx["tx_type"]=="Receita"]["value"].sum()) if not year_tx.empty else 0.0
-year_expense = float(year_tx[year_tx["tx_type"]=="Despesa"]["value"].sum()) if not year_tx.empty else 0.0
+if page == "Dashboard" and _dashboard_stats is not None:
+    year_revenue = float(_dashboard_stats["year_revenue"])
+    year_expense = float(_dashboard_stats["year_expense"])
+    year_tx = pd.DataFrame()
+else:
+    year_tx = transactions[(transactions["tx_date"].dt.year==CURRENT_YEAR)] if not transactions.empty and "tx_date" in transactions.columns else transactions
+    year_revenue = float(year_tx[year_tx["tx_type"]=="Receita"]["value"].sum()) if not year_tx.empty else 0.0
+    year_expense = float(year_tx[year_tx["tx_type"]=="Despesa"]["value"].sum()) if not year_tx.empty else 0.0
 limit_pct = (year_revenue/limit*100) if limit else 0.0
 
 if page == "Dashboard":
@@ -256,7 +280,7 @@ if page == "Dashboard":
     cnpj_label = str(profile.get("cnpj") or "").strip() or None
     page_header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
     business_card(business_label, CURRENT_YEAR, cnpj_label)
-    onboarding = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
+    onboarding = onboarding_progress(profile, bool(_dashboard_stats and _dashboard_stats["transaction_count"]), bool(das_rows), bool(docs))
     if not onboarding["complete"]:
         st.info(f"Configuração inicial: {onboarding['done']} de {onboarding['total']} etapas concluídas ({onboarding['percent']}%).")
         if st.button("Continuar configuração do MEI", key="dash_onboarding", use_container_width=True):
@@ -264,9 +288,8 @@ if page == "Dashboard":
             st.rerun()
 
     today = date.today()
-    month_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR) & (transactions["tx_date"].dt.month == today.month)] if not transactions.empty else transactions
-    month_in = float(month_tx[month_tx["tx_type"] == "Receita"]["value"].sum()) if not month_tx.empty else 0.0
-    month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
+    month_in = float(_dashboard_stats["month_in"] if _dashboard_stats else 0)
+    month_out = float(_dashboard_stats["month_out"] if _dashboard_stats else 0)
     month_result = month_in - month_out
 
     section("Resumo do mês")
@@ -276,7 +299,10 @@ if page == "Dashboard":
     c3.metric("Resultado", brl(month_result))
     c4.metric("Limite do MEI", f"{limit_pct:.1f}% usado")
 
-    priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
+    _action_tx = transactions
+    if _dashboard_stats and _dashboard_stats["transaction_count"] and _action_tx.empty:
+        _action_tx = pd.DataFrame({"document_number":[""]})
+    priorities = action_items(profile, _action_tx, invoices, das_rows, obligations, limit, year_revenue)
     action_col, quick_col = st.columns([1.7,1], gap="large")
     with action_col:
         section("Próximas ações")
@@ -327,6 +353,13 @@ elif page == "Movimentações":
         view = transactions.copy()
         view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
         st.dataframe(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], use_container_width=True, hide_index=True, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+        if total_tx > page_size:
+            pprev, pinfo, pnext = st.columns([1,2,1])
+            if pprev.button("← Anterior", disabled=current_tx_page <= 1, use_container_width=True):
+                st.session_state["tx_history_page"] = current_tx_page - 1; st.rerun()
+            pinfo.caption(f"Página {current_tx_page} de {max_tx_page} • {total_tx} lançamentos")
+            if pnext.button("Próxima →", disabled=current_tx_page >= max_tx_page, use_container_width=True):
+                st.session_state["tx_history_page"] = current_tx_page + 1; st.rerun()
         with st.expander("Excluir um lançamento"):
             item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
             st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")

@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, LargeBinary,
-    MetaData, String, Table, Text, create_engine, delete, insert, select, update
+    MetaData, String, Table, Text, create_engine, delete, insert, select, update, func, case, extract
 )
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.engine import URL
@@ -322,6 +322,8 @@ def add_transaction(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(transactions).values(user_id=user_id, **data))
     _cache_invalidate("transactions", user_id)
+    for _k in [k for k in list(_READ_CACHE) if k[0] == "dashboard"]: _READ_CACHE.pop(_k, None)
+    _cache_invalidate("tx_docs", user_id)
 
 
 def list_transactions(user_id: int) -> list[dict[str, Any]]:
@@ -333,10 +335,55 @@ def list_transactions(user_id: int) -> list[dict[str, Any]]:
     return _cache_set("transactions", user_id, [dict(r) for r in rows])
 
 
+def dashboard_financial_summary(user_id: int, year: int, month: int) -> dict[str, Any]:
+    cache_key = int(user_id) * 100000 + int(year) * 100 + int(month)
+    cached = _cache_get("dashboard", cache_key)
+    if cached is not None:
+        return cached
+    year_cond = extract("year", transactions.c.tx_date) == int(year)
+    month_cond = extract("month", transactions.c.tx_date) == int(month)
+    stmt = select(
+        func.count(transactions.c.id).label("transaction_count"),
+        func.coalesce(func.sum(case((year_cond & (transactions.c.tx_type == "Receita"), transactions.c.value), else_=0)), 0).label("year_revenue"),
+        func.coalesce(func.sum(case((year_cond & (transactions.c.tx_type == "Despesa"), transactions.c.value), else_=0)), 0).label("year_expense"),
+        func.coalesce(func.sum(case((year_cond & month_cond & (transactions.c.tx_type == "Receita"), transactions.c.value), else_=0)), 0).label("month_in"),
+        func.coalesce(func.sum(case((year_cond & month_cond & (transactions.c.tx_type == "Despesa"), transactions.c.value), else_=0)), 0).label("month_out"),
+    ).where(transactions.c.user_id == user_id)
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().one()
+    result = {k: float(v or 0) if k != "transaction_count" else int(v or 0) for k, v in dict(row).items()}
+    return _cache_set("dashboard", cache_key, result)
+
+def transaction_document_numbers(user_id: int) -> list[str]:
+    cached = _cache_get("tx_docs", user_id)
+    if cached is not None:
+        return cached
+    stmt = select(transactions.c.document_number).where(
+        transactions.c.user_id == user_id,
+        transactions.c.document_number.is_not(None),
+        transactions.c.document_number != ""
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(stmt).scalars().all()
+    return _cache_set("tx_docs", user_id, [str(x) for x in rows])
+
+def count_transactions(user_id: int) -> int:
+    with engine.connect() as conn:
+        return int(conn.execute(select(func.count()).select_from(transactions).where(transactions.c.user_id == user_id)).scalar_one())
+
+def list_transactions_page(user_id: int, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    stmt = select(transactions).where(transactions.c.user_id == user_id).order_by(transactions.c.tx_date.desc(), transactions.c.id.desc()).limit(int(limit)).offset(int(offset))
+    with engine.connect() as conn:
+        rows = conn.execute(stmt).mappings().all()
+    return [dict(r) for r in rows]
+
+
 def delete_transaction(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id))
     _cache_invalidate("transactions", user_id)
+    for _k in [k for k in list(_READ_CACHE) if k[0] == "dashboard"]: _READ_CACHE.pop(_k, None)
+    _cache_invalidate("tx_docs", user_id)
 
 
 def link_transaction_document(user_id: int, item_id: int, document_number: str, counterparty: str = "") -> None:
@@ -346,6 +393,8 @@ def link_transaction_document(user_id: int, item_id: int, document_number: str, 
     with engine.begin() as conn:
         conn.execute(update(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id).values(**payload))
     _cache_invalidate("transactions", user_id)
+    for _k in [k for k in list(_READ_CACHE) if k[0] == "dashboard"]: _READ_CACHE.pop(_k, None)
+    _cache_invalidate("tx_docs", user_id)
 
 
 def upsert_das(user_id: int, competence: str, due_date, amount: float, status: str, payment_date, notes: str) -> None:
