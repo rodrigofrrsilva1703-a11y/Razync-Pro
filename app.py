@@ -75,6 +75,9 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 
 def ensure_login() -> dict:
+    cached = st.session_state.get("user")
+    if cached and cached.get("id"):
+        return cached
     email = "dev@local"
     password = "dev"
     user = authenticate(email, password)
@@ -171,14 +174,6 @@ def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list
 
 user = ensure_login()
 uid = int(user["id"])
-profile = get_profile(uid)
-transactions = tx_df(uid)
-invoices = invoice_df(uid)
-das_rows = list_das(uid)
-docs = list_documents(uid)
-employees = list_employees(uid)
-contacts = list_contacts(uid)
-obligations = list_obligations(uid)
 
 pending_page = st.session_state.pop("_navigate_to", None)
 if pending_page:
@@ -189,6 +184,38 @@ all_pages = [p for pages in NAV_GROUPS.values() for p in pages]
 if page not in all_pages:
     page = "Dashboard"
     st.session_state["_current_page"] = page
+
+profile = get_profile(uid)
+transactions = pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
+invoices = pd.DataFrame()
+das_rows = []
+docs = []
+employees = []
+contacts = []
+obligations = []
+
+tx_pages = {"Dashboard","Movimentações","Importar Extrato","Conciliação","Fluxo de Caixa","Análise Financeira","Central Fiscal","Fechamento Mensal","Relatório Mensal","Notas Fiscais","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
+invoice_pages = {"Dashboard","Conciliação","Central Fiscal","Fechamento Mensal","Notas Fiscais","Central de Relatórios","Assistente Razync","Backup"}
+das_pages = {"Dashboard","Central Fiscal","Fechamento Mensal","DAS","DASN-SIMEI","Central de Relatórios","Assistente Razync","Backup","Primeiros Passos"}
+doc_pages = {"Dashboard","Fechamento Mensal","Documentos","Central de Relatórios","Backup","Primeiros Passos"}
+employee_pages = {"Empregado","DASN-SIMEI","Backup"}
+contact_pages = {"Movimentações","Notas Fiscais","Clientes e Fornecedores","Backup"}
+obligation_pages = {"Dashboard","Central Fiscal","Fechamento Mensal","Obrigações","Central de Relatórios","Backup"}
+
+if page in tx_pages:
+    transactions = tx_df(uid)
+if page in invoice_pages:
+    invoices = invoice_df(uid)
+if page in das_pages:
+    das_rows = list_das(uid)
+if page in doc_pages:
+    docs = list_documents(uid)
+if page in employee_pages:
+    employees = list_employees(uid)
+if page in contact_pages:
+    contacts = list_contacts(uid)
+if page in obligation_pages:
+    obligations = list_obligations(uid)
 
 with st.sidebar:
     st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Contabilidade simples para MEI</div></div>', unsafe_allow_html=True)

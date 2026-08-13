@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import os
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -223,6 +224,7 @@ obligations = Table(
 )
 
 
+@lru_cache(maxsize=1)
 def init_db() -> None:
     try:
         metadata.create_all(engine)
