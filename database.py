@@ -4,6 +4,8 @@ import hashlib
 import hmac
 import os
 import tempfile
+import time
+import copy
 from functools import lru_cache
 from pathlib import Path
 from datetime import datetime
@@ -91,8 +93,14 @@ engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
 if str(DATABASE_URL).startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    engine_kwargs["connect_args"] = {"connect_timeout": 10}
-    engine_kwargs["pool_recycle"] = 300
+    engine_kwargs["connect_args"] = {"connect_timeout": 8}
+    engine_kwargs.update({
+        "pool_size": 3,
+        "max_overflow": 2,
+        "pool_recycle": 240,
+        "pool_timeout": 10,
+        "pool_use_lifo": True,
+    })
 
 engine = create_engine(DATABASE_URL, future=True, **engine_kwargs)
 metadata = MetaData()
@@ -224,6 +232,29 @@ obligations = Table(
 )
 
 
+_READ_CACHE: dict[tuple[str, int], tuple[float, Any]] = {}
+_READ_CACHE_TTL = 30.0
+
+def _cache_get(domain: str, user_id: int):
+    key = (domain, int(user_id))
+    item = _READ_CACHE.get(key)
+    if not item:
+        return None
+    created, value = item
+    if time.monotonic() - created > _READ_CACHE_TTL:
+        _READ_CACHE.pop(key, None)
+        return None
+    return copy.deepcopy(value)
+
+def _cache_set(domain: str, user_id: int, value):
+    _READ_CACHE[(domain, int(user_id))] = (time.monotonic(), copy.deepcopy(value))
+    return copy.deepcopy(value)
+
+def _cache_invalidate(domain: str, user_id: int) -> None:
+    _READ_CACHE.pop((domain, int(user_id)), None)
+
+
+
 @lru_cache(maxsize=1)
 def init_db() -> None:
     try:
@@ -267,9 +298,12 @@ def authenticate(email: str, password: str) -> dict[str, Any] | None:
 
 
 def get_profile(user_id: int) -> dict[str, Any]:
+    cached = _cache_get("profile", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         row = conn.execute(select(users.c.name, users.c.email, profiles).join(profiles, profiles.c.user_id == users.c.id).where(users.c.id == user_id)).mappings().first()
-    return dict(row) if row else {}
+    return _cache_set("profile", user_id, dict(row) if row else {})
 
 
 def save_profile(user_id: int, **data: Any) -> None:
@@ -281,22 +315,28 @@ def save_profile(user_id: int, **data: Any) -> None:
             conn.execute(update(profiles).where(profiles.c.user_id == user_id).values(**payload))
         else:
             conn.execute(insert(profiles).values(user_id=user_id, **payload))
+    _cache_invalidate("profile", user_id)
 
 
 def add_transaction(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(transactions).values(user_id=user_id, **data))
+    _cache_invalidate("transactions", user_id)
 
 
 def list_transactions(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("transactions", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(transactions).where(transactions.c.user_id == user_id).order_by(transactions.c.tx_date.desc(), transactions.c.id.desc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("transactions", user_id, [dict(r) for r in rows])
 
 
 def delete_transaction(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id))
+    _cache_invalidate("transactions", user_id)
 
 
 def link_transaction_document(user_id: int, item_id: int, document_number: str, counterparty: str = "") -> None:
@@ -305,6 +345,7 @@ def link_transaction_document(user_id: int, item_id: int, document_number: str, 
         payload["counterparty"] = counterparty.strip()
     with engine.begin() as conn:
         conn.execute(update(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id).values(**payload))
+    _cache_invalidate("transactions", user_id)
 
 
 def upsert_das(user_id: int, competence: str, due_date, amount: float, status: str, payment_date, notes: str) -> None:
@@ -315,23 +356,31 @@ def upsert_das(user_id: int, competence: str, due_date, amount: float, status: s
             conn.execute(update(das_items).where(das_items.c.id == row[0]).values(**payload))
         else:
             conn.execute(insert(das_items).values(user_id=user_id, competence=competence, **payload))
+    _cache_invalidate("das", user_id)
 
 
 def list_das(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("das", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(das_items).where(das_items.c.user_id == user_id).order_by(das_items.c.competence.desc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("das", user_id, [dict(r) for r in rows])
 
 
 def save_document(user_id: int, filename: str, mime_type: str, content: bytes, category: str, reference_month: str = "") -> None:
     with engine.begin() as conn:
         conn.execute(insert(documents).values(user_id=user_id, filename=filename, mime_type=mime_type, content=content, category=category, reference_month=reference_month))
+    _cache_invalidate("documents", user_id)
 
 
 def list_documents(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("documents", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(documents.c.id, documents.c.filename, documents.c.mime_type, documents.c.category, documents.c.reference_month, documents.c.created_at).where(documents.c.user_id == user_id).order_by(documents.c.id.desc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("documents", user_id, [dict(r) for r in rows])
 
 
 def get_document(user_id: int, item_id: int) -> dict[str, Any] | None:
@@ -343,72 +392,94 @@ def get_document(user_id: int, item_id: int) -> dict[str, Any] | None:
 def delete_document(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(documents).where(documents.c.user_id == user_id, documents.c.id == item_id))
+    _cache_invalidate("documents", user_id)
 
 
 def add_invoice(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(invoices).values(user_id=user_id, **data))
+    _cache_invalidate("invoices", user_id)
 
 
 def list_invoices(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("invoices", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(invoices).where(invoices.c.user_id == user_id).order_by(invoices.c.issue_date.desc(), invoices.c.id.desc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("invoices", user_id, [dict(r) for r in rows])
 
 
 def delete_invoice(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(invoices).where(invoices.c.user_id == user_id, invoices.c.id == item_id))
+    _cache_invalidate("invoices", user_id)
 
 
 def add_contact(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(contacts).values(user_id=user_id, **data))
+    _cache_invalidate("contacts", user_id)
 
 
 def list_contacts(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("contacts", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(contacts).where(contacts.c.user_id == user_id).order_by(contacts.c.name.asc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("contacts", user_id, [dict(r) for r in rows])
 
 
 def delete_contact(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(contacts).where(contacts.c.user_id == user_id, contacts.c.id == item_id))
+    _cache_invalidate("contacts", user_id)
 
 
 def add_employee(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(employees).values(user_id=user_id, **data))
+    _cache_invalidate("employees", user_id)
 
 
 def list_employees(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("employees", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(employees).where(employees.c.user_id == user_id).order_by(employees.c.name.asc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("employees", user_id, [dict(r) for r in rows])
 
 
 def delete_employee(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(employees).where(employees.c.user_id == user_id, employees.c.id == item_id))
+    _cache_invalidate("employees", user_id)
 
 
 def add_obligation(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(obligations).values(user_id=user_id, **data))
+    _cache_invalidate("obligations", user_id)
 
 
 def list_obligations(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("obligations", user_id)
+    if cached is not None:
+        return cached
     with engine.connect() as conn:
         rows = conn.execute(select(obligations).where(obligations.c.user_id == user_id).order_by(obligations.c.due_date.asc())).mappings().all()
-    return [dict(r) for r in rows]
+    return _cache_set("obligations", user_id, [dict(r) for r in rows])
 
 
 def update_obligation_status(user_id: int, item_id: int, status: str) -> None:
     with engine.begin() as conn:
         conn.execute(update(obligations).where(obligations.c.user_id == user_id, obligations.c.id == item_id).values(status=status))
+    _cache_invalidate("obligations", user_id)
 
 
 def delete_obligation(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(obligations).where(obligations.c.user_id == user_id, obligations.c.id == item_id))
+    _cache_invalidate("obligations", user_id)
