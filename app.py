@@ -170,32 +170,31 @@ if page not in all_pages:
     st.session_state["_current_page"] = page
 
 with st.sidebar:
-    st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Gestão contábil para MEI</div></div>', unsafe_allow_html=True)
-    st.radio("Aparência", ["Claro", "Escuro"], horizontal=True, key="ui_theme")
-    st.markdown('<div class="rz-sidebar-section">Navegação</div>', unsafe_allow_html=True)
-
-    if page == "Dashboard":
-        st.markdown('<div class="rz-current-page">⌂  Início</div>', unsafe_allow_html=True)
-    elif st.button("⌂  Início", key="nav_home", use_container_width=True):
-        st.session_state["_navigate_to"] = "Dashboard"; st.rerun()
-
-    sidebar_groups = {
-        "Financeiro": NAV_GROUPS["Financeiro"],
-        "Fiscal MEI": NAV_GROUPS["Fiscal MEI"],
-        "Gestão": NAV_GROUPS["Gestão"],
-        "Relatórios": NAV_GROUPS["Relatórios"],
-        "Configurações": NAV_GROUPS["Configurações"],
+    st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Contabilidade simples para MEI</div></div>', unsafe_allow_html=True)
+    st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
+    st.markdown('<div class="rz-nav-label">Menu</div>', unsafe_allow_html=True)
+    groups = list(NAV_GROUPS.keys())
+    if st.session_state.get("nav_group") not in groups:
+        st.session_state["nav_group"] = "Visão Geral"
+    group_icons = {
+        "Visão Geral":"⌂", "Financeiro":"◫", "Fiscal MEI":"▣",
+        "Gestão":"◇", "Relatórios":"▤", "Configurações":"⚙"
     }
-    icons = {"Financeiro":"▰", "Fiscal MEI":"▣", "Gestão":"◇", "Relatórios":"▤", "Configurações":"⚙"}
-    current_group = group_for_page(page)
-    for group, pages in sidebar_groups.items():
-        with st.expander(f"{icons[group]}  {group}", expanded=(current_group == group)):
-            for nav_page in pages:
-                if nav_page == page:
-                    st.markdown(f'<div class="rz-current-page">{nav_page}</div>', unsafe_allow_html=True)
-                elif st.button(nav_page, key=f"nav_{group}_{nav_page}", use_container_width=True):
-                    st.session_state["_navigate_to"] = nav_page; st.rerun()
-    st.markdown('<div class="rz-dev">Desenvolvimento • acesso direto</div>', unsafe_allow_html=True)
+    selected_group = st.radio(
+        "Área", groups, key="nav_group", label_visibility="collapsed",
+        format_func=lambda g: f"{group_icons.get(g, '•')}  {g}"
+    )
+    group_pages = NAV_GROUPS[selected_group]
+    if len(group_pages) == 1:
+        page = group_pages[0]
+        st.session_state[f"nav_page_{selected_group}"] = page
+    else:
+        st.markdown(f'<div class="rz-nav-label">{selected_group}</div>', unsafe_allow_html=True)
+        page_key = f"nav_page_{selected_group}"
+        if st.session_state.get(page_key) not in group_pages:
+            st.session_state[page_key] = group_pages[0]
+        page = st.radio("Página", group_pages, key=page_key, label_visibility="collapsed")
+    st.markdown('<div class="rz-dev">Ambiente de desenvolvimento • acesso direto</div>', unsafe_allow_html=True)
 
 opening = opening_date_from(profile)
 limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))
@@ -207,7 +206,7 @@ limit_pct = (year_revenue/limit*100) if limit else 0.0
 if page == "Dashboard":
     business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
     cnpj_label = str(profile.get("cnpj") or "").strip() or None
-    page_header("Início", "O essencial do seu MEI, sem excesso de informação.")
+    page_header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
     business_card(business_label, CURRENT_YEAR, cnpj_label)
 
     today = date.today()
@@ -216,37 +215,90 @@ if page == "Dashboard":
     month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
     month_result = month_in - month_out
 
-    section("Seu mês")
+    section("Resumo financeiro", "Valores do mês atual e faturamento acumulado no ano.")
     k1,k2,k3,k4 = st.columns(4)
-    k1.metric("Entradas", brl(month_in))
-    k2.metric("Saídas", brl(month_out))
-    k3.metric("Resultado", brl(month_result))
-    k4.metric("Limite MEI usado", f"{limit_pct:.1f}%")
+    k1.metric("Entradas no mês", brl(month_in))
+    k2.metric("Saídas no mês", brl(month_out))
+    k3.metric("Resultado do mês", brl(month_result))
+    k4.metric("Faturamento no ano", brl(year_revenue))
 
+    action_col, quick_col = st.columns([1.72, 1], gap="large")
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
-    left, right = st.columns([1.65, 1], gap="large")
-    with left:
-        section("Próximas ações", "O que merece atenção primeiro.")
-        for idx, item in enumerate(priorities[:2]):
-            row, btn = st.columns([4.5,1.2])
+    with action_col:
+        section("Centro de ação", "Pendências priorizadas pelo Razync Pro.")
+        for idx, item in enumerate(priorities[:3]):
+            row, btn = st.columns([4.8,1.15])
             with row:
                 level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
                 alert_card(level, item["title"], item["detail"])
             with btn:
-                if item["page"] != "Dashboard" and st.button("Resolver", key=f"home_priority_{idx}", use_container_width=True):
-                    st.session_state["_navigate_to"] = item["page"]; st.rerun()
-    with right:
-        section("Ações rápidas")
-        if st.button("＋ Nova movimentação", key="home_tx", use_container_width=True):
+                if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
+    with quick_col:
+        section("Acesso rápido", "As ações mais usadas no dia a dia.")
+        if st.button("＋ Nova movimentação", key="dash_new_tx", use_container_width=True):
             st.session_state["_navigate_to"] = "Movimentações"; st.rerun()
-        if st.button("↥ Importar extrato", key="home_import", use_container_width=True):
+        if st.button("↥ Importar extrato", key="dash_import", use_container_width=True):
             st.session_state["_navigate_to"] = "Importar Extrato"; st.rerun()
-        if st.button("▣ Central Fiscal", key="home_fiscal", use_container_width=True):
+        if st.button("▣ Impostos e DAS", key="dash_fiscal", use_container_width=True):
             st.session_state["_navigate_to"] = "Central Fiscal"; st.rerun()
+        if st.button("✓ Obrigações", key="dash_oblig", use_container_width=True):
+            st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
 
-    overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
-    remaining = max(limit - year_revenue, 0)
-    st.caption(f"Faturamento no ano: {brl(year_revenue)}  •  Limite restante: {brl(remaining)}  •  DAS em atraso: {overdue_das}")
+    chart_col, status_col = st.columns([1.65,1], gap="large")
+    with chart_col:
+        section("Evolução do faturamento", "Receitas registradas mês a mês no ano atual.")
+        chart = pd.DataFrame(monthly_rows(transactions, CURRENT_YEAR))
+        fig = px.area(chart, x="month_name", y="total", markers=True)
+        apply_plot_theme(fig, UI_THEME, height=320)
+        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(37,99,235,.10)")
+        fig.update_xaxes(title="", showgrid=False)
+        fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    with status_col:
+        section("Situação do MEI", "Limite, DAS e nível de organização.")
+        health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
+        s1,s2 = st.columns(2)
+        s1.metric("Limite usado", f"{limit_pct:.1f}%")
+        overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
+        s2.metric("DAS atrasado", overdue_das)
+        st.caption(f"Limite monitorado: {brl(limit)} • restante: {brl(max(limit-year_revenue,0))}")
+        st.progress(min(max(limit_pct/100, 0), 1.0))
+        st.caption(f"Índice de organização: {health_score}/100")
+        st.progress(health_score/100)
+        if health_notes:
+            for note in health_notes[:2]: st.caption(f"• {note}")
+
+    section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
+    if transactions.empty:
+        st.info("Ainda não há movimentações. Use “Nova movimentação” ou importe um extrato para começar.")
+    else:
+        recent = transactions.sort_values("tx_date", ascending=False).head(8)
+        st.dataframe(
+            recent[["tx_date","tx_type","description","counterparty","value"]],
+            use_container_width=True, hide_index=True,
+            column_config={
+                "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
+                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+            },
+        )
+
+    with st.expander("Configuração inicial do MEI", expanded=not bool(profile.get("cnpj"))):
+        checklist = [
+            ("CNPJ cadastrado", bool(profile.get("cnpj"))),
+            ("Atividade principal informada", bool(profile.get("main_activity"))),
+            ("Data de abertura cadastrada", bool(profile.get("opening_date"))),
+            ("Primeira movimentação registrada", not transactions.empty),
+            ("Calendário do DAS criado", bool(das_rows)),
+            ("Documento armazenado", bool(docs)),
+        ]
+        done_count = sum(1 for _, done in checklist if done)
+        st.caption(f"{done_count} de {len(checklist)} etapas concluídas")
+        st.progress(done_count/len(checklist))
+        for label, done in checklist:
+            st.write(("✓ " if done else "○ ") + label)
 
 elif page == "Movimentações":
     header("Movimentações","Registre receitas e despesas. Os dados alimentam automaticamente o dashboard, o Relatório Mensal e a DASN-SIMEI.")
