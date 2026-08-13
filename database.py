@@ -12,8 +12,13 @@ from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, LargeBinary,
     MetaData, String, Table, Text, create_engine, delete, insert, select, update
 )
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.engine import URL
+
+
+class DatabaseConnectionError(RuntimeError):
+    """Safe database error that never exposes credentials."""
+
 
 def _secret(name: str) -> str:
     value = os.getenv(name, "").strip()
@@ -29,12 +34,19 @@ def _secret(name: str) -> str:
 def _resolve_database_url():
     password = _secret("SUPABASE_DB_PASSWORD")
     if password:
+        host = _secret("SUPABASE_DB_HOST") or "aws-0-sa-east-1.pooler.supabase.com"
+        user = _secret("SUPABASE_DB_USER") or "postgres.etimfgenlludorrftapb"
+        port_raw = _secret("SUPABASE_DB_PORT") or "5432"
+        try:
+            port = int(port_raw)
+        except ValueError:
+            port = 5432
         return URL.create(
             drivername="postgresql+psycopg",
-            username="postgres.etimfgenlludorrftapb",
+            username=user,
             password=password,
-            host="aws-0-sa-east-1.pooler.supabase.com",
-            port=5432,
+            host=host,
+            port=port,
             database="postgres",
             query={"sslmode": "require"},
         )
@@ -50,11 +62,36 @@ def _resolve_database_url():
     fallback = Path(tempfile.gettempdir()) / "razync_pro.db"
     return f"sqlite:///{fallback.as_posix()}"
 
+
+def _diagnose_operational_error(exc: Exception) -> str:
+    raw = str(getattr(exc, "orig", exc)).lower()
+    if "password authentication failed" in raw or "authentication failed" in raw:
+        return "A senha do banco foi recusada pelo Supabase. Redefina a Database Password e atualize SUPABASE_DB_PASSWORD nos Secrets do Streamlit."
+    if "tenant or user not found" in raw or "user not found" in raw:
+        return "O usuário do Session Pooler não foi reconhecido. Confira SUPABASE_DB_USER e o Project Ref do Razync Pro."
+    if "could not translate host name" in raw or "name or service not known" in raw or "nodename nor servname" in raw:
+        return "O endereço do Session Pooler não pôde ser resolvido. Confira SUPABASE_DB_HOST no Streamlit Secrets."
+    if "timeout" in raw or "timed out" in raw:
+        return "A conexão com o Supabase expirou. O host/porta do pooler pode estar incorreto ou temporariamente indisponível."
+    if "connection refused" in raw:
+        return "O servidor recusou a conexão. Confira o host e a porta do Session Pooler."
+    if "ssl" in raw or "certificate" in raw:
+        return "Falha na conexão SSL com o Supabase. O Razync exige SSL para o banco de produção."
+    if "too many connections" in raw or "max clients" in raw:
+        return "O pool de conexões do Supabase atingiu o limite. Aguarde alguns instantes e reinicie o app."
+    if "server closed the connection" in raw or "connection reset" in raw:
+        return "O Supabase encerrou a conexão durante a abertura. Reinicie o app e tente novamente."
+    return "Não foi possível abrir a conexão com o PostgreSQL. Confira senha, host, usuário e porta do Session Pooler nos Secrets do Streamlit."
+
+
 DATABASE_URL = _resolve_database_url()
 
 engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
 if str(DATABASE_URL).startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs["connect_args"] = {"connect_timeout": 10}
+    engine_kwargs["pool_recycle"] = 300
 
 engine = create_engine(DATABASE_URL, future=True, **engine_kwargs)
 metadata = MetaData()
@@ -63,9 +100,10 @@ metadata = MetaData()
 def database_runtime_info() -> dict[str, Any]:
     is_sqlite = str(DATABASE_URL).startswith("sqlite")
     return {
-        "backend": "SQLite temporário" if is_sqlite else "PostgreSQL",
+        "backend": "SQLite temporário" if is_sqlite else "PostgreSQL / Supabase",
         "persistent": not is_sqlite,
         "production_ready": not is_sqlite,
+        "host": "local temporário" if is_sqlite else (_secret("SUPABASE_DB_HOST") or "Session Pooler Supabase"),
     }
 
 users = Table(
@@ -184,13 +222,19 @@ obligations = Table(
     Column("notes", Text, default=""),
 )
 
+
 def init_db() -> None:
-    metadata.create_all(engine)
+    try:
+        metadata.create_all(engine)
+    except OperationalError as exc:
+        raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+
 
 def _hash_password(password: str, salt: bytes | None = None) -> str:
     salt = salt or os.urandom(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 240_000)
     return f"{salt.hex()}:{digest.hex()}"
+
 
 def _verify_password(password: str, stored: str) -> bool:
     try:
@@ -199,6 +243,7 @@ def _verify_password(password: str, stored: str) -> bool:
         return hmac.compare_digest(actual, bytes.fromhex(digest_hex))
     except Exception:
         return False
+
 
 def create_user(name: str, email: str, password: str) -> tuple[bool, str]:
     try:
@@ -210,6 +255,7 @@ def create_user(name: str, email: str, password: str) -> tuple[bool, str]:
     except IntegrityError:
         return False, "Já existe uma conta com este e-mail."
 
+
 def authenticate(email: str, password: str) -> dict[str, Any] | None:
     with engine.connect() as conn:
         row = conn.execute(select(users).where(users.c.email == email.strip().lower())).mappings().first()
@@ -217,10 +263,12 @@ def authenticate(email: str, password: str) -> dict[str, Any] | None:
         return None
     return {"id": row["id"], "name": row["name"], "email": row["email"]}
 
+
 def get_profile(user_id: int) -> dict[str, Any]:
     with engine.connect() as conn:
         row = conn.execute(select(users.c.name, users.c.email, profiles).join(profiles, profiles.c.user_id == users.c.id).where(users.c.id == user_id)).mappings().first()
     return dict(row) if row else {}
+
 
 def save_profile(user_id: int, **data: Any) -> None:
     allowed = {c.name for c in profiles.c if c.name != "user_id"}
@@ -232,14 +280,17 @@ def save_profile(user_id: int, **data: Any) -> None:
         else:
             conn.execute(insert(profiles).values(user_id=user_id, **payload))
 
+
 def add_transaction(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(transactions).values(user_id=user_id, **data))
+
 
 def list_transactions(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
         rows = conn.execute(select(transactions).where(transactions.c.user_id == user_id).order_by(transactions.c.tx_date.desc(), transactions.c.id.desc())).mappings().all()
     return [dict(r) for r in rows]
+
 
 def delete_transaction(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
@@ -253,6 +304,7 @@ def link_transaction_document(user_id: int, item_id: int, document_number: str, 
     with engine.begin() as conn:
         conn.execute(update(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id).values(**payload))
 
+
 def upsert_das(user_id: int, competence: str, due_date, amount: float, status: str, payment_date, notes: str) -> None:
     with engine.begin() as conn:
         row = conn.execute(select(das_items.c.id).where(das_items.c.user_id == user_id, das_items.c.competence == competence)).first()
@@ -262,83 +314,98 @@ def upsert_das(user_id: int, competence: str, due_date, amount: float, status: s
         else:
             conn.execute(insert(das_items).values(user_id=user_id, competence=competence, **payload))
 
+
 def list_das(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
         rows = conn.execute(select(das_items).where(das_items.c.user_id == user_id).order_by(das_items.c.competence.desc())).mappings().all()
     return [dict(r) for r in rows]
 
+
 def save_document(user_id: int, filename: str, mime_type: str, content: bytes, category: str, reference_month: str = "") -> None:
     with engine.begin() as conn:
         conn.execute(insert(documents).values(user_id=user_id, filename=filename, mime_type=mime_type, content=content, category=category, reference_month=reference_month))
+
 
 def list_documents(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
         rows = conn.execute(select(documents.c.id, documents.c.filename, documents.c.mime_type, documents.c.category, documents.c.reference_month, documents.c.created_at).where(documents.c.user_id == user_id).order_by(documents.c.id.desc())).mappings().all()
     return [dict(r) for r in rows]
 
+
 def get_document(user_id: int, item_id: int) -> dict[str, Any] | None:
     with engine.connect() as conn:
         row = conn.execute(select(documents).where(documents.c.user_id == user_id, documents.c.id == item_id)).mappings().first()
     return dict(row) if row else None
 
+
 def delete_document(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(documents).where(documents.c.user_id == user_id, documents.c.id == item_id))
 
+
 def add_invoice(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(invoices).values(user_id=user_id, **data))
+
 
 def list_invoices(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
         rows = conn.execute(select(invoices).where(invoices.c.user_id == user_id).order_by(invoices.c.issue_date.desc(), invoices.c.id.desc())).mappings().all()
     return [dict(r) for r in rows]
 
+
 def delete_invoice(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(invoices).where(invoices.c.user_id == user_id, invoices.c.id == item_id))
+
 
 def add_contact(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(contacts).values(user_id=user_id, **data))
 
+
 def list_contacts(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(select(contacts).where(contacts.c.user_id == user_id).order_by(contacts.c.name)).mappings().all()
+        rows = conn.execute(select(contacts).where(contacts.c.user_id == user_id).order_by(contacts.c.name.asc())).mappings().all()
     return [dict(r) for r in rows]
+
 
 def delete_contact(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(contacts).where(contacts.c.user_id == user_id, contacts.c.id == item_id))
 
+
 def add_employee(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(employees).values(user_id=user_id, **data))
-        conn.execute(update(profiles).where(profiles.c.user_id == user_id).values(has_employee=True))
+
 
 def list_employees(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(select(employees).where(employees.c.user_id == user_id).order_by(employees.c.id.desc())).mappings().all()
+        rows = conn.execute(select(employees).where(employees.c.user_id == user_id).order_by(employees.c.name.asc())).mappings().all()
     return [dict(r) for r in rows]
+
 
 def delete_employee(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(employees).where(employees.c.user_id == user_id, employees.c.id == item_id))
-        active_count = conn.execute(select(employees.c.id).where(employees.c.user_id == user_id, employees.c.status == "Ativo")).all()
-        conn.execute(update(profiles).where(profiles.c.user_id == user_id).values(has_employee=bool(active_count)))
+
 
 def add_obligation(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(obligations).values(user_id=user_id, **data))
 
+
 def list_obligations(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(select(obligations).where(obligations.c.user_id == user_id).order_by(obligations.c.due_date)).mappings().all()
+        rows = conn.execute(select(obligations).where(obligations.c.user_id == user_id).order_by(obligations.c.due_date.asc())).mappings().all()
     return [dict(r) for r in rows]
+
 
 def update_obligation_status(user_id: int, item_id: int, status: str) -> None:
     with engine.begin() as conn:
         conn.execute(update(obligations).where(obligations.c.user_id == user_id, obligations.c.id == item_id).values(status=status))
+
 
 def delete_obligation(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
