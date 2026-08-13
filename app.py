@@ -14,6 +14,7 @@ from database import (
     init_db, list_contacts, list_das, list_documents, list_employees, list_invoices,
     list_obligations, list_transactions, save_document, save_profile,
     update_obligation_status, upsert_das, link_transaction_document,
+    DatabaseConnectionError,
 )
 from database import database_runtime_info
 from fiscal_rules import (
@@ -33,7 +34,15 @@ from ui_system import inject_design_system, page_header, section, business_card,
 CURRENT_YEAR = date.today().year
 
 st.set_page_config(page_title="Razync Pro", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
-init_db()
+try:
+    init_db()
+except DatabaseConnectionError as exc:
+    st.error("Não foi possível conectar o Razync Pro ao banco definitivo.")
+    st.warning(str(exc))
+    st.markdown("**Confira os Secrets do Streamlit:**")
+    st.code('SUPABASE_DB_PASSWORD = "sua senha"\nSUPABASE_DB_HOST = "aws-0-sa-east-1.pooler.supabase.com"\nSUPABASE_DB_USER = "postgres.etimfgenlludorrftapb"\nSUPABASE_DB_PORT = "5432"', language="toml")
+    st.caption("A senha nunca é exibida pelo diagnóstico. Depois de corrigir os Secrets, salve e faça Reboot app.")
+    st.stop()
 
 if "ui_theme" not in st.session_state:
     st.session_state["ui_theme"] = "Claro"
@@ -236,160 +245,110 @@ if page == "Dashboard":
     month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
     month_result = month_in - month_out
 
-    section("Resumo financeiro", "Valores do mês atual e faturamento acumulado no ano.")
-    k1,k2,k3,k4 = st.columns(4)
-    k1.metric("Entradas no mês", brl(month_in))
-    k2.metric("Saídas no mês", brl(month_out))
-    k3.metric("Resultado do mês", brl(month_result))
-    k4.metric("Faturamento no ano", brl(year_revenue))
+    section("Resumo do mês")
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Entradas", brl(month_in))
+    c2.metric("Saídas", brl(month_out))
+    c3.metric("Resultado", brl(month_result))
+    c4.metric("Limite do MEI", f"{limit_pct:.1f}% usado")
 
-    action_col, quick_col = st.columns([1.72, 1], gap="large")
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
+    action_col, quick_col = st.columns([1.7,1], gap="large")
     with action_col:
-        section("Centro de ação", "Pendências priorizadas pelo Razync Pro.")
-        for idx, item in enumerate(priorities[:3]):
-            row, btn = st.columns([4.8,1.15])
-            with row:
-                level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-                alert_card(level, item["title"], item["detail"])
-            with btn:
-                if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
-                    st.session_state["_navigate_to"] = item["page"]
-                    st.rerun()
+        section("Próximas ações")
+        for idx,item in enumerate(priorities[:2]):
+            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
+            alert_box(level,item["title"],item["detail"])
+            if item["page"] != "Dashboard" and st.button("Resolver agora", key=f"priority_{idx}", use_container_width=True):
+                st.session_state["_navigate_to"] = item["page"]
+                st.rerun()
     with quick_col:
-        section("Acesso rápido", "As ações mais usadas no dia a dia.")
-        if st.button("＋ Nova movimentação", key="dash_new_tx", use_container_width=True):
-            st.session_state["_navigate_to"] = "Movimentações"; st.rerun()
-        if st.button("↥ Importar extrato", key="dash_import", use_container_width=True):
-            st.session_state["_navigate_to"] = "Importar Extrato"; st.rerun()
-        if st.button("▣ Impostos e DAS", key="dash_fiscal", use_container_width=True):
-            st.session_state["_navigate_to"] = "Central Fiscal"; st.rerun()
-        if st.button("✓ Obrigações", key="dash_oblig", use_container_width=True):
-            st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
+        section("Acesso rápido")
+        if st.button("＋ Nova movimentação", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
+        if st.button("↥ Importar extrato", use_container_width=True): st.session_state["_navigate_to"]="Importar Extrato"; st.rerun()
+        if st.button("▣ Ver impostos e DAS", use_container_width=True): st.session_state["_navigate_to"]="Central Fiscal"; st.rerun()
 
-    chart_col, status_col = st.columns([1.65,1], gap="large")
-    with chart_col:
-        section("Evolução do faturamento", "Receitas registradas mês a mês no ano atual.")
-        chart = pd.DataFrame(monthly_rows(transactions, CURRENT_YEAR))
-        fig = px.area(chart, x="month_name", y="total", markers=True)
-        apply_plot_theme(fig, UI_THEME, height=320)
-        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(37,99,235,.10)")
-        fig.update_xaxes(title="", showgrid=False)
-        fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
-        themed_plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-    with status_col:
-        section("Situação do MEI", "Limite, DAS e nível de organização.")
-        health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
-        s1,s2 = st.columns(2)
-        s1.metric("Limite usado", f"{limit_pct:.1f}%")
-        overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
-        s2.metric("DAS atrasado", overdue_das)
-        st.caption(f"Limite monitorado: {brl(limit)} • restante: {brl(max(limit-year_revenue,0))}")
-        st.progress(min(max(limit_pct/100, 0), 1.0))
-        st.caption(f"Índice de organização: {health_score}/100")
-        st.progress(health_score/100)
-        if health_notes:
-            for note in health_notes[:2]: st.caption(f"• {note}")
-
-    section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
-    if transactions.empty:
-        st.info("Ainda não há movimentações. Use “Nova movimentação” ou importe um extrato para começar.")
-    else:
-        recent = transactions.sort_values("tx_date", ascending=False).head(8)
-        st.dataframe(
-            recent[["tx_date","tx_type","description","counterparty","value"]],
-            use_container_width=True, hide_index=True,
-            column_config={
-                "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
-                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-            },
-        )
-
-    with st.expander("Configuração inicial do MEI", expanded=not bool(profile.get("cnpj"))):
-        checklist = [
-            ("CNPJ cadastrado", bool(profile.get("cnpj"))),
-            ("Atividade principal informada", bool(profile.get("main_activity"))),
-            ("Data de abertura cadastrada", bool(profile.get("opening_date"))),
-            ("Primeira movimentação registrada", not transactions.empty),
-            ("Calendário do DAS criado", bool(das_rows)),
-            ("Documento armazenado", bool(docs)),
-        ]
-        done_count = sum(1 for _, done in checklist if done)
-        st.caption(f"{done_count} de {len(checklist)} etapas concluídas")
-        st.progress(done_count/len(checklist))
-        for label, done in checklist:
-            st.write(("✓ " if done else "○ ") + label)
+    st.caption("Detalhes, gráficos e históricos ficam nas áreas Financeiro, Fiscal MEI e Relatórios do menu.")
 
 elif page == "Movimentações":
-    header("Movimentações", "Registre o que entrou e saiu do negócio. Os detalhes adicionais são opcionais.")
-    section("Novo lançamento", "Comece pelas informações essenciais.")
-    with st.form("tx_form", clear_on_submit=True):
-        tx_type = st.radio("O que aconteceu?", ["Receita", "Despesa"], horizontal=True)
-        a,b = st.columns([1,1])
-        value = a.number_input("Valor", min_value=0.0, step=10.0, placeholder="0,00")
-        tx_date = b.date_input("Data", date.today())
-        desc = st.text_input("Descrição", placeholder="Ex.: pagamento de cliente, compra de material...")
-        with st.expander("Mais detalhes (opcional)"):
+    header("Movimentações","Registre o que entrou e saiu do MEI. Comece pelo essencial; os detalhes ficam opcionais.")
+    with st.container(border=True):
+        st.caption("NOVO LANÇAMENTO")
+        with st.form("tx_form", clear_on_submit=True):
+            tx_type = st.segmented_control("Tipo", ["Receita","Despesa"], default="Receita", selection_mode="single") or "Receita"
             a,b = st.columns(2)
-            category = a.selectbox("Categoria", ["Serviços","Vendas","Fornecedores","Aluguel","Transporte","Marketing","Impostos","Folha","Outras"])
-            counterparty = b.text_input("Cliente ou fornecedor")
-            a,b = st.columns(2)
-            payment_method = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
-            document_number = b.text_input("Nota ou documento")
-        if st.form_submit_button("Salvar movimentação", type="primary", use_container_width=True):
-            if not desc.strip() or value <= 0:
-                st.error("Informe uma descrição e um valor maior que zero.")
-            else:
-                add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=float(value), document_number=document_number.strip(), counterparty=counterparty.strip(), payment_method=payment_method)
-                st.rerun()
-
-    section("Histórico", "Seus lançamentos mais recentes e os dados usados nos relatórios.")
+            value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+            tx_date = b.date_input("Data", value=date.today())
+            desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente, compra de material...")
+            with st.expander("Mais detalhes (opcional)"):
+                a,b = st.columns(2)
+                category = a.selectbox("Categoria", ["Serviços","Vendas","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
+                counterparty = b.text_input("Cliente ou fornecedor")
+                a,b = st.columns(2)
+                payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
+                doc = b.text_input("Nota ou documento")
+            submitted = st.form_submit_button("Salvar movimentação", type="primary", use_container_width=True)
+            if submitted:
+                if value <= 0:
+                    st.error("Informe um valor maior que zero.")
+                elif not desc.strip():
+                    st.error("Informe uma descrição para identificar o lançamento.")
+                else:
+                    add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=value, document_number=doc.strip(), counterparty=counterparty.strip(), payment_method=payment)
+                    st.rerun()
+    section("Histórico")
     if transactions.empty:
-        empty_state("Nenhuma movimentação registrada", "Quando você salvar a primeira receita ou despesa, ela aparecerá aqui e começará a alimentar o financeiro do Razync Pro.", "↕")
+        empty_state("Nenhuma movimentação registrada", "Quando você adicionar a primeira receita ou despesa, ela aparecerá aqui e alimentará automaticamente o Dashboard e os relatórios.", "↕")
     else:
-        st.dataframe(transactions[["id","tx_date","tx_type","description","category","counterparty","value"]], use_container_width=True, hide_index=True, column_config={"tx_date":st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "value":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
-        with st.expander("Gerenciar lançamento"):
-            selected = st.selectbox("Lançamento", transactions["id"].tolist())
-            st.caption("A exclusão é definitiva e remove o lançamento dos relatórios.")
-            if st.button("Excluir lançamento", use_container_width=True):
-                delete_transaction(uid, int(selected)); st.rerun()
+        view = transactions.copy()
+        view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
+        st.dataframe(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], use_container_width=True, hide_index=True, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+        with st.expander("Excluir um lançamento"):
+            item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
+            st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
+            if st.button("Excluir lançamento selecionado", use_container_width=True): delete_transaction(uid,int(item)); st.rerun()
 
 elif page == "Importar Extrato":
-    header("Importar Extrato","Importe CSV ou Excel, confira as colunas e transforme movimentações bancárias em lançamentos do Razync Pro.")
-    st.info("A importação não altera nada até você revisar os dados e confirmar. O sistema também tenta evitar lançamentos duplicados.")
-    uploaded_stmt = st.file_uploader("Extrato bancário", type=["csv","txt","xlsx","xls"], key="bank_statement")
-    if uploaded_stmt is not None:
+    header("Importar Extrato","Envie CSV ou Excel. O Razync transforma o extrato em lançamentos para conciliação e relatórios.")
+    st.caption("Suporta CSV e XLSX. Na próxima etapa você escolhe quais colunas representam data, descrição e valor.")
+    upload = st.file_uploader("Arquivo do extrato", type=["csv","xlsx","xls"], key="statement_file")
+    if upload:
         try:
-            raw_stmt = read_statement(uploaded_stmt)
-            st.caption(f"{len(raw_stmt)} linha(s) lidas • {len(raw_stmt.columns)} coluna(s)")
-            st.dataframe(raw_stmt.head(20), use_container_width=True, hide_index=True)
-            cols = list(raw_stmt.columns)
-            a,b,c = st.columns(3)
-            date_col = a.selectbox("Coluna de data", cols)
-            desc_col = b.selectbox("Coluna de descrição/histórico", cols, index=min(1,len(cols)-1))
-            value_col = c.selectbox("Coluna de valor", cols, index=min(2,len(cols)-1))
-            direction = st.radio("Como interpretar o valor", ["Sinal do valor","Tudo como receita","Tudo como despesa"], horizontal=True)
-            prepared = prepare_statement(raw_stmt, date_col, desc_col, value_col, direction)
-            if prepared.empty:
-                st.warning("Nenhuma movimentação válida foi identificada com esse mapeamento.")
+            raw = read_statement(upload, upload.name)
+            if raw.empty:
+                st.warning("O arquivo não possui linhas para importar.")
             else:
-                prepared["Duplicado provável"] = [is_probable_duplicate(transactions, r["Data"], r["Tipo"], r["Descrição"], r["Valor"]) for _,r in prepared.iterrows()]
-                prepared["Categoria sugerida"] = [suggest_category(r["Descrição"],r["Tipo"]) for _,r in prepared.iterrows()]
-                st.subheader("Prévia da importação")
-                st.dataframe(prepared, use_container_width=True, hide_index=True, column_config={"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
-                only_new = prepared[~prepared["Duplicado provável"]].copy()
-                st.caption(f"{len(only_new)} lançamento(s) novo(s) • {int(prepared['Duplicado provável'].sum())} duplicado(s) provável(is) ignorado(s)")
-                if st.button("Importar lançamentos novos", type="primary", use_container_width=True, disabled=only_new.empty):
-                    imported = 0
-                    for _,r in only_new.iterrows():
-                        add_transaction(uid, tx_date=r["Data"], tx_type=r["Tipo"], description=r["Descrição"] or "Movimentação bancária", category=r["Categoria sugerida"], value=float(r["Valor"]), document_number="", counterparty="", payment_method="Conta bancária")
-                        imported += 1
-                    st.success(f"{imported} lançamento(s) importado(s).")
-                    st.session_state["_navigate_to"]="Movimentações"
-                    st.rerun()
+                st.subheader("1. Confira as colunas")
+                st.dataframe(raw.head(8), use_container_width=True, hide_index=True)
+                cols = list(raw.columns)
+                a,b,c = st.columns(3)
+                date_col = a.selectbox("Coluna de data", cols, index=0)
+                desc_col = b.selectbox("Coluna de descrição", cols, index=min(1,len(cols)-1))
+                value_col = c.selectbox("Coluna de valor", cols, index=min(2,len(cols)-1))
+                st.subheader("2. Prepare a importação")
+                prepared = prepare_statement(raw, date_col, desc_col, value_col)
+                prepared["Categoria sugerida"] = prepared["description"].apply(suggest_category)
+                if prepared.empty:
+                    st.warning("Nenhuma linha válida foi encontrada com esse mapeamento.")
+                else:
+                    existing_keys = set()
+                    if not transactions.empty:
+                        existing_keys = set((r.tx_date.date() if hasattr(r.tx_date,"date") else r.tx_date, r.description, float(r.value), r.tx_type) for r in transactions.itertuples())
+                    prepared["Duplicado"] = [is_probable_duplicate(existing_keys,row.tx_date,row.description,row.value,row.tx_type) for row in prepared.itertuples()]
+                    st.dataframe(prepared, use_container_width=True, hide_index=True, column_config={"value":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+                    only_new = st.checkbox("Ignorar possíveis duplicados", value=True)
+                    rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
+                    st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
+                    if st.button("Confirmar importação", type="primary", use_container_width=True):
+                        count=0
+                        for _,r in rows_to_import.iterrows():
+                            add_transaction(uid, tx_date=r["tx_date"], tx_type=r["tx_type"], description=r["description"], category=r["Categoria sugerida"], value=float(r["value"]), document_number="", counterparty="", payment_method="Banco")
+                            count+=1
+                        st.success(f"{count} lançamento(s) importados.")
+                        st.session_state["_navigate_to"] = "Movimentações"
+                        st.rerun()
         except Exception as exc:
-            st.error(f"Não foi possível ler esse extrato: {exc}")
+            st.error(f"Não foi possível ler o arquivo: {exc}")
 
 elif page == "Conciliação":
     header("Conciliação Inteligente", "O Razync compara notas e receitas usando número do documento, valor, data e cliente para sugerir correspondências.")
@@ -449,340 +408,273 @@ elif page == "Conciliação":
         st.rerun()
 
 elif page == "Fluxo de Caixa":
-    header("Fluxo de Caixa","Acompanhe entradas, saídas, resultado mensal e evolução do saldo do negócio.")
-    years = {CURRENT_YEAR}
-    if not transactions.empty:
-        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
-    flow_year = st.selectbox("Ano do fluxo de caixa", sorted(years, reverse=True))
-    flow = cashflow_monthly(transactions, int(flow_year))
+    header("Fluxo de Caixa","Veja entradas, saídas, resultado e saldo acumulado por mês.")
+    year = st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3)
+    cf = cashflow_monthly(transactions,year)
     c1,c2,c3 = st.columns(3)
-    c1.metric("Entradas", brl(float(flow["Entradas"].sum())))
-    c2.metric("Saídas", brl(float(flow["Saídas"].sum())))
-    c3.metric("Resultado", brl(float(flow["Resultado"].sum())))
-    chart = flow.melt(id_vars=["Mês"], value_vars=["Entradas","Saídas"], var_name="Tipo", value_name="Valor")
-    fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
-    fig.update_layout(template=PLOT_TEMPLATE,height=350, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Valor")
-    themed_plotly_chart(fig, use_container_width=True)
-    fig2 = px.line(flow, x="Mês", y="Saldo acumulado", markers=True)
-    fig2.update_layout(template=PLOT_TEMPLATE,height=300, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Saldo acumulado")
-    themed_plotly_chart(fig2, use_container_width=True)
-    st.dataframe(flow, use_container_width=True, hide_index=True, column_config={c:st.column_config.NumberColumn(c, format="R$ %.2f") for c in ["Entradas","Saídas","Resultado","Saldo acumulado"]})
+    c1.metric("Entradas",brl(float(cf["Entradas"].sum()))); c2.metric("Saídas",brl(float(cf["Saídas"].sum()))); c3.metric("Resultado",brl(float(cf["Resultado"].sum())))
+    fig = px.bar(cf,x="Mês",y=["Entradas","Saídas"],barmode="group",template=PLOT_TEMPLATE)
+    themed_plotly_chart(fig,use_container_width=True)
+    st.dataframe(cf,use_container_width=True,hide_index=True,column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
 
 elif page == "Análise Financeira":
-    header("Análise Financeira","Entenda resultado, margem e principais gastos do seu MEI.")
-    years = {CURRENT_YEAR}
-    if not transactions.empty:
-        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
-    analysis_year = st.selectbox("Ano da análise", sorted(years, reverse=True), key="analysis_year")
-    analysis = financial_analysis(transactions, int(analysis_year))
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Receitas", brl(analysis["revenue"]))
-    c2.metric("Despesas", brl(analysis["expenses"]))
-    c3.metric("Resultado", brl(analysis["result"]))
-    c4.metric("Margem estimada", f"{analysis['margin']:.1f}%")
-    left,right = st.columns([1.4,1])
-    with left:
-        monthly = analysis["monthly"]
-        if not monthly.empty:
-            chart = monthly.melt(id_vars=["Mês"], value_vars=["Receitas","Despesas"], var_name="Tipo", value_name="Valor")
-            fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
-            fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0), xaxis_title="Mês", yaxis_title="Valor")
-            themed_plotly_chart(fig, use_container_width=True)
-    with right:
-        exp = analysis["expense_categories"]
-        if exp.empty:
-            empty_state("Sem despesas no período", "Quando houver despesas registradas, a distribuição por categoria aparecerá aqui.", "◫")
-        else:
-            fig = px.pie(exp, names="Categoria", values="Valor", hole=.45)
-            fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0))
-            themed_plotly_chart(fig, use_container_width=True)
-    st.subheader("Verificações de consistência")
-    checks = pd.DataFrame(consistency_checks(transactions, invoices, das_rows))
-    st.dataframe(checks, use_container_width=True, hide_index=True)
+    header("Análise Financeira","Veja evolução, rentabilidade e pontos que merecem revisão antes de tomar decisões.")
+    analysis_year = st.selectbox("Ano da análise", list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)), index=3, key="analysis_year")
+    analysis = financial_analysis(transactions, analysis_year)
+    ac1,ac2,ac3,ac4 = st.columns(4)
+    ac1.metric("Receitas",brl(analysis["revenue"])); ac2.metric("Despesas",brl(analysis["expense"])); ac3.metric("Resultado",brl(analysis["result"])); ac4.metric("Margem",f"{analysis['margin']:.1f}%")
+    monthly = analysis["monthly"]
+    if not monthly.empty:
+        fig = px.line(monthly,x="Mês",y=["Receitas","Despesas","Resultado"],markers=True,template=PLOT_TEMPLATE)
+        themed_plotly_chart(fig,use_container_width=True)
+        st.dataframe(monthly,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
+    st.subheader("Despesas por categoria")
+    bycat = analysis["expense_by_category"]
+    if bycat.empty: st.info("Sem despesas registradas neste ano.")
+    else:
+        fig2=px.bar(bycat,x="Categoria",y="Valor",template=PLOT_TEMPLATE); themed_plotly_chart(fig2,use_container_width=True)
+    checks = consistency_checks(transactions,invoices,das_rows)
+    st.subheader("Revisões recomendadas")
+    if checks:
+        for item in checks: st.warning(item)
+    else: st.success("Nenhuma inconsistência relevante encontrada.")
+    analysis_pdf = financial_summary_pdf(profile, analysis_year, analysis, checks)
+    st.download_button("Baixar análise financeira em PDF",analysis_pdf,file_name=f"analise_financeira_{analysis_year}.pdf",mime="application/pdf",use_container_width=True)
 
 elif page == "Central Fiscal":
-    header("Central Fiscal MEI","Uma visão única do limite, DAS, relatório mensal, DASN-SIMEI e obrigações.")
-    overdue_das = [d for d in das_rows if das_status(d.get("status","Pendente"), d.get("due_date")) == "Atrasado"]
-    pending_das = [d for d in das_rows if das_status(d.get("status","Pendente"), d.get("due_date")) == "Pendente"]
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Faturamento no ano", brl(year_revenue))
-    c2.metric("Limite restante", brl(max(limit-year_revenue,0)))
-    c3.metric("DAS em atraso", len(overdue_das))
-    c4.metric("DAS pendentes", len(pending_das))
-    st.progress(min(limit_pct/100, 1.0))
-    st.caption(f"{limit_pct:.1f}% do limite monitorado utilizado.")
-
-    st.subheader("Próximas obrigações")
-    auto = pd.DataFrame(automatic_obligations(CURRENT_YEAR, opening))
-    if not auto.empty:
-        future = auto[auto["Vencimento"] >= date.today()].sort_values("Vencimento").head(6)
-        st.dataframe(future, use_container_width=True, hide_index=True, column_config={"Vencimento":st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY")})
-
-    st.subheader("Acessos fiscais")
-    a,b,c,d = st.columns(4)
-    if a.button("DAS", use_container_width=True): st.session_state["_navigate_to"]="DAS"; st.rerun()
-    if b.button("Relatório Mensal", use_container_width=True): st.session_state["_navigate_to"]="Relatório Mensal"; st.rerun()
-    if c.button("DASN-SIMEI", use_container_width=True): st.session_state["_navigate_to"]="DASN-SIMEI"; st.rerun()
-    if d.button("Obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
-    st.info("O Razync Pro organiza e confere os dados. Envios e pagamentos oficiais continuam nos serviços governamentais correspondentes.")
+    header("Central Fiscal MEI","Acompanhe limite, DAS, relatório mensal e DASN em um único lugar.")
+    fiscal_year = st.selectbox("Ano fiscal",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="fiscal_year")
+    f_limit = annual_limit_for(opening,fiscal_year,profile.get("annual_limit"))
+    f_tx = transactions[(transactions["tx_date"].dt.year==fiscal_year)] if not transactions.empty else transactions
+    f_rev = float(f_tx[f_tx["tx_type"]=="Receita"]["value"].sum()) if not f_tx.empty else 0.0
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric("Faturamento",brl(f_rev)); c2.metric("Limite monitorado",brl(f_limit)); c3.metric("Disponível",brl(max(f_limit-f_rev,0))); c4.metric("Uso",f"{(f_rev/f_limit*100 if f_limit else 0):.1f}%")
+    overdue_das=[d for d in das_rows if das_status(d.get("status","Pendente"),d.get("due_date"))=="Atrasado"]
+    pending_das=[d for d in das_rows if das_status(d.get("status","Pendente"),d.get("due_date"))=="Pendente"]
+    if overdue_das: st.error(f"{len(overdue_das)} DAS registrado(s) como atrasado(s).")
+    elif pending_das: st.info(f"{len(pending_das)} DAS pendente(s) no controle.")
+    else: st.success("Nenhum DAS pendente identificado no controle.")
+    months=monthly_rows(transactions,fiscal_year)
+    year_total=sum(r["total"] for r in months)
+    c1,c2,c3=st.columns(3)
+    c1.metric("Relatório mensal",f"{sum(1 for r in months if r['total']>0)}/12 meses com movimento")
+    c2.metric("Base DASN",brl(year_total))
+    c3.metric("Documentos",len(docs))
+    q1,q2,q3,q4=st.columns(4)
+    if q1.button("Abrir DAS",use_container_width=True): st.session_state["_navigate_to"]="DAS"; st.rerun()
+    if q2.button("Relatório Mensal",use_container_width=True): st.session_state["_navigate_to"]="Relatório Mensal"; st.rerun()
+    if q3.button("Preparar DASN",use_container_width=True): st.session_state["_navigate_to"]="DASN-SIMEI"; st.rerun()
+    if q4.button("Ver Obrigações",use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
 
 elif page == "Fechamento Mensal":
-    header("Fechamento Mensal","Revise receitas, despesas, notas, documentos e DAS antes de considerar o mês organizado.")
-    years = {CURRENT_YEAR}
-    if not transactions.empty:
-        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
-    a,b = st.columns(2)
-    close_year = a.selectbox("Ano", sorted(years, reverse=True), key="close_year")
-    close_month = b.selectbox("Mês", list(range(1,13)), index=max(date.today().month-1,0), key="close_month")
-    closing = monthly_closing(transactions, invoices, docs, das_rows, int(close_year), int(close_month))
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Receitas", brl(closing["revenue"]))
-    c2.metric("Despesas", brl(closing["expenses"]))
-    c3.metric("Resultado", brl(closing["result"]))
-    c4.metric("Organização do mês", f"{closing['score']}%")
+    header("Fechamento Mensal","Confira documentos, notas, movimentações e DAS antes de considerar o mês organizado.")
+    c1,c2=st.columns(2)
+    close_year=c1.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="close_year")
+    close_month=c2.selectbox("Mês",list(range(1,13)),index=date.today().month-1,format_func=lambda m:calendar.month_name[m],key="close_month")
+    closing=monthly_closing(transactions,invoices,docs,das_rows,close_year,close_month)
+    a,b,c,d=st.columns(4)
+    a.metric("Receitas",brl(closing["revenue"])); b.metric("Despesas",brl(closing["expense"])); c.metric("Resultado",brl(closing["result"])); d.metric("Organização",f"{closing['score']}%")
     st.progress(closing["score"]/100)
-    checklist = pd.DataFrame(closing["checklist"])
-    checklist["Status"] = checklist["OK"].map({True:"OK", False:"Pendente"})
-    st.dataframe(checklist[["Item","Status","Detalhe"]], use_container_width=True, hide_index=True)
-    if abs(closing["invoice_difference"]) > 0.01:
-        st.warning(f"A receita registrada difere do total de notas emitidas no mês em {brl(abs(closing['invoice_difference']))}. Revise antes do fechamento.")
-    if closing["das_status"] == "Atrasado":
-        st.error("O DAS desta competência está em atraso.")
-    elif closing["das_status"] == "Não criado":
-        st.warning("O calendário do DAS ainda não possui esta competência.")
-    else:
-        st.info(f"Situação do DAS: {closing['das_status']}.")
-    month_csv = closing["transactions"].to_csv(index=False).encode("utf-8-sig")
-    st.download_button("Baixar movimentações do mês", month_csv, f"fechamento_{close_year}_{int(close_month):02d}.csv", "text/csv", use_container_width=True)
+    for item in closing["checks"]:
+        if item["ok"]: st.success(item["text"])
+        else: st.warning(item["text"])
+    closing_pdf = closing_summary_pdf(profile, close_year, close_month, closing)
+    st.download_button("Baixar fechamento em PDF",closing_pdf,file_name=f"fechamento_{close_year}_{close_month:02d}.pdf",mime="application/pdf",use_container_width=True)
 
 elif page == "Relatório Mensal":
-    header("Relatório Mensal de Receitas Brutas","Consolidação automática com receitas documentadas, não documentadas, serviços e vendas.")
-    years = {CURRENT_YEAR}; years.update(int(y) for y in transactions["tx_date"].dt.year.unique()) if not transactions.empty else None
-    selected_year = st.selectbox("Ano",sorted(years,reverse=True))
-    rows = monthly_rows(transactions,int(selected_year)); rdf = pd.DataFrame(rows)
-    show = rdf.rename(columns={"month_name":"Mês","with_doc":"Com documento","without_doc":"Sem documento","services":"Serviços","sales":"Vendas","total":"Receita bruta"})
-    st.dataframe(show[["Mês","Com documento","Sem documento","Serviços","Vendas","Receita bruta"]],use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(c,format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas","Receita bruta"]})
-    c1,c2,c3 = st.columns(3); c1.metric("Receita no ano",brl(float(rdf["total"].sum()))); c2.metric("Com documento",brl(float(rdf["with_doc"].sum()))); c3.metric("Sem documento",brl(float(rdf["without_doc"].sum())))
-    pdf = monthly_report_pdf(profile,int(selected_year),rows); csv = show.to_csv(index=False).encode("utf-8-sig")
-    a,b = st.columns(2); a.download_button("Baixar relatório em PDF",pdf,f"relatorio_mensal_{selected_year}.pdf","application/pdf",use_container_width=True); b.download_button("Baixar relatório em CSV",csv,f"relatorio_mensal_{selected_year}.csv","text/csv",use_container_width=True)
+    header("Relatório Mensal de Receitas Brutas","Gere o relatório mensal a partir das receitas cadastradas.")
+    year=st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3,key="rmyear")
+    rows=monthly_rows(transactions,year)
+    dfm=pd.DataFrame([{ "Mês":r["month_name"],"Com documento":r["with_doc"],"Sem documento":r["without_doc"],"Serviços":r["services"],"Vendas/Comércio":r["sales"],"Total":r["total"]} for r in rows])
+    st.dataframe(dfm,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]})
+    st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
+    month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:calendar.month_name[m],key="pdfmonth")
+    r=rows[month-1]
+    pdf=monthly_report_pdf(profile,month,year,r["with_doc"],r["without_doc"],r["services"],r["sales"])
+    st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
 
 elif page == "Notas Fiscais":
-    header("Notas Fiscais", "Registre as emissões e acompanhe se cada nota já está refletida no faturamento.")
-    section("Registrar nota", "Preencha primeiro os dados principais da emissão.")
-    with st.form("invoice_form", clear_on_submit=True):
-        a,b = st.columns(2)
-        customer = a.text_input("Cliente", placeholder="Nome ou razão social")
-        amount = b.number_input("Valor", min_value=0.0, step=10.0)
-        a,b,c = st.columns(3)
-        issue_date = a.date_input("Data de emissão", date.today())
-        invoice_type = b.selectbox("Tipo", ["Serviço","Mercadoria"])
-        number = c.text_input("Número da nota")
-        with st.expander("Mais detalhes (opcional)"):
-            customer_document = st.text_input("CPF/CNPJ do cliente")
-            description = st.text_input("Descrição da nota")
-            status = st.selectbox("Situação", ["Emitida","Cancelada","Substituída"])
-        if st.form_submit_button("Registrar nota", type="primary", use_container_width=True):
-            if amount <= 0 or not customer.strip():
-                st.error("Informe o cliente e um valor maior que zero.")
-            else:
-                add_invoice(uid, issue_date=issue_date, invoice_type=invoice_type, number=number.strip(), customer=customer.strip(), customer_document=customer_document.strip(), description=description.strip(), amount=float(amount), status=status)
-                st.rerun()
-    st.link_button("Abrir Emissor Nacional de NFS-e", "https://www.nfse.gov.br/EmissorNacional", use_container_width=True)
-    section("Notas registradas")
+    header("Notas Fiscais","Controle as notas emitidas e acompanhe se cada uma já foi conciliada com uma receita.")
+    with st.container(border=True):
+        st.caption("NOVA NOTA")
+        with st.form("invoice_form",clear_on_submit=True):
+            a,b,c=st.columns(3)
+            issue=a.date_input("Data de emissão",value=date.today()); inv_type=b.selectbox("Tipo",["Serviço","Venda/Comércio"]); amount=c.number_input("Valor",min_value=0.0,step=10.0,format="%.2f")
+            a,b=st.columns(2)
+            number=a.text_input("Número da nota"); customer=b.text_input("Cliente",placeholder="Nome do cliente")
+            desc=st.text_input("Descrição",placeholder="Ex.: serviço prestado, venda realizada...")
+            with st.expander("Mais detalhes (opcional)"):
+                custdoc=st.text_input("CPF/CNPJ do cliente")
+                status=st.selectbox("Situação",["Emitida","Cancelada"])
+            submit=st.form_submit_button("Salvar nota",type="primary",use_container_width=True)
+            if submit:
+                if amount <= 0: st.error("Informe um valor maior que zero.")
+                else:
+                    add_invoice(uid,issue_date=issue,invoice_type=inv_type,number=number.strip(),customer=customer.strip(),customer_document=custdoc.strip(),description=desc.strip(),amount=amount,status=status); st.rerun()
+    section("Notas cadastradas")
     if invoices.empty:
-        empty_state("Nenhuma nota registrada", "Registre uma nota emitida para acompanhar faturamento e conciliação com as receitas.", "▧")
+        empty_state("Nenhuma nota fiscal cadastrada", "Cadastre as notas emitidas para comparar faturamento, acompanhar clientes e facilitar a conciliação com os recebimentos.", "▤")
     else:
-        st.dataframe(invoices[["id","issue_date","invoice_type","number","customer","amount","status"]], use_container_width=True, hide_index=True, column_config={"issue_date":st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "amount":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
-        active = invoices[invoices["status"]=="Emitida"]
-        documented = set(transactions["document_number"].fillna("").astype(str)) if not transactions.empty else set()
-        unreconciled = active[~active["number"].fillna("").astype(str).isin(documented)]
-        if not unreconciled.empty:
-            helper_note(f"{len(unreconciled)} nota(s) emitida(s) ainda não estão vinculadas a uma receita pelo número do documento.")
-            selected = st.selectbox("Nota para conciliar", unreconciled["id"].tolist())
-            row = unreconciled[unreconciled["id"]==selected].iloc[0]
-            if st.button("Criar receita e conciliar", type="primary", use_container_width=True):
-                add_transaction(uid, tx_date=row["issue_date"].date(), tx_type="Receita", description=row["description"] or f"Nota {row['number']}", category="Serviços" if row["invoice_type"]=="Serviço" else "Vendas", value=float(row["amount"]), document_number=str(row["number"] or ""), counterparty=str(row["customer"] or ""), payment_method="Outro")
-                st.rerun()
-        with st.expander("Gerenciar notas"):
-            iid = st.selectbox("Nota", invoices["id"].tolist())
-            if st.button("Excluir nota do controle", use_container_width=True):
-                delete_invoice(uid, int(iid)); st.rerun()
+        st.dataframe(invoices,use_container_width=True,hide_index=True,column_config={"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"issue_date":st.column_config.DateColumn("Emissão",format="DD/MM/YYYY")})
+        with st.expander("Excluir uma nota"):
+            iid=st.selectbox("Selecione",invoices["id"].tolist(),key="delinv"); st.caption("Confira antes de excluir: esta ação é definitiva.")
+            if st.button("Excluir nota selecionada",use_container_width=True): delete_invoice(uid,int(iid)); st.rerun()
 
 elif page == "DAS":
-    header("DAS","Calendário por competência, vencimento, pagamento e atraso automático.")
-    year = st.selectbox("Ano do calendário",list(range(CURRENT_YEAR-3,CURRENT_YEAR+2))[::-1]); existing = {str(d["competence"]):d for d in das_rows}
-    if st.button("Gerar/atualizar calendário anual",type="primary"):
-        for comp in competence_list(int(year)):
-            if comp not in existing: upsert_das(uid,comp,das_due_date(comp),0.0,"Pendente",None,"")
-        st.rerun()
-    ddf = pd.DataFrame(list_das(uid))
-    if not ddf.empty:
-        ddf = ddf[ddf["competence"].astype(str).str.startswith(str(year))].copy()
-        if not ddf.empty:
-            ddf["status_atual"] = [das_status(r["status"],r["due_date"]) for _,r in ddf.iterrows()]
-            st.dataframe(ddf[["competence","due_date","amount","status_atual","payment_date","notes"]],use_container_width=True,hide_index=True,column_config={"due_date":st.column_config.DateColumn("Vencimento",format="DD/MM/YYYY"),"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"payment_date":st.column_config.DateColumn("Pagamento",format="DD/MM/YYYY")})
-        else:
-            empty_state("Calendário ainda não criado", "Gere o calendário anual para acompanhar vencimentos e pagamentos do DAS por competência.", "▣")
-    st.subheader("Atualizar competência")
-    with st.form("das_update"):
-        comp = st.selectbox("Competência",competence_list(int(year))); current = existing.get(comp,{}); due = st.date_input("Vencimento",value=current.get("due_date") or das_due_date(comp)); amount = st.number_input("Valor do DAS",min_value=0.0,value=float(current.get("amount") or 0),step=1.0)
-        options=["Pendente","Pago","Atrasado"]; current_status=current.get("status","Pendente"); status=st.selectbox("Situação",options,index=options.index(current_status) if current_status in options else 0); payment_date=st.date_input("Data do pagamento",value=current.get("payment_date") or date.today()) if status=="Pago" else None; notes=st.text_input("Observações",value=str(current.get("notes") or ""))
-        if st.form_submit_button("Salvar competência",type="primary"): upsert_das(uid,comp,due,float(amount),status,payment_date,notes); st.rerun()
+    header("DAS","Controle as competências mensais e registre pagamentos do Documento de Arrecadação do Simples Nacional.")
+    year=st.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="dasyear")
+    st.caption("O vencimento padrão é calculado para o dia 20 do mês seguinte, com ajuste básico para fim de semana. Consulte sempre o documento oficial antes do pagamento.")
+    with st.expander("Registrar ou atualizar uma competência", expanded=not bool(das_rows)):
+        month=st.selectbox("Competência",list(range(1,13)),format_func=lambda m:f"{m:02d}/{year}")
+        competence=f"{year}-{month:02d}"
+        due=st.date_input("Vencimento",value=das_due_date(year,month))
+        amount=st.number_input("Valor do DAS",min_value=0.0,step=1.0,format="%.2f")
+        status=st.selectbox("Status",["Pendente","Pago"])
+        payment_date=None
+        if status=="Pago": payment_date=st.date_input("Data de pagamento",value=date.today())
+        notes=st.text_area("Observações")
+        if st.button("Salvar DAS",type="primary",use_container_width=True): upsert_das(uid,competence,due,amount,status,payment_date,notes); st.rerun()
+    current=[d for d in das_rows if str(d["competence"]).startswith(str(year))]
+    section("Competências do ano")
+    if not current:
+        empty_state("Nenhum DAS controlado neste ano", "Adicione uma competência para acompanhar vencimento e pagamento do DAS dentro do Razync.", "▣")
+    else:
+        das_view=[]
+        for d in current:
+            das_view.append({"Competência":d["competence"],"Vencimento":d["due_date"],"Valor":d["amount"],"Status":das_status(d["status"],d["due_date"]),"Pagamento":d["payment_date"]})
+        st.dataframe(pd.DataFrame(das_view),use_container_width=True,hide_index=True,column_config={"Valor":st.column_config.NumberColumn(format="R$ %.2f"),"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY"),"Pagamento":st.column_config.DateColumn(format="DD/MM/YYYY")})
 
 elif page == "DASN-SIMEI":
-    header("DASN-SIMEI","Conferência anual automática das receitas cadastradas.")
-    year = st.selectbox("Ano-calendário",list(range(CURRENT_YEAR-5,CURRENT_YEAR+1))[::-1]); services,sales = category_totals_for_dasn(transactions,int(year)); total = services+sales; active_employee = any(e.get("status")=="Ativo" for e in employees)
-    c1,c2,c3,c4 = st.columns(4); c1.metric("Serviços",brl(services)); c2.metric("Comércio/mercadorias",brl(sales)); c3.metric("Receita bruta total",brl(total)); c4.metric("Teve empregado","Sim" if active_employee else "Não")
-    if total == 0: st.info("Nenhuma receita foi registrada para este ano. A declaração anual pode continuar sendo necessária mesmo sem faturamento.")
-    pdf = dasn_summary_pdf(profile,int(year),services,sales,active_employee); summary = pd.DataFrame([{"ano":year,"servicos":services,"comercio_mercadorias":sales,"receita_bruta_total":total,"teve_empregado":active_employee}])
-    a,b = st.columns(2); a.download_button("Baixar resumo em PDF",pdf,f"dasn_{year}_conferencia.pdf","application/pdf",use_container_width=True); b.download_button("Baixar resumo em CSV",summary.to_csv(index=False).encode("utf-8-sig"),f"dasn_{year}_conferencia.csv","text/csv",use_container_width=True)
-    st.caption("O Razync Pro prepara e confere os dados; o envio oficial da DASN-SIMEI continua sendo feito no serviço oficial.")
+    header("DASN-SIMEI","Prepare os dados anuais para conferir antes da declaração oficial.")
+    year=st.selectbox("Ano-calendário",list(range(CURRENT_YEAR-4,CURRENT_YEAR+1)),index=3,key="dasnyear")
+    services,sales=category_totals_for_dasn(transactions,year)
+    total=services+sales
+    c1,c2,c3=st.columns(3); c1.metric("Serviços",brl(services)); c2.metric("Comércio/indústria",brl(sales)); c3.metric("Receita bruta total",brl(total))
+    employee=st.checkbox("O MEI teve empregado no ano?",value=bool(profile.get("has_employee",False)))
+    pdf=dasn_summary_pdf(profile,year,services,sales,employee)
+    st.download_button("Baixar resumo para conferência",pdf,file_name=f"resumo_DASN_{year}.pdf",mime="application/pdf")
+    st.warning("O Razync Pro organiza as informações, mas não transmite a DASN-SIMEI ao Portal do Simples Nacional.")
 
 elif page == "Obrigações":
-    header("Obrigações","Agenda de tarefas fiscais, financeiras, trabalhistas e documentais.")
-    st.subheader("Calendário automático do MEI")
-    ob_year = st.selectbox("Ano do calendário automático", list(range(CURRENT_YEAR-1,CURRENT_YEAR+2))[::-1], key="auto_ob_year")
-    auto_rows = pd.DataFrame(automatic_obligations(int(ob_year), opening))
-    if not auto_rows.empty:
-        today_value = date.today()
-        upcoming = auto_rows[auto_rows["Vencimento"] >= today_value].sort_values("Vencimento").head(6)
-        c1,c2,c3 = st.columns(3)
-        c1.metric("Obrigações automáticas", len(auto_rows))
-        c2.metric("Vencidas", int((auto_rows["Status automático"]=="Vencida").sum()))
-        c3.metric("Próximas 7 dias", int((auto_rows["Status automático"]=="Próxima").sum()))
-        st.dataframe(auto_rows, use_container_width=True, hide_index=True, column_config={"Vencimento":st.column_config.DateColumn("Vencimento",format="DD/MM/YYYY")})
-        if not upcoming.empty:
-            next_row = upcoming.iloc[0]
-            st.info(f"Próxima obrigação: {next_row['Obrigação']} em {next_row['Vencimento'].strftime('%d/%m/%Y')}.")
-    st.divider()
-    st.subheader("Tarefas personalizadas")
-    with st.form("ob_form",clear_on_submit=True):
-        a,b,c=st.columns(3); title=a.text_input("Obrigação/tarefa"); due_date=b.date_input("Vencimento",date.today()); category=c.selectbox("Categoria",["Fiscal","Financeira","Trabalhista","Documental","Outra"]); notes=st.text_input("Observações")
-        if st.form_submit_button("Adicionar",type="primary") and title.strip(): add_obligation(uid,title=title.strip(),due_date=due_date,category=category,notes=notes); st.rerun()
-    odf=pd.DataFrame(list_obligations(uid))
-    if odf.empty: empty_state("Nenhuma tarefa personalizada", "O calendário automático continua funcionando. Crie uma tarefa aqui apenas quando precisar acompanhar algo específico do seu MEI.", "✓")
+    header("Obrigações","Use o calendário automático do MEI e acrescente tarefas específicas do seu negócio.")
+    obligation_year=st.selectbox("Ano",list(range(CURRENT_YEAR-1,CURRENT_YEAR+2)),index=1,key="obyear")
+    auto=automatic_obligations(obligation_year,opening)
+    manual=obligations
+    combined=[]
+    for row in auto:
+        combined.append({"Origem":"Automática","Obrigação":row["title"],"Tipo":row["category"],"Competência":row["competence"],"Vencimento":row["due_date"],"Status":row["status"],"Detalhes":row["details"]})
+    for row in manual:
+        combined.append({"Origem":"Manual","Obrigação":row["title"],"Tipo":row["category"],"Competência":"-","Vencimento":row["due_date"],"Status":row["status"],"Detalhes":row["notes"]})
+    if combined:
+        obd=pd.DataFrame(combined).sort_values("Vencimento")
+        st.dataframe(obd,use_container_width=True,hide_index=True,column_config={"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY")})
     else:
-        st.dataframe(odf,use_container_width=True,hide_index=True); a,b=st.columns(2); oid=a.selectbox("ID",odf["id"].tolist()); new_status=b.selectbox("Status",["Pendente","Concluído"]); c,d=st.columns(2)
-        if c.button("Atualizar status",use_container_width=True): update_obligation_status(uid,int(oid),new_status); st.rerun()
-        if d.button("Excluir obrigação",use_container_width=True): delete_obligation(uid,int(oid)); st.rerun()
+        empty_state("Nenhuma obrigação para exibir", "Quando houver tarefas automáticas ou personalizadas, elas aparecerão aqui organizadas por vencimento.", "✓")
+    with st.expander("Adicionar obrigação personalizada"):
+        with st.form("obl_form",clear_on_submit=True):
+            title=st.text_input("Título"); due=st.date_input("Vencimento",value=date.today()); cat=st.selectbox("Categoria",["Fiscal","Financeira","Administrativa","Trabalhista","Outra"]); notes=st.text_area("Observações")
+            if st.form_submit_button("Adicionar",use_container_width=True):
+                if title.strip(): add_obligation(uid,title=title.strip(),due_date=due,status="Pendente",category=cat,notes=notes.strip()); st.rerun()
+    if manual:
+        with st.expander("Atualizar tarefas personalizadas"):
+            item=st.selectbox("Tarefa",[o["id"] for o in manual],format_func=lambda x:next(o["title"] for o in manual if o["id"]==x))
+            status=st.selectbox("Novo status",["Pendente","Concluído"],key="oblstatus")
+            c1,c2=st.columns(2)
+            if c1.button("Atualizar",use_container_width=True): update_obligation_status(uid,int(item),status); st.rerun()
+            if c2.button("Excluir",use_container_width=True): delete_obligation(uid,int(item)); st.rerun()
 
 elif page == "Clientes e Fornecedores":
-    header("Clientes e Fornecedores", "Mantenha os contatos usados nas vendas, compras e documentos.")
-    section("Novo contato")
-    with st.form("contact_form", clear_on_submit=True):
-        a,b = st.columns([1,2])
-        ctype = a.selectbox("Tipo", ["Cliente","Fornecedor"])
-        name = b.text_input("Nome", placeholder="Nome ou razão social")
-        with st.expander("Dados de contato (opcional)"):
-            a,b,c = st.columns(3)
-            document = a.text_input("CPF/CNPJ")
-            email = b.text_input("E-mail")
-            phone = c.text_input("Telefone")
-            notes = st.text_area("Observações", height=90)
-        if st.form_submit_button("Salvar contato", type="primary", use_container_width=True):
-            if not name.strip(): st.error("Informe o nome do contato.")
-            else: add_contact(uid, contact_type=ctype, name=name.strip(), document=document, email=email, phone=phone, notes=notes); st.rerun()
+    header("Clientes e Fornecedores","Mantenha os contatos essenciais organizados para reutilizar em vendas, compras e documentos.")
+    with st.container(border=True):
+        st.caption("NOVO CONTATO")
+        with st.form("contact_form",clear_on_submit=True):
+            a,b=st.columns([1,2]); typ=a.segmented_control("Tipo",["Cliente","Fornecedor"],default="Cliente",selection_mode="single") or "Cliente"; name=b.text_input("Nome",placeholder="Nome ou razão social")
+            with st.expander("Mais detalhes (opcional)"):
+                a,b,c=st.columns(3); doc=a.text_input("CPF/CNPJ"); email=b.text_input("E-mail"); phone=c.text_input("Telefone")
+                notes=st.text_area("Observações")
+            save=st.form_submit_button("Salvar contato",type="primary",use_container_width=True)
+            if save:
+                if not name.strip(): st.error("Informe o nome do contato.")
+                else: add_contact(uid,contact_type=typ,name=name.strip(),document=doc.strip(),email=email.strip(),phone=phone.strip(),notes=notes.strip()); st.rerun()
     section("Contatos")
-    cdf = pd.DataFrame(list_contacts(uid))
-    if cdf.empty:
-        empty_state("Nenhum contato cadastrado", "Adicione clientes e fornecedores para deixar lançamentos e documentos mais organizados.", "◇")
+    if not contacts:
+        empty_state("Nenhum cliente ou fornecedor", "Adicione seu primeiro contato para organizar quem compra de você e de quem sua empresa compra.", "◇")
     else:
-        st.dataframe(cdf, use_container_width=True, hide_index=True)
-        with st.expander("Gerenciar contato"):
-            cid = st.selectbox("Contato", cdf["id"].tolist())
-            if st.button("Excluir contato", use_container_width=True): delete_contact(uid, int(cid)); st.rerun()
+        cdf=pd.DataFrame(contacts); st.dataframe(cdf,use_container_width=True,hide_index=True)
+        with st.expander("Excluir contato"):
+            cid=st.selectbox("Selecione",[c["id"] for c in contacts],format_func=lambda x:next(c["name"] for c in contacts if c["id"]==x),key="delcontact"); st.caption("A exclusão é definitiva.")
+            if st.button("Excluir contato selecionado",use_container_width=True): delete_contact(uid,int(cid)); st.rerun()
 
 elif page == "Empregado":
-    header("Empregado", "Organize os dados básicos do empregado do MEI para conferências e declaração anual.")
-    section("Cadastrar empregado")
-    with st.form("employee_form", clear_on_submit=True):
-        name = st.text_input("Nome", placeholder="Nome completo")
-        a,b = st.columns(2)
-        cpf = a.text_input("CPF")
-        admission = b.date_input("Data de admissão", date.today())
-        with st.expander("Mais detalhes"):
-            a,b = st.columns(2)
-            salary = a.number_input("Salário", min_value=0.0)
-            status = b.selectbox("Status", ["Ativo","Desligado"])
-            notes = st.text_area("Observações", height=90)
-        if st.form_submit_button("Salvar empregado", type="primary", use_container_width=True):
-            if not name.strip(): st.error("Informe o nome do empregado.")
-            else: add_employee(uid, name=name.strip(), cpf=cpf, admission_date=admission, salary=float(salary), status=status, notes=notes); st.rerun()
-    section("Empregados")
-    edf = pd.DataFrame(list_employees(uid))
-    if edf.empty:
-        empty_state("Nenhum empregado cadastrado", "Se o MEI possuir empregado, cadastre aqui para manter essa informação disponível nos relatórios anuais.", "♙")
+    header("Empregado","Organize informações básicas quando o MEI possuir empregado registrado.")
+    with st.container(border=True):
+        st.caption("CADASTRO DO EMPREGADO")
+        with st.form("emp_form",clear_on_submit=True):
+            name=st.text_input("Nome",placeholder="Nome completo")
+            a,b=st.columns(2); admission=a.date_input("Data de admissão",value=date.today()); salary=b.number_input("Salário",min_value=0.0,step=50.0)
+            with st.expander("Mais detalhes (opcional)"):
+                cpf=st.text_input("CPF"); status=st.selectbox("Status",["Ativo","Inativo"]); notes=st.text_area("Observações")
+            save=st.form_submit_button("Salvar empregado",type="primary",use_container_width=True)
+            if save:
+                if not name.strip(): st.error("Informe o nome do empregado.")
+                else: add_employee(uid,name=name.strip(),cpf=cpf.strip(),admission_date=admission,salary=salary,status=status,notes=notes.strip()); st.rerun()
+    section("Empregados cadastrados")
+    if not employees:
+        empty_state("Nenhum empregado cadastrado", "Se o seu MEI possuir empregado, registre os dados básicos aqui para manter essa informação junto da gestão do negócio.", "♙")
     else:
-        st.dataframe(edf, use_container_width=True, hide_index=True)
-        with st.expander("Gerenciar empregado"):
-            eid = st.selectbox("Empregado", edf["id"].tolist())
-            if st.button("Excluir empregado", use_container_width=True): delete_employee(uid, int(eid)); st.rerun()
+        st.dataframe(pd.DataFrame(employees),use_container_width=True,hide_index=True)
+        with st.expander("Excluir empregado"):
+            eid=st.selectbox("Selecione",[e["id"] for e in employees],format_func=lambda x:next(e["name"] for e in employees if e["id"]==x),key="delemp"); st.caption("A exclusão é definitiva.")
+            if st.button("Excluir empregado selecionado",use_container_width=True): delete_employee(uid,int(eid)); st.rerun()
 
 elif page == "Documentos":
-    header("Documentos", "Guarde notas, recibos, comprovantes, DAS, extratos e outros arquivos importantes do MEI.")
-    section("Adicionar documento")
-    with st.form("doc_form", clear_on_submit=True):
-        uploaded = st.file_uploader("Arquivo", type=["pdf","png","jpg","jpeg","xlsx","csv"])
-        a,b = st.columns(2)
-        category = a.selectbox("Categoria", ["Nota fiscal","Recibo","Comprovante","DAS","DASN-SIMEI","Contrato","Extrato","Outro"])
-        reference_month = b.text_input("Competência", placeholder="AAAA-MM")
-        st.caption("A competência ajuda o fechamento mensal a localizar o documento certo.")
-        if st.form_submit_button("Salvar documento", type="primary", use_container_width=True):
-            if uploaded is None: st.error("Selecione um arquivo.")
-            else: save_document(uid, uploaded.name, uploaded.type or "", uploaded.getvalue(), category, reference_month.strip()); st.rerun()
-
-    ddf = pd.DataFrame(list_documents(uid))
-    section("Arquivos armazenados")
-    if ddf.empty:
-        empty_state("Seu cofre ainda está vazio", "Adicione o primeiro documento para começar a organizar comprovantes e competências em um só lugar.", "▤")
+    header("Documentos","Guarde comprovantes, notas e arquivos por competência para encontrar tudo com facilidade no fechamento.")
+    with st.container(border=True):
+        st.caption("ADICIONAR DOCUMENTO")
+        up=st.file_uploader("Escolha um arquivo",key="docup")
+        a,b=st.columns(2); category=a.selectbox("Tipo de documento",["Nota Fiscal","Comprovante","Extrato Bancário","DAS","Contrato","Outro"]); reference=b.text_input("Competência",placeholder="AAAA-MM")
+        if st.button("Salvar documento",type="primary",use_container_width=True,disabled=up is None):
+            if up: save_document(uid,up.name,up.type,up.getvalue(),category,reference.strip()); st.rerun()
+    section("Arquivos salvos")
+    if not docs:
+        empty_state("Nenhum documento salvo", "Adicione comprovantes, notas e extratos. Eles ficam organizados por tipo e competência para facilitar os fechamentos.", "▱")
     else:
-        coverage_year = st.selectbox("Ano da cobertura", list(range(CURRENT_YEAR-3, CURRENT_YEAR+2))[::-1], key="docs_coverage_year")
-        coverage = document_coverage(docs, int(coverage_year))
-        c1,c2 = st.columns(2)
-        c1.metric("Documentos", len(docs))
-        c2.metric("Meses com arquivos", int((coverage["Documentos"] > 0).sum()))
-        with st.expander("Ver cobertura por competência"):
-            st.dataframe(coverage, use_container_width=True, hide_index=True)
-        st.dataframe(ddf, use_container_width=True, hide_index=True)
-        with st.expander("Gerenciar documento"):
-            did = st.selectbox("Documento", ddf["id"].tolist())
-            doc = get_document(uid, int(did))
-            if doc:
-                a,b = st.columns(2)
-                a.download_button("Baixar documento", doc["content"], doc["filename"], doc.get("mime_type") or "application/octet-stream", use_container_width=True)
-                if b.button("Excluir documento", use_container_width=True): delete_document(uid, int(did)); st.rerun()
+        ddf=pd.DataFrame(docs); st.dataframe(ddf,use_container_width=True,hide_index=True)
+        did=st.selectbox("Abrir documento",[d["id"] for d in docs],format_func=lambda x:next(d["filename"] for d in docs if d["id"]==x))
+        selected=get_document(uid,int(did))
+        if selected: st.download_button("Baixar arquivo",selected["content"],file_name=selected["filename"],mime=selected["mime_type"] or "application/octet-stream")
+        with st.expander("Excluir documento"):
+            st.caption("A exclusão remove o arquivo armazenado no Razync.")
+            if st.button("Excluir documento selecionado",use_container_width=True): delete_document(uid,int(did)); st.rerun()
+        st.subheader("Cobertura documental")
+        coverage=document_coverage(docs,CURRENT_YEAR); st.dataframe(coverage,use_container_width=True,hide_index=True)
 
 elif page == "Central de Relatórios":
-    header("Central de Relatórios","Gere documentos gerenciais e fiscais a partir dos dados já cadastrados.")
-    years = {CURRENT_YEAR}
-    if not transactions.empty:
-        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
-    report_year = st.selectbox("Ano", sorted(years, reverse=True), key="report_center_year")
-    report_month = st.selectbox("Mês para fechamento", list(range(1,13)), index=max(date.today().month-1,0), key="report_center_month")
-    analysis_report = financial_analysis(transactions, int(report_year))
-    closing_report = monthly_closing(transactions, invoices, docs, das_rows, int(report_year), int(report_month))
-    monthly_data = monthly_rows(transactions, int(report_year))
-    services_report, sales_report = category_totals_for_dasn(transactions, int(report_year))
-    active_employee_report = any(e.get("status") == "Ativo" for e in employees)
-
-    st.subheader("Relatórios disponíveis")
-    r1,r2 = st.columns(2)
+    header("Central de Relatórios","Escolha o relatório que você precisa sem navegar por várias telas.")
+    r1,r2,r3=st.columns(3)
     with r1:
-        st.download_button("Análise financeira em PDF", financial_summary_pdf(profile, int(report_year), analysis_report), f"analise_financeira_{report_year}.pdf", "application/pdf", use_container_width=True)
-        st.download_button("Relatório Mensal em PDF", monthly_report_pdf(profile, int(report_year), monthly_data), f"relatorio_mensal_{report_year}.pdf", "application/pdf", use_container_width=True)
+        st.subheader("Fechamento")
+        st.caption("Receitas, despesas, documentos e checklist do mês.")
+        if st.button("Abrir Fechamento Mensal",use_container_width=True): st.session_state["_navigate_to"]="Fechamento Mensal"; st.rerun()
     with r2:
-        st.download_button("Fechamento mensal em PDF", closing_summary_pdf(profile, int(report_year), int(report_month), closing_report), f"fechamento_{report_year}_{int(report_month):02d}.pdf", "application/pdf", use_container_width=True)
-        st.download_button("Resumo DASN-SIMEI em PDF", dasn_summary_pdf(profile, int(report_year), services_report, sales_report, active_employee_report), f"dasn_{report_year}.pdf", "application/pdf", use_container_width=True)
-    st.caption("Todos os relatórios são gerados com base nos dados cadastrados no Razync Pro e devem ser conferidos antes de uso oficial.")
+        st.subheader("Financeiro")
+        st.caption("Evolução, margem, categorias e consistência.")
+        if st.button("Abrir Análise Financeira",use_container_width=True): st.session_state["_navigate_to"]="Análise Financeira"; st.rerun()
+    with r3:
+        st.subheader("MEI")
+        st.caption("Relatório Mensal e preparação da DASN-SIMEI.")
+        if st.button("Abrir Relatório Mensal",use_container_width=True): st.session_state["_navigate_to"]="Relatório Mensal"; st.rerun()
+    st.info("Cada relatório é calculado com os dados registrados no Razync Pro. Confira informações fiscais antes de enviar declarações oficiais.")
 
 elif page == "Assistente Razync":
-    header("Assistente Razync","Pergunte sobre faturamento, despesas, limite, DAS e conciliação usando os dados do seu MEI.")
-    st.caption("Sugestões: Quanto posso faturar? • Quanto sobrou? • Quais são meus maiores gastos? • Tenho DAS atrasado? • Existem notas pendentes?")
-    question = st.text_input("Pergunte sobre seu MEI", key="assistant_question")
-    if question:
-        st.info(assistant_answer(question, transactions, invoices, das_rows, limit, CURRENT_YEAR))
-    st.divider()
-    st.caption("O Assistente Razync usa os dados cadastrados no sistema. Para situações fiscais especiais, desenquadramento ou decisões profissionais, confirme a orientação em fonte oficial ou com profissional habilitado.")
+    header("Assistente Razync","Faça perguntas simples sobre os dados que já estão no sistema.")
+    prompts=["Quanto ainda posso faturar?","Qual é o meu resultado?","Quanto gastei?","Tenho DAS atrasado?","Como estão minhas notas?"]
+    q=st.text_input("Pergunte sobre seu MEI",placeholder="Ex.: Quanto ainda posso faturar neste ano?")
+    choice=st.selectbox("Ou escolha uma pergunta",["Escolha..."]+prompts)
+    if choice!="Escolha...": q=choice
+    if q:
+        st.success(assistant_answer(q,transactions,invoices,das_rows,limit,CURRENT_YEAR))
+    st.caption("As respostas usam os registros do Razync Pro e não substituem análise profissional ou consulta aos portais oficiais.")
 
 elif page == "Primeiros Passos":
     header("Primeiros Passos", "Configure o Razync Pro para o seu MEI e deixe os alertas, limites e relatórios mais úteis.")
@@ -824,44 +716,29 @@ elif page == "Primeiros Passos":
         helper_note(tip)
 
 elif page == "Meu MEI":
-    header("Meu MEI","Dados usados nos cálculos, relatórios e alertas do Razync Pro.")
+    header("Meu MEI","Cadastre os dados usados nos relatórios e alertas.")
     with st.form("profile_form"):
-        a,b=st.columns(2); business_name=a.text_input("Nome empresarial",value=str(profile.get("business_name") or "")); trade_name=b.text_input("Nome fantasia",value=str(profile.get("trade_name") or "")); a,b=st.columns(2); cnpj=a.text_input("CNPJ",value=str(profile.get("cnpj") or "")); main_activity=b.text_input("Atividade principal",value=str(profile.get("main_activity") or ""))
-        a,b,c=st.columns(3); options=["Serviços","Comércio","Indústria","Misto"]; current=profile.get("activity_type","Serviços"); activity_type=a.selectbox("Tipo principal",options,index=options.index(current) if current in options else 0); opening_date=b.date_input("Data de abertura",value=opening or date.today()); annual_limit=c.number_input("Limite anual de referência",min_value=0.0,value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),step=1000.0)
-        a,b,c=st.columns(3); phone=a.text_input("Telefone",value=str(profile.get("phone") or "")); city=b.text_input("Cidade",value=str(profile.get("city") or "")); state=c.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); a,b=st.columns(2); municipal_registration=a.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_registration=b.text_input("Inscrição estadual",value=str(profile.get("state_registration") or ""))
-        if st.form_submit_button("Salvar dados",type="primary",use_container_width=True): save_profile(uid,business_name=business_name,trade_name=trade_name,cnpj=cnpj,main_activity=main_activity,activity_type=activity_type,opening_date=opening_date,annual_limit=float(annual_limit),phone=phone,city=city,state=state.upper(),municipal_registration=municipal_registration,state_registration=state_registration); st.rerun()
-    st.info(f"Limite monitorado para {CURRENT_YEAR}: {brl(annual_limit_for(opening,CURRENT_YEAR,profile.get('annual_limit')))}.")
-    st.caption(f"Referência automática do próximo ano: {brl(annual_limit_for(opening,CURRENT_YEAR+1,profile.get('annual_limit')))}. Regras ficam centralizadas no módulo fiscal para atualização anual.")
+        cnpj=st.text_input("CNPJ",value=str(profile.get("cnpj") or "")); business=st.text_input("Razão social",value=str(profile.get("business_name") or "")); trade=st.text_input("Nome fantasia",value=str(profile.get("trade_name") or "")); activity=st.text_input("Atividade principal",value=str(profile.get("main_activity") or "")); activity_type=st.selectbox("Tipo de atividade",["Serviços","Comércio","Indústria","Misto"],index=["Serviços","Comércio","Indústria","Misto"].index(profile.get("activity_type") if profile.get("activity_type") in ["Serviços","Comércio","Indústria","Misto"] else "Serviços")); opening_date=st.date_input("Data de abertura",value=opening or date.today()); annual_limit=st.number_input("Limite anual personalizado (opcional)",min_value=0.0,value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),step=1000.0); city=st.text_input("Município",value=str(profile.get("city") or "")); state=st.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); phone=st.text_input("Telefone",value=str(profile.get("phone") or "")); municipal=st.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_reg=st.text_input("Inscrição estadual",value=str(profile.get("state_registration") or "")); has_employee=st.checkbox("Possui empregado",value=bool(profile.get("has_employee",False)))
+        if st.form_submit_button("Salvar dados",use_container_width=True): save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee); st.success("Dados salvos."); st.rerun()
 
 elif page == "Status do Sistema":
-    header("Status do Sistema","Veja o que já está operacional e o que ainda depende de configuração externa.")
-    dbinfo = database_runtime_info()
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Banco de dados", dbinfo["backend"])
-    c2.metric("Persistência", "Ativa" if dbinfo["persistent"] else "Temporária")
-    c3.metric("Banco de produção", "Pronto" if dbinfo["production_ready"] else "Pendente")
-    if dbinfo["persistent"]:
-        st.success("O Razync Pro está conectado a PostgreSQL e os dados podem ser mantidos fora do ciclo temporário do Streamlit.")
-    else:
-        st.warning("O sistema está usando SQLite temporário. Para dados reais, configure DATABASE_URL nos Secrets do Streamlit apontando para PostgreSQL/Supabase.")
+    header("Status do Sistema","Veja se o Razync está usando uma infraestrutura adequada para produção.")
+    runtime=database_runtime_info()
+    c1,c2,c3=st.columns(3)
+    c1.metric("Banco",runtime["backend"]); c2.metric("Persistência","Ativa" if runtime["persistent"] else "Temporária"); c3.metric("Produção","Pronto" if runtime["production_ready"] else "Configuração necessária")
+    if runtime["persistent"]: st.success("O banco configurado é persistente.")
+    else: st.warning("O app está usando SQLite temporário. No Streamlit Cloud, configure DATABASE_URL com PostgreSQL/Supabase antes de colocar clientes reais.")
     st.subheader("Integrações")
-    integration_rows = pd.DataFrame([
-        {"Integração":"Importação de extrato CSV/Excel", "Status":"Operacional", "Observação":"Importação com prévia, categorização sugerida e controle de duplicidade."},
-        {"Integração":"PostgreSQL / Supabase", "Status":"Operacional" if dbinfo["persistent"] else "Aguardando credencial", "Observação":"Suporte no código concluído; requer DATABASE_URL do banco gerenciado."},
-        {"Integração":"NFS-e Nacional", "Status":"Controle manual", "Observação":"Notas podem ser controladas e conciliadas; integração automática depende do fluxo/API oficial aplicável ao emissor."},
-        {"Integração":"Assistente Razync", "Status":"Operacional", "Observação":"Consulta faturamento, despesas, limite, DAS e conciliação com base nos dados cadastrados."},
-    ])
-    st.dataframe(integration_rows, use_container_width=True, hide_index=True)
+    st.write("• PostgreSQL/Supabase:","configurado" if runtime["persistent"] else "pendente")
+    st.write("• NFS-e Nacional: preparação funcional; credenciais/API externa pendentes")
+    st.write("• Integrações bancárias diretas: pendentes; importação de arquivo já disponível")
+    st.write("• Armazenamento externo de documentos: pendente; documentos ainda ficam no banco da aplicação")
 
 elif page == "Backup":
-    header("Backup e exportação","Baixe uma cópia consolidada ou arquivos separados dos dados cadastrados.")
-    backup_zip = build_backup_zip(profile, transactions, invoices, das_rows, contacts, obligations, employees, docs)
-    st.download_button("Baixar backup completo (.zip)", backup_zip, f"razync_pro_backup_{date.today().isoformat()}.zip", "application/zip", type="primary", use_container_width=True)
-    st.caption("O ZIP contém perfil, movimentações, notas fiscais, DAS, contatos, obrigações, empregados e índice de documentos.")
-    st.subheader("Arquivos individuais")
-    files={"movimentacoes.csv":transactions.to_csv(index=False).encode("utf-8-sig"),"notas_fiscais.csv":invoices.to_csv(index=False).encode("utf-8-sig"),"das.csv":pd.DataFrame(das_rows).to_csv(index=False).encode("utf-8-sig"),"contatos.csv":pd.DataFrame(contacts).to_csv(index=False).encode("utf-8-sig"),"obrigacoes.csv":pd.DataFrame(obligations).to_csv(index=False).encode("utf-8-sig")}
-    for name,data in files.items(): st.download_button(f"Baixar {name}",data,name,"text/csv",use_container_width=True)
-
+    header("Backup","Baixe um pacote dos dados para manter uma cópia independente.")
+    backup=build_backup_zip(profile,transactions,invoices,das_rows,obligations,contacts,employees,docs,lambda doc_id:get_document(uid,doc_id))
+    st.download_button("Baixar backup completo (.zip)",backup,file_name=f"backup_razync_{date.today().isoformat()}.zip",mime="application/zip",use_container_width=True)
+    st.caption("O pacote inclui dados em CSV/JSON e os documentos salvos no Razync Pro.")
 
 st.divider()
 st.caption("Razync Pro • Ecossistema Razync • ferramenta de organização contábil e financeira para MEI")
