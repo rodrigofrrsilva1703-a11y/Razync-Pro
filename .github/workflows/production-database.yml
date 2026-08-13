@@ -1,0 +1,24 @@
+name: Preparar banco de produção
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/production_database.py
+permissions:
+  contents: write
+jobs:
+  aplicar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar configuração
+        run: python scripts/production_database.py
+      - name: Validar sintaxe
+        run: python -m py_compile database.py
+      - name: Publicar
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add database.py
+          git diff --cached --quiet || (git commit -m "prepara PostgreSQL e fallback seguro" && git push)
