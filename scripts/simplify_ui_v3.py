@@ -85,7 +85,8 @@ with st.sidebar:
 '''
 s = s[:nav_start] + new_nav + s[nav_end:]
 
-dash_start = s.index('if page == "Dashboard":')
+dashboard_anchor = s.index('limit_pct = (year_revenue/limit*100) if limit else 0.0')
+dash_start = s.index('\nif page == "Dashboard":', dashboard_anchor) + 1
 dash_end = s.index('\nelif page == "Movimentações":', dash_start)
 new_dashboard = '''if page == "Dashboard":
     business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
@@ -135,4 +136,4 @@ s = s[:dash_start] + new_dashboard + s[dash_end:]
 
 app_path.write_text(s, encoding='utf-8')
 print('UI v3 simplified')
-# trigger
+# trigger fixed
