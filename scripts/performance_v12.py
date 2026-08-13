@@ -3,17 +3,14 @@ from pathlib import Path
 p = Path('database.py')
 s = p.read_text(encoding='utf-8')
 
-# Imports for safe in-process read cache
 if 'import time\n' not in s:
     s = s.replace('import tempfile\n', 'import tempfile\nimport time\nimport copy\n', 1)
 
-# Conservative reusable pool for Supabase Session Pooler
 old = 'engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}\nif str(DATABASE_URL).startswith("sqlite"):\n    engine_kwargs["connect_args"] = {"check_same_thread": False}\nelse:\n    engine_kwargs["connect_args"] = {"connect_timeout": 10}\n    engine_kwargs["pool_recycle"] = 300\n'
 new = '''engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}\nif str(DATABASE_URL).startswith("sqlite"):\n    engine_kwargs["connect_args"] = {"check_same_thread": False}\nelse:\n    engine_kwargs["connect_args"] = {"connect_timeout": 8}\n    engine_kwargs.update({\n        "pool_size": 3,\n        "max_overflow": 2,\n        "pool_recycle": 240,\n        "pool_timeout": 10,\n        "pool_use_lifo": True,\n    })\n'''
 if old in s:
     s = s.replace(old, new, 1)
 
-# Read-through cache: long enough to hide network RTT, immediately invalidated on writes.
 marker = '\n\n@lru_cache(maxsize=1)\ndef init_db() -> None:'
 if '_READ_CACHE:' not in s and marker in s:
     helpers = '''\n\n_READ_CACHE: dict[tuple[str, int], tuple[float, Any]] = {}\n_READ_CACHE_TTL = 30.0\n\ndef _cache_get(domain: str, user_id: int):\n    key = (domain, int(user_id))\n    item = _READ_CACHE.get(key)\n    if not item:\n        return None\n    created, value = item\n    if time.monotonic() - created > _READ_CACHE_TTL:\n        _READ_CACHE.pop(key, None)\n        return None\n    return copy.deepcopy(value)\n\ndef _cache_set(domain: str, user_id: int, value):\n    _READ_CACHE[(domain, int(user_id))] = (time.monotonic(), copy.deepcopy(value))\n    return copy.deepcopy(value)\n\ndef _cache_invalidate(domain: str, user_id: int) -> None:\n    _READ_CACHE.pop((domain, int(user_id)), None)\n\n'''
@@ -21,7 +18,6 @@ if '_READ_CACHE:' not in s and marker in s:
 elif '_READ_CACHE_TTL = 8.0' in s:
     s = s.replace('_READ_CACHE_TTL = 8.0', '_READ_CACHE_TTL = 30.0', 1)
 
-# Cache common read functions.
 replacements = {
 '''def get_profile(user_id: int) -> dict[str, Any]:\n    with engine.connect() as conn:\n        row = conn.execute(select(users.c.name, users.c.email, profiles).join(profiles, profiles.c.user_id == users.c.id).where(users.c.id == user_id)).mappings().first()\n    return dict(row) if row else {}''':
 '''def get_profile(user_id: int) -> dict[str, Any]:\n    cached = _cache_get("profile", user_id)\n    if cached is not None:\n        return cached\n    with engine.connect() as conn:\n        row = conn.execute(select(users.c.name, users.c.email, profiles).join(profiles, profiles.c.user_id == users.c.id).where(users.c.id == user_id)).mappings().first()\n    return _cache_set("profile", user_id, dict(row) if row else {})''',
@@ -44,7 +40,6 @@ for old_text, new_text in replacements.items():
     if old_text in s:
         s = s.replace(old_text, new_text, 1)
 
-# Invalidate only the affected domain after successful mutations.
 invalidations = [
     ('save_profile','profile'), ('add_transaction','transactions'), ('delete_transaction','transactions'),
     ('link_transaction_document','transactions'), ('upsert_das','das'), ('save_document','documents'),
@@ -69,3 +64,4 @@ for fname, domain in invalidations:
 
 p.write_text(s, encoding='utf-8')
 print('Performance V12 aplicada')
+# trigger v12
