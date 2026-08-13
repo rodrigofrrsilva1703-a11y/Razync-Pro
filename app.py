@@ -22,6 +22,7 @@ from fiscal_rules import (
 from reports import dasn_summary_pdf, monthly_report_pdf
 from bank_import import read_statement, prepare_statement, is_probable_duplicate, suggest_category
 from mei_obligations import automatic_obligations
+from business_tools import monthly_closing, financial_analysis, consistency_checks
 
 CURRENT_YEAR = date.today().year
 
@@ -177,7 +178,7 @@ with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
     st.caption("Ecossistema Razync • MEI")
     st.divider()
-    page = st.radio("Navegação", ["Dashboard","Movimentações","Importar Extrato","Fluxo de Caixa","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed", key="nav_page")
+    page = st.radio("Navegação", ["Dashboard","Movimentações","Importar Extrato","Fluxo de Caixa","Análise Financeira","Fechamento Mensal","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed", key="nav_page")
     st.divider()
     st.caption("Modo de desenvolvimento • acesso direto")
 
@@ -313,6 +314,67 @@ elif page == "Fluxo de Caixa":
     fig2.update_layout(height=300, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Saldo acumulado")
     st.plotly_chart(fig2, use_container_width=True)
     st.dataframe(flow, use_container_width=True, hide_index=True, column_config={c:st.column_config.NumberColumn(c, format="R$ %.2f") for c in ["Entradas","Saídas","Resultado","Saldo acumulado"]})
+
+elif page == "Análise Financeira":
+    header("Análise Financeira","Entenda resultado, margem e principais gastos do seu MEI.")
+    years = {CURRENT_YEAR}
+    if not transactions.empty:
+        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
+    analysis_year = st.selectbox("Ano da análise", sorted(years, reverse=True), key="analysis_year")
+    analysis = financial_analysis(transactions, int(analysis_year))
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Receitas", brl(analysis["revenue"]))
+    c2.metric("Despesas", brl(analysis["expenses"]))
+    c3.metric("Resultado", brl(analysis["result"]))
+    c4.metric("Margem estimada", f"{analysis['margin']:.1f}%")
+    left,right = st.columns([1.4,1])
+    with left:
+        monthly = analysis["monthly"]
+        if not monthly.empty:
+            chart = monthly.melt(id_vars=["Mês"], value_vars=["Receitas","Despesas"], var_name="Tipo", value_name="Valor")
+            fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
+            fig.update_layout(height=340, margin=dict(l=0,r=0,t=8,b=0), xaxis_title="Mês", yaxis_title="Valor")
+            st.plotly_chart(fig, use_container_width=True)
+    with right:
+        exp = analysis["expense_categories"]
+        if exp.empty:
+            st.info("Ainda não existem despesas no período.")
+        else:
+            fig = px.pie(exp, names="Categoria", values="Valor", hole=.45)
+            fig.update_layout(height=340, margin=dict(l=0,r=0,t=8,b=0))
+            st.plotly_chart(fig, use_container_width=True)
+    st.subheader("Verificações de consistência")
+    checks = pd.DataFrame(consistency_checks(transactions, invoices, das_rows))
+    st.dataframe(checks, use_container_width=True, hide_index=True)
+
+elif page == "Fechamento Mensal":
+    header("Fechamento Mensal","Revise receitas, despesas, notas, documentos e DAS antes de considerar o mês organizado.")
+    years = {CURRENT_YEAR}
+    if not transactions.empty:
+        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
+    a,b = st.columns(2)
+    close_year = a.selectbox("Ano", sorted(years, reverse=True), key="close_year")
+    close_month = b.selectbox("Mês", list(range(1,13)), index=max(date.today().month-1,0), key="close_month")
+    closing = monthly_closing(transactions, invoices, docs, das_rows, int(close_year), int(close_month))
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Receitas", brl(closing["revenue"]))
+    c2.metric("Despesas", brl(closing["expenses"]))
+    c3.metric("Resultado", brl(closing["result"]))
+    c4.metric("Organização do mês", f"{closing['score']}%")
+    st.progress(closing["score"]/100)
+    checklist = pd.DataFrame(closing["checklist"])
+    checklist["Status"] = checklist["OK"].map({True:"OK", False:"Pendente"})
+    st.dataframe(checklist[["Item","Status","Detalhe"]], use_container_width=True, hide_index=True)
+    if abs(closing["invoice_difference"]) > 0.01:
+        st.warning(f"A receita registrada difere do total de notas emitidas no mês em {brl(abs(closing['invoice_difference']))}. Revise antes do fechamento.")
+    if closing["das_status"] == "Atrasado":
+        st.error("O DAS desta competência está em atraso.")
+    elif closing["das_status"] == "Não criado":
+        st.warning("O calendário do DAS ainda não possui esta competência.")
+    else:
+        st.info(f"Situação do DAS: {closing['das_status']}.")
+    month_csv = closing["transactions"].to_csv(index=False).encode("utf-8-sig")
+    st.download_button("Baixar movimentações do mês", month_csv, f"fechamento_{close_year}_{int(close_month):02d}.csv", "text/csv", use_container_width=True)
 
 elif page == "Relatório Mensal":
     header("Relatório Mensal de Receitas Brutas","Consolidação automática com receitas documentadas, não documentadas, serviços e vendas.")
