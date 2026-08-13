@@ -41,6 +41,16 @@ PLOT_TEMPLATE = tokens(UI_THEME)["plot"]
 inject_design_system(UI_THEME)
 
 
+def themed_plotly_chart(fig, *args, **kwargs):
+    """Render any Plotly figure using the active Razync theme."""
+    apply_plot_theme(fig, UI_THEME)
+    config = kwargs.get("config") or {}
+    config.setdefault("displayModeBar", False)
+    config.setdefault("responsive", True)
+    kwargs["config"] = config
+    return st.plotly_chart(fig, *args, **kwargs)
+
+
 def brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -258,7 +268,7 @@ if page == "Dashboard":
         fig.update_traces(line=dict(width=2.4), fillcolor="rgba(37,99,235,.10)")
         fig.update_xaxes(title="", showgrid=False)
         fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        themed_plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     with status_col:
         section("Situação do MEI", "Limite, DAS e nível de organização.")
         health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
@@ -399,10 +409,10 @@ elif page == "Fluxo de Caixa":
     chart = flow.melt(id_vars=["Mês"], value_vars=["Entradas","Saídas"], var_name="Tipo", value_name="Valor")
     fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
     fig.update_layout(template=PLOT_TEMPLATE,height=350, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Valor")
-    st.plotly_chart(fig, use_container_width=True)
+    themed_plotly_chart(fig, use_container_width=True)
     fig2 = px.line(flow, x="Mês", y="Saldo acumulado", markers=True)
     fig2.update_layout(template=PLOT_TEMPLATE,height=300, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Saldo acumulado")
-    st.plotly_chart(fig2, use_container_width=True)
+    themed_plotly_chart(fig2, use_container_width=True)
     st.dataframe(flow, use_container_width=True, hide_index=True, column_config={c:st.column_config.NumberColumn(c, format="R$ %.2f") for c in ["Entradas","Saídas","Resultado","Saldo acumulado"]})
 
 elif page == "Análise Financeira":
@@ -424,7 +434,7 @@ elif page == "Análise Financeira":
             chart = monthly.melt(id_vars=["Mês"], value_vars=["Receitas","Despesas"], var_name="Tipo", value_name="Valor")
             fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
             fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0), xaxis_title="Mês", yaxis_title="Valor")
-            st.plotly_chart(fig, use_container_width=True)
+            themed_plotly_chart(fig, use_container_width=True)
     with right:
         exp = analysis["expense_categories"]
         if exp.empty:
@@ -432,7 +442,7 @@ elif page == "Análise Financeira":
         else:
             fig = px.pie(exp, names="Categoria", values="Valor", hole=.45)
             fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            themed_plotly_chart(fig, use_container_width=True)
     st.subheader("Verificações de consistência")
     checks = pd.DataFrame(consistency_checks(transactions, invoices, das_rows))
     st.dataframe(checks, use_container_width=True, hide_index=True)

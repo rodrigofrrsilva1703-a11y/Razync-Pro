@@ -254,15 +254,41 @@ def alert_card(level: str, title: str, text: str) -> None:
 
 
 def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None:
+    """Apply Razync theme tokens to the entire Plotly figure, including axes and hover UI."""
     t = tokens(theme_name)
+    dark = theme_name == "Escuro"
+    grid = "#263750" if dark else "#e6edf5"
+    axis = "#52657f" if dark else "#cbd6e2"
+    hover_bg = "#1b2940" if dark else "#ffffff"
+    hover_text = "#edf3fb" if dark else "#334155"
+    hover_border = "#3a506f" if dark else "#d9e2ec"
+    colorway = [
+        t["primary"], t["success"], t["warning"], t["danger"],
+        "#9b8cf2" if dark else "#7c6fd1",
+        "#5bb7c7" if dark else "#4196a6",
+    ]
     kwargs = {
         "template": t["plot"],
         "paper_bgcolor": "rgba(0,0,0,0)",
         "plot_bgcolor": "rgba(0,0,0,0)",
-        "font": {"color": t["text"]},
-        "margin": dict(l=0, r=0, t=12, b=0),
+        "font": {"color": t["text"], "family": "Inter, system-ui, sans-serif"},
+        "margin": dict(l=8, r=8, t=18, b=8),
         "legend_title_text": "",
+        "colorway": colorway,
+        "hoverlabel": dict(
+            bgcolor=hover_bg,
+            bordercolor=hover_border,
+            font=dict(color=hover_text, family="Inter, system-ui, sans-serif"),
+        ),
     }
     if height:
         kwargs["height"] = height
     fig.update_layout(**kwargs)
+    fig.update_xaxes(
+        showgrid=False, zeroline=False, linecolor=axis, tickcolor=axis,
+        tickfont=dict(color=t["muted"]), title_font=dict(color=t["muted"]),
+    )
+    fig.update_yaxes(
+        showgrid=True, gridcolor=grid, gridwidth=1, zeroline=False, linecolor=axis,
+        tickcolor=axis, tickfont=dict(color=t["muted"]), title_font=dict(color=t["muted"]),
+    )
