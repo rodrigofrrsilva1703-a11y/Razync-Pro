@@ -50,5 +50,17 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertFalse(created)
 
 
+class LoginUiRegressionTests(unittest.TestCase):
+    def test_app_has_no_development_login_bypass(self):
+        app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn('email = "dev@local"', app_source)
+        self.assertNotIn('password = "dev"', app_source)
+        self.assertIn('st.form("login_form")', app_source)
+        self.assertIn('st.form("signup_form")', app_source)
+        self.assertIn('st.button("Sair"', app_source)
+
+
 if __name__ == "__main__":
     unittest.main()
