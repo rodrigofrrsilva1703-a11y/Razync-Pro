@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import tempfile
+from pathlib import Path
 from datetime import datetime
 from typing import Any
 
@@ -12,7 +14,25 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///razync_pro.db")
+def _resolve_database_url() -> str:
+    configured = os.getenv("DATABASE_URL", "").strip()
+    if not configured:
+        try:
+            import streamlit as st
+            configured = str(st.secrets.get("DATABASE_URL", "")).strip()
+        except Exception:
+            configured = ""
+    if configured:
+        if configured.startswith("postgres://"):
+            configured = "postgresql+psycopg://" + configured[len("postgres://"):]
+        elif configured.startswith("postgresql://") and "+psycopg" not in configured:
+            configured = "postgresql+psycopg://" + configured[len("postgresql://"):]
+        return configured
+    fallback = Path(tempfile.gettempdir()) / "razync_pro.db"
+    return f"sqlite:///{fallback.as_posix()}"
+
+
+DATABASE_URL = _resolve_database_url()
 
 engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
 if DATABASE_URL.startswith("sqlite"):
@@ -20,6 +40,15 @@ if DATABASE_URL.startswith("sqlite"):
 
 engine = create_engine(DATABASE_URL, future=True, **engine_kwargs)
 metadata = MetaData()
+
+
+def database_runtime_info() -> dict[str, Any]:
+    is_sqlite = DATABASE_URL.startswith("sqlite")
+    return {
+        "backend": "SQLite temporário" if is_sqlite else "PostgreSQL",
+        "persistent": not is_sqlite,
+        "production_ready": not is_sqlite,
+    }
 
 users = Table(
     "users", metadata,
