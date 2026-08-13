@@ -20,6 +20,8 @@ from fiscal_rules import (
     das_due_date, das_status,
 )
 from reports import dasn_summary_pdf, monthly_report_pdf
+from bank_import import read_statement, prepare_statement, is_probable_duplicate, suggest_category
+from mei_obligations import automatic_obligations
 
 CURRENT_YEAR = date.today().year
 
@@ -171,12 +173,9 @@ with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
     st.caption("Ecossistema Razync • MEI")
     st.divider()
-    page = st.radio("Navegação", ["Dashboard","Movimentações","Fluxo de Caixa","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed")
+    page = st.radio("Navegação", ["Dashboard","Movimentações","Importar Extrato","Fluxo de Caixa","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed", key="nav_page")
     st.divider()
-    st.caption(user["email"])
-    if st.button("Sair", use_container_width=True):
-        st.session_state.pop("user",None)
-        st.rerun()
+    st.caption("Modo de desenvolvimento • acesso direto")
 
 opening = opening_date_from(profile)
 limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))
@@ -189,6 +188,12 @@ if page == "Dashboard":
     header("Visão geral","Uma central contábil e financeira para acompanhar o seu MEI.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Receita no ano",brl(year_revenue)); c2.metric("Despesas no ano",brl(year_expense)); c3.metric("Resultado estimado",brl(year_revenue-year_expense)); c4.metric("Limite utilizado",f"{limit_pct:.1f}%"); c5.metric("Documentos",len(docs))
+    st.caption("Ações rápidas")
+    q1,q2,q3,q4 = st.columns(4)
+    if q1.button("+ Lançamento", use_container_width=True): st.session_state.nav_page="Movimentações"; st.rerun()
+    if q2.button("Importar extrato", use_container_width=True): st.session_state.nav_page="Importar Extrato"; st.rerun()
+    if q3.button("Ver DAS", use_container_width=True): st.session_state.nav_page="DAS"; st.rerun()
+    if q4.button("Obrigações", use_container_width=True): st.session_state.nav_page="Obrigações"; st.rerun()
     left,right = st.columns([1.55,1])
     with left:
         st.subheader("Faturamento por mês")
@@ -248,6 +253,42 @@ elif page == "Movimentações":
         with st.expander("Excluir lançamento"):
             selected = st.selectbox("ID do lançamento",transactions["id"].tolist())
             if st.button("Excluir definitivamente"): delete_transaction(uid,int(selected)); st.rerun()
+
+elif page == "Importar Extrato":
+    header("Importar Extrato","Importe CSV ou Excel, confira as colunas e transforme movimentações bancárias em lançamentos do Razync Pro.")
+    st.info("A importação não altera nada até você revisar os dados e confirmar. O sistema também tenta evitar lançamentos duplicados.")
+    uploaded_stmt = st.file_uploader("Extrato bancário", type=["csv","txt","xlsx","xls"], key="bank_statement")
+    if uploaded_stmt is not None:
+        try:
+            raw_stmt = read_statement(uploaded_stmt)
+            st.caption(f"{len(raw_stmt)} linha(s) lidas • {len(raw_stmt.columns)} coluna(s)")
+            st.dataframe(raw_stmt.head(20), use_container_width=True, hide_index=True)
+            cols = list(raw_stmt.columns)
+            a,b,c = st.columns(3)
+            date_col = a.selectbox("Coluna de data", cols)
+            desc_col = b.selectbox("Coluna de descrição/histórico", cols, index=min(1,len(cols)-1))
+            value_col = c.selectbox("Coluna de valor", cols, index=min(2,len(cols)-1))
+            direction = st.radio("Como interpretar o valor", ["Sinal do valor","Tudo como receita","Tudo como despesa"], horizontal=True)
+            prepared = prepare_statement(raw_stmt, date_col, desc_col, value_col, direction)
+            if prepared.empty:
+                st.warning("Nenhuma movimentação válida foi identificada com esse mapeamento.")
+            else:
+                prepared["Duplicado provável"] = [is_probable_duplicate(transactions, r["Data"], r["Tipo"], r["Descrição"], r["Valor"]) for _,r in prepared.iterrows()]
+                prepared["Categoria sugerida"] = [suggest_category(r["Descrição"],r["Tipo"]) for _,r in prepared.iterrows()]
+                st.subheader("Prévia da importação")
+                st.dataframe(prepared, use_container_width=True, hide_index=True, column_config={"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
+                only_new = prepared[~prepared["Duplicado provável"]].copy()
+                st.caption(f"{len(only_new)} lançamento(s) novo(s) • {int(prepared['Duplicado provável'].sum())} duplicado(s) provável(is) ignorado(s)")
+                if st.button("Importar lançamentos novos", type="primary", use_container_width=True, disabled=only_new.empty):
+                    imported = 0
+                    for _,r in only_new.iterrows():
+                        add_transaction(uid, tx_date=r["Data"], tx_type=r["Tipo"], description=r["Descrição"] or "Movimentação bancária", category=r["Categoria sugerida"], value=float(r["Valor"]), document_number="", counterparty="", payment_method="Conta bancária")
+                        imported += 1
+                    st.success(f"{imported} lançamento(s) importado(s).")
+                    st.session_state.nav_page="Movimentações"
+                    st.rerun()
+        except Exception as exc:
+            st.error(f"Não foi possível ler esse extrato: {exc}")
 
 elif page == "Fluxo de Caixa":
     header("Fluxo de Caixa","Acompanhe entradas, saídas, resultado mensal e evolução do saldo do negócio.")
@@ -332,6 +373,22 @@ elif page == "DASN-SIMEI":
 
 elif page == "Obrigações":
     header("Obrigações","Agenda de tarefas fiscais, financeiras, trabalhistas e documentais.")
+    st.subheader("Calendário automático do MEI")
+    ob_year = st.selectbox("Ano do calendário automático", list(range(CURRENT_YEAR-1,CURRENT_YEAR+2))[::-1], key="auto_ob_year")
+    auto_rows = pd.DataFrame(automatic_obligations(int(ob_year), opening))
+    if not auto_rows.empty:
+        today_value = date.today()
+        upcoming = auto_rows[auto_rows["Vencimento"] >= today_value].sort_values("Vencimento").head(6)
+        c1,c2,c3 = st.columns(3)
+        c1.metric("Obrigações automáticas", len(auto_rows))
+        c2.metric("Vencidas", int((auto_rows["Status automático"]=="Vencida").sum()))
+        c3.metric("Próximas 7 dias", int((auto_rows["Status automático"]=="Próxima").sum()))
+        st.dataframe(auto_rows, use_container_width=True, hide_index=True, column_config={"Vencimento":st.column_config.DateColumn("Vencimento",format="DD/MM/YYYY")})
+        if not upcoming.empty:
+            next_row = upcoming.iloc[0]
+            st.info(f"Próxima obrigação: {next_row['Obrigação']} em {next_row['Vencimento'].strftime('%d/%m/%Y')}.")
+    st.divider()
+    st.subheader("Tarefas personalizadas")
     with st.form("ob_form",clear_on_submit=True):
         a,b,c=st.columns(3); title=a.text_input("Obrigação/tarefa"); due_date=b.date_input("Vencimento",date.today()); category=c.selectbox("Categoria",["Fiscal","Financeira","Trabalhista","Documental","Outra"]); notes=st.text_input("Observações")
         if st.form_submit_button("Adicionar",type="primary") and title.strip(): add_obligation(uid,title=title.strip(),due_date=due_date,category=category,notes=notes); st.rerun()
@@ -401,6 +458,7 @@ elif page == "Meu MEI":
         a,b,c=st.columns(3); phone=a.text_input("Telefone",value=str(profile.get("phone") or "")); city=b.text_input("Cidade",value=str(profile.get("city") or "")); state=c.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); a,b=st.columns(2); municipal_registration=a.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_registration=b.text_input("Inscrição estadual",value=str(profile.get("state_registration") or ""))
         if st.form_submit_button("Salvar dados",type="primary",use_container_width=True): save_profile(uid,business_name=business_name,trade_name=trade_name,cnpj=cnpj,main_activity=main_activity,activity_type=activity_type,opening_date=opening_date,annual_limit=float(annual_limit),phone=phone,city=city,state=state.upper(),municipal_registration=municipal_registration,state_registration=state_registration); st.rerun()
     st.info(f"Limite monitorado para {CURRENT_YEAR}: {brl(annual_limit_for(opening,CURRENT_YEAR,profile.get('annual_limit')))}.")
+    st.caption(f"Referência automática do próximo ano: {brl(annual_limit_for(opening,CURRENT_YEAR+1,profile.get('annual_limit')))}. Regras ficam centralizadas no módulo fiscal para atualização anual.")
 
 elif page == "Backup":
     header("Backup e exportação","Baixe uma cópia dos principais dados cadastrados.")
