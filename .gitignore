@@ -4,7 +4,7 @@ __pycache__/
 venv/
 .env
 .streamlit/secrets.toml
-*.db
+.DS_Store
+razync_pro.db
 *.sqlite
 *.sqlite3
-.DS_Store
