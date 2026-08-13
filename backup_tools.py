@@ -44,3 +44,5 @@ def document_coverage(documents: list[dict], year: int) -> pd.DataFrame:
             "Status": "Com documentos" if month_docs else "Sem documentos",
         })
     return pd.DataFrame(rows)
+
+# trigger finish product workflow
