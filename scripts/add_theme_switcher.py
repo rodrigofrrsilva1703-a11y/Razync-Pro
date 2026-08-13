@@ -69,3 +69,4 @@ s = s.replace('fig2.update_layout(height=', 'fig2.update_layout(template=PLOT_TE
 
 p.write_text(s, encoding='utf-8')
 print('theme switcher applied')
+# trigger workflow
