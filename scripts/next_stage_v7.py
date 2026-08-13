@@ -8,26 +8,21 @@ s = app.read_text(encoding='utf-8')
 d = db.read_text(encoding='utf-8')
 c = core.read_text(encoding='utf-8')
 
-# Database helper: link an existing revenue to an invoice without duplicating it.
 anchor = '''def delete_transaction(user_id: int, item_id: int) -> None:\n    with engine.begin() as conn:\n        conn.execute(delete(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id))\n'''
 helper = anchor + '''\n\ndef link_transaction_document(user_id: int, item_id: int, document_number: str, counterparty: str = "") -> None:\n    payload = {"document_number": (document_number or "").strip()}\n    if counterparty:\n        payload["counterparty"] = counterparty.strip()\n    with engine.begin() as conn:\n        conn.execute(update(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id).values(**payload))\n'''
 if 'def link_transaction_document(' not in d:
     d = d.replace(anchor, helper, 1)
 
-# Add onboarding page to Configurações.
 c = c.replace('"Configurações": ["Meu MEI", "Status do Sistema", "Backup"],', '"Configurações": ["Primeiros Passos", "Meu MEI", "Status do Sistema", "Backup"],', 1)
 
-# Imports.
 s = s.replace('update_obligation_status, upsert_das,', 'update_obligation_status, upsert_das, link_transaction_document,', 1)
 s = s.replace('from backup_tools import build_backup_zip, document_coverage', 'from backup_tools import build_backup_zip, document_coverage\nfrom onboarding_tools import onboarding_progress, recommended_setup\nfrom reconciliation_tools import smart_invoice_matches, duplicate_groups', 1)
 
-# Dashboard onboarding banner after business card.
 needle = '    business_card(business_label, CURRENT_YEAR, cnpj_label)\n\n    today = date.today()'
 replacement = '''    business_card(business_label, CURRENT_YEAR, cnpj_label)\n    onboarding = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))\n    if not onboarding["complete"]:\n        st.info(f"Configuração inicial: {onboarding['done']} de {onboarding['total']} etapas concluídas ({onboarding['percent']}%).")\n        if st.button("Continuar configuração do MEI", key="dash_onboarding", use_container_width=True):\n            st.session_state["_navigate_to"] = "Primeiros Passos"\n            st.rerun()\n\n    today = date.today()'''
 if needle in s:
     s = s.replace(needle, replacement, 1)
 
-# Replace reconciliation page with smarter matching flow.
 start = s.index('elif page == "Conciliação":')
 end = s.index('\nelif page == "Fluxo de Caixa":', start)
 new_reconciliation = '''elif page == "Conciliação":
@@ -89,7 +84,6 @@ new_reconciliation = '''elif page == "Conciliação":
 '''
 s = s[:start] + new_reconciliation + s[end:]
 
-# Add onboarding page before Meu MEI.
 anchor = 'elif page == "Meu MEI":'
 onboarding_page = '''elif page == "Primeiros Passos":
     header("Primeiros Passos", "Configure o Razync Pro para o seu MEI e deixe os alertas, limites e relatórios mais úteis.")
@@ -138,3 +132,4 @@ app.write_text(s, encoding='utf-8')
 db.write_text(d, encoding='utf-8')
 core.write_text(c, encoding='utf-8')
 print('next stage v7 applied')
+# trigger v7
