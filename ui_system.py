@@ -4,16 +4,16 @@ import streamlit as st
 
 THEMES = {
     "Claro": {
-        "bg": "#f4f7fb",
+        "bg": "#f7f9fc",
         "surface": "#ffffff",
-        "surface_soft": "#f8fafc",
+        "surface_soft": "#f1f5f9",
         "sidebar": "#ffffff",
-        "text": "#0f172a",
-        "muted": "#64748b",
-        "border": "#dfe6ef",
+        "text": "#111827",
+        "muted": "#526071",
+        "border": "#d9e2ec",
         "primary": "#2563eb",
         "primary_hover": "#1d4ed8",
-        "primary_soft": "#eff6ff",
+        "primary_soft": "#e8f1ff",
         "success": "#16a34a",
         "warning": "#d97706",
         "danger": "#dc2626",
@@ -66,6 +66,16 @@ html, body, [class*="css"] {{ font-family: Inter, ui-sans-serif, system-ui, -app
 h1,h2,h3,h4,p,label,span {{ color:var(--rz-text); }}
 small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!important; }}
 
+/* Explicit color ownership prevents Streamlit dark defaults leaking into light theme */
+[data-testid="stSidebar"] p,[data-testid="stSidebar"] span,[data-testid="stSidebar"] label {{ color:var(--rz-text)!important; }}
+[data-testid="stSidebar"] small,[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {{ color:var(--rz-muted)!important; }}
+[data-testid="stSidebar"] [data-baseweb="base-input"], [data-testid="stSidebar"] [data-baseweb="select"] > div {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; }}
+[data-testid="stSidebar"] svg {{ fill:currentColor; color:var(--rz-muted); }}
+[data-testid="stAlert"] {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; border-color:var(--rz-border)!important; }}
+[data-testid="stAlert"] p {{ color:var(--rz-text)!important; }}
+[data-testid="stMarkdownContainer"] a {{ color:var(--rz-primary)!important; }}
+[data-testid="stWidgetLabel"] p {{ color:var(--rz-text)!important; }}
+
 /* Brand / shell */
 .rz-brand-wrap {{ padding:.55rem .2rem .7rem; }}
 .rz-brand {{ font-size:1.48rem; line-height:1; font-weight:900; letter-spacing:-.055em; color:var(--rz-text); }}
@@ -111,6 +121,15 @@ div[data-testid="stFormSubmitButton"] button[kind="primary"], button[kind="prima
 hr {{ border-color:var(--rz-border); }}
 
 /* Sidebar navigation */
+
+.rz-sidebar-section {{ font-size:.67rem; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:var(--rz-muted); margin:.8rem .15rem .32rem; }}
+[data-testid="stSidebar"] [data-testid="stExpander"] {{ box-shadow:none; border:0; background:transparent; border-radius:10px; }}
+[data-testid="stSidebar"] [data-testid="stExpander"] details {{ border:0; }}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {{ border-radius:9px; padding:.32rem .4rem; }}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover {{ background:var(--rz-soft); }}
+[data-testid="stSidebar"] [data-testid="stButton"] button {{ width:100%; min-height:2.25rem; text-align:left; justify-content:flex-start; padding:.35rem .65rem; border:0; background:transparent; box-shadow:none; }}
+[data-testid="stSidebar"] [data-testid="stButton"] button:hover {{ background:var(--rz-primary-soft); color:var(--rz-primary); }}
+.rz-current-page {{ background:var(--rz-primary-soft); color:var(--rz-primary); border-radius:9px; padding:.55rem .7rem; font-weight:760; font-size:.86rem; margin-bottom:.3rem; }}
 [data-testid="stSidebar"] [data-testid="stRadio"] label {{ padding:.38rem .48rem; border-radius:9px; margin:.08rem 0; transition:.15s ease; }}
 [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{ background:var(--rz-soft); }}
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {{ background:var(--rz-primary-soft); }}
