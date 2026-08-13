@@ -22,21 +22,21 @@ THEMES = {
         "plot": "plotly_white",
     },
     "Escuro": {
-        "bg": "#08101f",
-        "surface": "#101a2c",
-        "surface_soft": "#142137",
-        "sidebar": "#0c1627",
-        "text": "#f8fafc",
-        "muted": "#94a3b8",
-        "border": "#26364f",
-        "primary": "#3b82f6",
-        "primary_hover": "#60a5fa",
-        "primary_soft": "#102a56",
-        "success": "#22c55e",
-        "warning": "#f59e0b",
-        "danger": "#ef4444",
-        "shadow": "0 12px 32px rgba(0, 0, 0, .22)",
-        "shadow_soft": "0 4px 16px rgba(0, 0, 0, .16)",
+        "bg": "#0d1422",
+        "surface": "#151f31",
+        "surface_soft": "#1b2940",
+        "sidebar": "#101a2b",
+        "text": "#e8eef7",
+        "muted": "#9aabc2",
+        "border": "#2a3a54",
+        "primary": "#6ea2f2",
+        "primary_hover": "#8ab5f6",
+        "primary_soft": "#1a3152",
+        "success": "#5bb98b",
+        "warning": "#d7a85a",
+        "danger": "#df7b82",
+        "shadow": "0 12px 34px rgba(0, 0, 0, .22)",
+        "shadow_soft": "0 4px 16px rgba(0, 0, 0, .15)",
         "plot": "plotly_dark",
     },
 }
@@ -48,8 +48,10 @@ def tokens(theme_name: str) -> dict:
 
 def inject_design_system(theme_name: str) -> None:
     t = tokens(theme_name)
-    light_overrides = "" if theme_name != "Claro" else """
-/* Tema claro: neutraliza superfícies escuras nativas do Streamlit/BaseWeb */
+
+    if theme_name == "Claro":
+        native_overrides = """
+/* Claro: neutraliza superfícies escuras nativas do Streamlit/BaseWeb */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#f6f8fc !important; }
 [data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#f8faff !important; }
 [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { color:#718096 !important; }
@@ -70,6 +72,47 @@ button:not([kind="primary"]):hover { background:#eef3f9 !important; color:#3f6fb
 h1,h2,h3,h4,h5,h6 { color:#334155 !important; }
 hr { border-color:#e4ebf3 !important; }
 """
+    else:
+        native_overrides = """
+/* Escuro: neutraliza o tema claro nativo do Streamlit/BaseWeb */
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main { background:#0d1422 !important; color:#e8eef7 !important; }
+[data-testid="stHeader"] { background:#0d1422 !important; border-bottom:1px solid #202e44 !important; }
+[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#101a2b !important; }
+[data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { color:#9aabc2 !important; }
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stDataFrame"] { background:#151f31 !important; border-color:#2a3a54 !important; }
+[data-testid="stAlert"] { background:#182438 !important; border-color:#2a3a54 !important; }
+[data-testid="stAlert"] p, [data-testid="stAlert"] span { color:#dce6f4 !important; }
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#151f31 !important; color:#e8eef7 !important; border-color:#344861 !important; }
+input::placeholder, textarea::placeholder { color:#8192aa !important; opacity:1 !important; }
+[data-baseweb="select"] svg, [data-baseweb="input"] svg { color:#9aabc2 !important; fill:#9aabc2 !important; }
+[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"] { background:#182438 !important; color:#e8eef7 !important; border-color:#344861 !important; }
+[role="option"] { background:#182438 !important; color:#e8eef7 !important; }
+[role="option"]:hover, [role="option"][aria-selected="true"] { background:#223654 !important; color:#ffffff !important; }
+button:not([kind="primary"]) { background:#172337 !important; color:#dce6f4 !important; border-color:#344861 !important; }
+button:not([kind="primary"]):hover { background:#1d3150 !important; color:#8ab5f6 !important; border-color:#5276a5 !important; }
+button[kind="primary"] { background:#5e91dd !important; color:#ffffff !important; border-color:#5e91dd !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; color:#cad6e6 !important; border-color:transparent !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:#1a3152 !important; color:#8ab5f6 !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"], [data-testid="stSidebar"] details, [data-testid="stSidebar"] summary { background:transparent !important; border-color:transparent !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:#18263b !important; }
+[data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label { color:#cad6e6 !important; }
+[data-testid="stSidebar"] small, [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color:#8799b1 !important; }
+[data-testid="stFileUploaderDropzone"] { background:#151f31 !important; border-color:#344861 !important; }
+[data-testid="stFileUploaderDropzone"] * { color:#aebed2 !important; }
+[data-testid="stTabs"] button { color:#9aabc2 !important; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:#7faef3 !important; }
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p { color:#cbd7e7 !important; }
+[data-testid="stCaptionContainer"], .stCaption { color:#90a2b9 !important; }
+[data-testid="stMetricLabel"] p { color:#9aabc2 !important; }
+[data-testid="stMetricValue"] { color:#edf3fb !important; }
+h1,h2,h3,h4,h5,h6 { color:#edf3fb !important; }
+hr { border-color:#293950 !important; }
+[data-testid="stProgressBar"] > div { background:#223047 !important; }
+[data-testid="stDataFrame"] * { border-color:#2a3a54 !important; }
+[data-testid="stCheckbox"] label, [data-testid="stRadio"] label { color:#d7e1ef !important; }
+[data-testid="stSelectbox"] label, [data-testid="stTextInput"] label, [data-testid="stNumberInput"] label, [data-testid="stDateInput"] label, [data-testid="stTextArea"] label { color:#cbd7e7 !important; }
+"""
+
     st.markdown(
         f"""
 <style>
@@ -140,7 +183,7 @@ hr {{ border-color:var(--rz-border); }}
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p {{ color:var(--rz-primary)!important; font-weight:720; }}
 .rz-nav-label {{ font-size:.68rem; font-weight:760; text-transform:uppercase; letter-spacing:.08em; color:var(--rz-muted); margin:.45rem 0 .15rem; }}
 .rz-dev {{ background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:10px; padding:9px 10px; font-size:.72rem; color:var(--rz-muted); margin-top:.65rem; }}
-{light_overrides}
+{native_overrides}
 @media (max-width: 1000px) {{ .block-container {{ padding-left:1rem; padding-right:1rem; }} [data-testid="stMetric"] {{ min-height:96px; }} }}
 @media (max-width: 720px) {{ .rz-page-title {{ font-size:1.5rem; }} .block-container {{ padding-top:.7rem; }} }}
 </style>
@@ -175,7 +218,14 @@ def alert_card(level: str, title: str, text: str) -> None:
 
 def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None:
     t = tokens(theme_name)
-    kwargs = {"template": t["plot"], "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": t["text"]}, "margin": dict(l=0, r=0, t=12, b=0), "legend_title_text": ""}
+    kwargs = {
+        "template": t["plot"],
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "font": {"color": t["text"]},
+        "margin": dict(l=0, r=0, t=12, b=0),
+        "legend_title_text": "",
+    }
     if height:
         kwargs["height"] = height
     fig.update_layout(**kwargs)
