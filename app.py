@@ -169,6 +169,10 @@ employees = list_employees(uid)
 contacts = list_contacts(uid)
 obligations = list_obligations(uid)
 
+pending_page = st.session_state.pop("_navigate_to", None)
+if pending_page:
+    st.session_state["nav_page"] = pending_page
+
 with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
     st.caption("Ecossistema Razync • MEI")
@@ -190,10 +194,10 @@ if page == "Dashboard":
     c1.metric("Receita no ano",brl(year_revenue)); c2.metric("Despesas no ano",brl(year_expense)); c3.metric("Resultado estimado",brl(year_revenue-year_expense)); c4.metric("Limite utilizado",f"{limit_pct:.1f}%"); c5.metric("Documentos",len(docs))
     st.caption("Ações rápidas")
     q1,q2,q3,q4 = st.columns(4)
-    if q1.button("+ Lançamento", use_container_width=True): st.session_state.nav_page="Movimentações"; st.rerun()
-    if q2.button("Importar extrato", use_container_width=True): st.session_state.nav_page="Importar Extrato"; st.rerun()
-    if q3.button("Ver DAS", use_container_width=True): st.session_state.nav_page="DAS"; st.rerun()
-    if q4.button("Obrigações", use_container_width=True): st.session_state.nav_page="Obrigações"; st.rerun()
+    if q1.button("+ Lançamento", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
+    if q2.button("Importar extrato", use_container_width=True): st.session_state["_navigate_to"]="Importar Extrato"; st.rerun()
+    if q3.button("Ver DAS", use_container_width=True): st.session_state["_navigate_to"]="DAS"; st.rerun()
+    if q4.button("Obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
     left,right = st.columns([1.55,1])
     with left:
         st.subheader("Faturamento por mês")
@@ -285,7 +289,7 @@ elif page == "Importar Extrato":
                         add_transaction(uid, tx_date=r["Data"], tx_type=r["Tipo"], description=r["Descrição"] or "Movimentação bancária", category=r["Categoria sugerida"], value=float(r["Valor"]), document_number="", counterparty="", payment_method="Conta bancária")
                         imported += 1
                     st.success(f"{imported} lançamento(s) importado(s).")
-                    st.session_state.nav_page="Movimentações"
+                    st.session_state["_navigate_to"]="Movimentações"
                     st.rerun()
         except Exception as exc:
             st.error(f"Não foi possível ler esse extrato: {exc}")
