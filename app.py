@@ -223,6 +223,32 @@ if page == "Movimentações" and not transactions.empty:
     offset = (current_tx_page - 1) * page_size
     transactions = transactions.iloc[offset:offset + page_size].copy()
 
+with st.sidebar:
+    st.markdown("### RAZYNC PRO")
+    st.caption("Contabilidade simples para MEI")
+    st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
+    st.markdown("**Navegação**")
+    if page == "Dashboard":
+        st.info("⌂ Início")
+    elif st.button("⌂ Início", key="nav_home", use_container_width=True):
+        st.session_state["_navigate_to"] = "Dashboard"
+        st.rerun()
+    groups = {
+        "Financeiro": NAV_GROUPS["Financeiro"],
+        "Fiscal MEI": NAV_GROUPS["Fiscal MEI"],
+        "Gestão": NAV_GROUPS["Gestão"],
+        "Relatórios": NAV_GROUPS["Relatórios"],
+        "Configurações": NAV_GROUPS["Configurações"],
+    }
+    for group, pages in groups.items():
+        with st.expander(group, expanded=(group_for_page(page) == group)):
+            for nav_page in pages:
+                if nav_page == page:
+                    st.info(nav_page)
+                elif st.button(nav_page, key=f"nav_{group}_{nav_page}", use_container_width=True):
+                    st.session_state["_navigate_to"] = nav_page
+                    st.rerun()
+
 # Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
 _dashboard_stats = None
 if page == "Dashboard":
