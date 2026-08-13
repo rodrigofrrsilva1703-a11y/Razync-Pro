@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - scripts/ux_pass_v6.py
+      - .github/workflows/ux-pass-v6.yml
 jobs:
   apply:
     runs-on: ubuntu-latest
