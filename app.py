@@ -126,6 +126,36 @@ def category_totals_for_dasn(df: pd.DataFrame, year: int) -> tuple[float,float]:
     return services, sales
 
 
+def cashflow_monthly(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    rows = []
+    for month in range(1, 13):
+        cur = df[df["tx_date"].dt.year == year] if not df.empty else df
+        cur = cur[cur["tx_date"].dt.month == month] if not cur.empty else cur
+        entradas = float(cur[cur["tx_type"] == "Receita"]["value"].sum()) if not cur.empty else 0.0
+        saidas = float(cur[cur["tx_type"] == "Despesa"]["value"].sum()) if not cur.empty else 0.0
+        rows.append({"Mês": calendar.month_name[month], "Entradas": entradas, "Saídas": saidas, "Resultado": entradas-saidas})
+    out = pd.DataFrame(rows)
+    out["Saldo acumulado"] = out["Resultado"].cumsum()
+    return out
+
+def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list, obligations: list) -> tuple[int, list[str]]:
+    score = 100
+    notes = []
+    if not profile.get("cnpj"):
+        score -= 20; notes.append("Complete os dados do CNPJ em Meu MEI.")
+    if not profile.get("main_activity"):
+        score -= 10; notes.append("Informe a atividade principal.")
+    if limit and revenue / limit >= 0.8:
+        score -= 20; notes.append("Faturamento acima de 80% do limite monitorado.")
+    overdue = [d for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado"]
+    if overdue:
+        score -= min(30, len(overdue) * 10); notes.append(f"Existem {len(overdue)} DAS em atraso.")
+    late_obs = [o for o in obligations if o.get("status") != "Concluído" and o.get("due_date") and o.get("due_date") < date.today()]
+    if late_obs:
+        score -= min(20, len(late_obs) * 5); notes.append(f"Existem {len(late_obs)} obrigações vencidas.")
+    return max(score, 0), notes
+
+
 user = ensure_login()
 uid = int(user["id"])
 profile = get_profile(uid)
@@ -141,7 +171,7 @@ with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
     st.caption("Ecossistema Razync • MEI")
     st.divider()
-    page = st.radio("Navegação", ["Dashboard","Movimentações","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed")
+    page = st.radio("Navegação", ["Dashboard","Movimentações","Fluxo de Caixa","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed")
     st.divider()
     st.caption(user["email"])
     if st.button("Sair", use_container_width=True):
@@ -176,6 +206,31 @@ if page == "Dashboard":
     else:
         st.dataframe(transactions.head(10)[["tx_date","tx_type","description","counterparty","value"]],use_container_width=True,hide_index=True,column_config={"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY"),"value":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
 
+    st.subheader("Saúde do seu MEI")
+    health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
+    a,b = st.columns([1,2])
+    with a:
+        st.metric("Índice de organização", f"{health_score}/100")
+        st.progress(health_score/100)
+    with b:
+        if health_notes:
+            for note in health_notes:
+                st.caption(f"• {note}")
+        else:
+            st.success("Seu cadastro e obrigações monitoradas estão organizados.")
+
+    with st.expander("Checklist de configuração do MEI", expanded=not bool(profile.get("cnpj"))):
+        checklist = [
+            ("Dados do CNPJ preenchidos", bool(profile.get("cnpj"))),
+            ("Atividade principal informada", bool(profile.get("main_activity"))),
+            ("Data de abertura cadastrada", bool(profile.get("opening_date"))),
+            ("Primeira movimentação registrada", not transactions.empty),
+            ("Calendário do DAS criado", bool(das_rows)),
+            ("Primeiro documento armazenado", bool(docs)),
+        ]
+        for label, done in checklist:
+            st.write(("✅ " if done else "⬜ ") + label)
+
 elif page == "Movimentações":
     header("Movimentações","Registre receitas e despesas. Os dados alimentam automaticamente o dashboard, o Relatório Mensal e a DASN-SIMEI.")
     with st.form("tx_form",clear_on_submit=True):
@@ -193,6 +248,26 @@ elif page == "Movimentações":
         with st.expander("Excluir lançamento"):
             selected = st.selectbox("ID do lançamento",transactions["id"].tolist())
             if st.button("Excluir definitivamente"): delete_transaction(uid,int(selected)); st.rerun()
+
+elif page == "Fluxo de Caixa":
+    header("Fluxo de Caixa","Acompanhe entradas, saídas, resultado mensal e evolução do saldo do negócio.")
+    years = {CURRENT_YEAR}
+    if not transactions.empty:
+        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
+    flow_year = st.selectbox("Ano do fluxo de caixa", sorted(years, reverse=True))
+    flow = cashflow_monthly(transactions, int(flow_year))
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Entradas", brl(float(flow["Entradas"].sum())))
+    c2.metric("Saídas", brl(float(flow["Saídas"].sum())))
+    c3.metric("Resultado", brl(float(flow["Resultado"].sum())))
+    chart = flow.melt(id_vars=["Mês"], value_vars=["Entradas","Saídas"], var_name="Tipo", value_name="Valor")
+    fig = px.bar(chart, x="Mês", y="Valor", color="Tipo", barmode="group")
+    fig.update_layout(height=350, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Valor")
+    st.plotly_chart(fig, use_container_width=True)
+    fig2 = px.line(flow, x="Mês", y="Saldo acumulado", markers=True)
+    fig2.update_layout(height=300, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="", yaxis_title="Saldo acumulado")
+    st.plotly_chart(fig2, use_container_width=True)
+    st.dataframe(flow, use_container_width=True, hide_index=True, column_config={c:st.column_config.NumberColumn(c, format="R$ %.2f") for c in ["Entradas","Saídas","Resultado","Saldo acumulado"]})
 
 elif page == "Relatório Mensal":
     header("Relatório Mensal de Receitas Brutas","Consolidação automática com receitas documentadas, não documentadas, serviços e vendas.")
