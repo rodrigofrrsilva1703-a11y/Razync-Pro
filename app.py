@@ -15,6 +15,7 @@ from database import (
     list_obligations, list_transactions, save_document, save_profile,
     update_obligation_status, upsert_das,
 )
+from database import database_runtime_info
 from fiscal_rules import (
     MEI_ANNUAL_LIMIT, annual_limit_for, build_alerts, competence_list,
     das_due_date, das_status,
@@ -24,6 +25,7 @@ from bank_import import read_statement, prepare_statement, is_probable_duplicate
 from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
+from backup_tools import build_backup_zip, document_coverage
 
 CURRENT_YEAR = date.today().year
 
@@ -567,6 +569,13 @@ elif page == "Empregado":
 
 elif page == "Documentos":
     header("Documentos","Cofre de notas, recibos, comprovantes, DAS e outros documentos do MEI.")
+    coverage_year = st.selectbox("Ano da cobertura documental", list(range(CURRENT_YEAR-3, CURRENT_YEAR+2))[::-1], key="docs_coverage_year")
+    coverage = document_coverage(docs, int(coverage_year))
+    c1,c2 = st.columns(2)
+    c1.metric("Documentos armazenados", len(docs))
+    c2.metric("Meses com documentos", int((coverage["Documentos"] > 0).sum()))
+    st.dataframe(coverage, use_container_width=True, hide_index=True)
+    st.caption("Use o mês de referência no formato AAAA-MM para que o fechamento mensal consiga localizar os documentos da competência.")
     with st.form("doc_form",clear_on_submit=True):
         category=st.selectbox("Categoria",["Nota fiscal","Recibo","Comprovante","DAS","DASN-SIMEI","Contrato","Extrato","Outro"]); reference_month=st.text_input("Mês de referência",placeholder="AAAA-MM"); uploaded=st.file_uploader("Arquivo",type=["pdf","png","jpg","jpeg","xlsx","csv"])
         if st.form_submit_button("Salvar documento",type="primary"):
@@ -622,10 +631,35 @@ elif page == "Meu MEI":
     st.info(f"Limite monitorado para {CURRENT_YEAR}: {brl(annual_limit_for(opening,CURRENT_YEAR,profile.get('annual_limit')))}.")
     st.caption(f"Referência automática do próximo ano: {brl(annual_limit_for(opening,CURRENT_YEAR+1,profile.get('annual_limit')))}. Regras ficam centralizadas no módulo fiscal para atualização anual.")
 
+elif page == "Status do Sistema":
+    header("Status do Sistema","Veja o que já está operacional e o que ainda depende de configuração externa.")
+    dbinfo = database_runtime_info()
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Banco de dados", dbinfo["backend"])
+    c2.metric("Persistência", "Ativa" if dbinfo["persistent"] else "Temporária")
+    c3.metric("Banco de produção", "Pronto" if dbinfo["production_ready"] else "Pendente")
+    if dbinfo["persistent"]:
+        st.success("O Razync Pro está conectado a PostgreSQL e os dados podem ser mantidos fora do ciclo temporário do Streamlit.")
+    else:
+        st.warning("O sistema está usando SQLite temporário. Para dados reais, configure DATABASE_URL nos Secrets do Streamlit apontando para PostgreSQL/Supabase.")
+    st.subheader("Integrações")
+    integration_rows = pd.DataFrame([
+        {"Integração":"Importação de extrato CSV/Excel", "Status":"Operacional", "Observação":"Importação com prévia, categorização sugerida e controle de duplicidade."},
+        {"Integração":"PostgreSQL / Supabase", "Status":"Operacional" if dbinfo["persistent"] else "Aguardando credencial", "Observação":"Suporte no código concluído; requer DATABASE_URL do banco gerenciado."},
+        {"Integração":"NFS-e Nacional", "Status":"Controle manual", "Observação":"Notas podem ser controladas e conciliadas; integração automática depende do fluxo/API oficial aplicável ao emissor."},
+        {"Integração":"Assistente Razync", "Status":"Operacional", "Observação":"Consulta faturamento, despesas, limite, DAS e conciliação com base nos dados cadastrados."},
+    ])
+    st.dataframe(integration_rows, use_container_width=True, hide_index=True)
+
 elif page == "Backup":
-    header("Backup e exportação","Baixe uma cópia dos principais dados cadastrados.")
+    header("Backup e exportação","Baixe uma cópia consolidada ou arquivos separados dos dados cadastrados.")
+    backup_zip = build_backup_zip(profile, transactions, invoices, das_rows, contacts, obligations, employees, docs)
+    st.download_button("Baixar backup completo (.zip)", backup_zip, f"razync_pro_backup_{date.today().isoformat()}.zip", "application/zip", type="primary", use_container_width=True)
+    st.caption("O ZIP contém perfil, movimentações, notas fiscais, DAS, contatos, obrigações, empregados e índice de documentos.")
+    st.subheader("Arquivos individuais")
     files={"movimentacoes.csv":transactions.to_csv(index=False).encode("utf-8-sig"),"notas_fiscais.csv":invoices.to_csv(index=False).encode("utf-8-sig"),"das.csv":pd.DataFrame(das_rows).to_csv(index=False).encode("utf-8-sig"),"contatos.csv":pd.DataFrame(contacts).to_csv(index=False).encode("utf-8-sig"),"obrigacoes.csv":pd.DataFrame(obligations).to_csv(index=False).encode("utf-8-sig")}
     for name,data in files.items(): st.download_button(f"Baixar {name}",data,name,"text/csv",use_container_width=True)
+
 
 st.divider()
 st.caption("Razync Pro • Ecossistema Razync • ferramenta de organização contábil e financeira para MEI")
