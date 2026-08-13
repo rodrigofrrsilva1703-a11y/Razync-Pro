@@ -172,29 +172,32 @@ if page not in all_pages:
 with st.sidebar:
     st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Contabilidade simples para MEI</div></div>', unsafe_allow_html=True)
     st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
-    st.markdown('<div class="rz-nav-label">Menu</div>', unsafe_allow_html=True)
-    groups = list(NAV_GROUPS.keys())
-    if st.session_state.get("nav_group") not in groups:
-        st.session_state["nav_group"] = "Visão Geral"
-    group_icons = {
-        "Visão Geral":"⌂", "Financeiro":"◫", "Fiscal MEI":"▣",
-        "Gestão":"◇", "Relatórios":"▤", "Configurações":"⚙"
+    st.markdown('<div class="rz-sidebar-section">Navegação</div>', unsafe_allow_html=True)
+
+    if page == "Dashboard":
+        st.markdown('<div class="rz-current-page">⌂  Início</div>', unsafe_allow_html=True)
+    elif st.button("⌂  Início", key="nav_home", use_container_width=True):
+        st.session_state["_navigate_to"] = "Dashboard"
+        st.rerun()
+
+    sidebar_groups = {
+        "Financeiro": NAV_GROUPS["Financeiro"],
+        "Fiscal MEI": NAV_GROUPS["Fiscal MEI"],
+        "Gestão": NAV_GROUPS["Gestão"],
+        "Relatórios": NAV_GROUPS["Relatórios"],
+        "Configurações": NAV_GROUPS["Configurações"],
     }
-    selected_group = st.radio(
-        "Área", groups, key="nav_group", label_visibility="collapsed",
-        format_func=lambda g: f"{group_icons.get(g, '•')}  {g}"
-    )
-    group_pages = NAV_GROUPS[selected_group]
-    if len(group_pages) == 1:
-        page = group_pages[0]
-        st.session_state[f"nav_page_{selected_group}"] = page
-    else:
-        st.markdown(f'<div class="rz-nav-label">{selected_group}</div>', unsafe_allow_html=True)
-        page_key = f"nav_page_{selected_group}"
-        if st.session_state.get(page_key) not in group_pages:
-            st.session_state[page_key] = group_pages[0]
-        page = st.radio("Página", group_pages, key=page_key, label_visibility="collapsed")
-    st.markdown('<div class="rz-dev">Ambiente de desenvolvimento • acesso direto</div>', unsafe_allow_html=True)
+    icons = {"Financeiro":"▰", "Fiscal MEI":"▣", "Gestão":"◇", "Relatórios":"▤", "Configurações":"⚙"}
+    current_group = group_for_page(page)
+    for group, pages in sidebar_groups.items():
+        with st.expander(f"{icons[group]}  {group}", expanded=(current_group == group)):
+            for nav_page in pages:
+                if nav_page == page:
+                    st.markdown(f'<div class="rz-current-page">{nav_page}</div>', unsafe_allow_html=True)
+                elif st.button(nav_page, key=f"nav_{group}_{nav_page}", use_container_width=True):
+                    st.session_state["_navigate_to"] = nav_page
+                    st.rerun()
+    st.markdown('<div class="rz-dev">Desenvolvimento • acesso direto</div>', unsafe_allow_html=True)
 
 opening = opening_date_from(profile)
 limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))

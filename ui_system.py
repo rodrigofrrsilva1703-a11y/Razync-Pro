@@ -113,6 +113,43 @@ hr { border-color:#293950 !important; }
 [data-testid="stSelectbox"] label, [data-testid="stTextInput"] label, [data-testid="stNumberInput"] label, [data-testid="stDateInput"] label, [data-testid="stTextArea"] label { color:#cbd7e7 !important; }
 """
 
+    dark_overrides = "" if theme_name != "Escuro" else """
+/* Dark theme owns all native Streamlit surfaces; no light-base leakage. */
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#0c1424 !important; color:#e7edf7 !important; }
+[data-testid="stHeader"] { background:#0c1424 !important; border-bottom:1px solid #25344c !important; }
+[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#111c2e !important; border-right-color:#263750 !important; }
+[data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { color:#91a3bb !important; }
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stAlert"], [data-testid="stDataFrame"] { background:#162238 !important; border-color:#2b3d59 !important; }
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#17243a !important; color:#e7edf7 !important; border-color:#334764 !important; box-shadow:none !important; }
+[data-baseweb="select"] > div > div, [data-baseweb="input"] > div > div { background:transparent !important; color:#e7edf7 !important; }
+[data-baseweb="select"] svg, [data-baseweb="input"] svg { color:#9fb0c6 !important; fill:#9fb0c6 !important; }
+[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"], [role="option"] { background:#17243a !important; color:#e7edf7 !important; border-color:#334764 !important; }
+[role="option"]:hover { background:#20314d !important; }
+button:not([kind="primary"]) { background:#17243a !important; color:#dce6f3 !important; border-color:#334764 !important; box-shadow:none !important; }
+button:not([kind="primary"]):hover { background:#20314d !important; color:#7fb2ff !important; border-color:#4b6f9f !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; border-color:transparent !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:#1b2c46 !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"], [data-testid="stSidebar"] details, [data-testid="stSidebar"] summary { background:transparent !important; border-color:transparent !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:#1b2c46 !important; }
+[data-testid="stFileUploaderDropzone"] { background:#142137 !important; border-color:#334764 !important; }
+[data-testid="stFileUploaderDropzone"] * { color:#aebed2 !important; }
+[data-testid="stTabs"] button { color:#94a7bf !important; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:#79aef8 !important; }
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p, label, p, span { color:#d9e3ef !important; }
+h1,h2,h3,h4,h5,h6 { color:#f2f6fb !important; }
+small,[data-testid="stCaptionContainer"],.stCaption { color:#93a5bc !important; }
+[data-testid="stAlert"] { background:#1a2a43 !important; }
+[data-testid="stAlert"] p { color:#dce6f3 !important; }
+[data-testid="stProgressBar"] > div { background:#23334b !important; }
+[data-testid="stProgressBar"] > div > div { background:#4f8ee8 !important; }
+[data-testid="stNumberInput"] button { background:#162238 !important; color:#a9bad0 !important; border-color:#334764 !important; }
+[data-testid="stNumberInput"] button:hover { background:#20314d !important; }
+[data-testid="stRadio"] [role="radiogroup"] label div:first-child { background:#17243a !important; border-color:#50647f !important; }
+[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) div:first-child { background:#4f8ee8 !important; border-color:#7fb2ff !important; }
+.rz-current-page { background:#1e3a63 !important; color:#8fc0ff !important; }
+.rz-dev { background:#142137 !important; border-color:#2b3d59 !important; color:#8fa2ba !important; }
+hr { border-color:#263750 !important; }
+"""
     st.markdown(
         f"""
 <style>
