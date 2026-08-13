@@ -22,3 +22,4 @@ u = u[:start] + new_func
 app_path.write_text(s, encoding='utf-8')
 ui_path.write_text(u, encoding='utf-8')
 print('adaptive charts applied')
+# trigger
