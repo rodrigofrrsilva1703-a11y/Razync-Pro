@@ -1,313 +1,242 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import calendar
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 from database import (
-    add_lancamento,
-    delete_lancamento,
-    get_fluxo_mensal,
-    get_lancamentos,
-    get_mei,
-    get_resumo,
-    init_db,
-    save_mei,
+    add_transaction, authenticate, create_user, delete_document, delete_transaction,
+    get_document, get_profile, init_db, list_das, list_documents,
+    list_transactions, save_document, save_profile, upsert_das,
 )
 
-st.set_page_config(
-    page_title="MEI Fácil",
-    page_icon="🧾",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
+st.set_page_config(page_title="Razync Pro", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 init_db()
 
-st.markdown(
-    """
-    <style>
-      .block-container {padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1450px;}
-      [data-testid="stSidebar"] {background: linear-gradient(180deg,#07111f 0%,#0b1728 100%); border-right: 1px solid #1b2a40;}
-      [data-testid="stSidebar"] * {color: #eaf2ff;}
-      .hero {padding: 1.25rem 1.35rem; border-radius: 22px; background: linear-gradient(135deg,#07111f 0%,#10233f 58%,#0c4664 100%); border:1px solid #1d3954; margin-bottom: 1.2rem;}
-      .hero h1 {font-size: 2rem; margin:0; color:#fff;}
-      .hero p {margin:.35rem 0 0; color:#a9bdd5;}
-      .eyebrow {font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:#5ad5ff; font-weight:700; margin-bottom:.35rem;}
-      .section-title {font-size:1.15rem; font-weight:750; margin:1.1rem 0 .7rem;}
-      .notice {padding: .9rem 1rem; border-radius: 16px; border: 1px solid rgba(125,145,170,.2); margin-bottom:.65rem; background:rgba(255,255,255,.02);}
-      .notice.good {border-left:4px solid #28c281;}
-      .notice.warn {border-left:4px solid #ffb44a;}
-      .notice.info {border-left:4px solid #4aa8ff;}
-      .muted {opacity:.66; font-size:.9rem;}
-      div[data-testid="stMetric"] {border:1px solid rgba(125,145,170,.18); padding:1rem; border-radius:18px; background:rgba(125,145,170,.035);}
-      div[data-testid="stMetricValue"] {font-size:1.55rem;}
-      .small-card {border:1px solid rgba(125,145,170,.18); border-radius:18px; padding:1rem;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+:root { --rz-blue:#2563eb; --rz-dark:#050914; --rz-card:#0b1220; --rz-border:#1f2a3d; }
+.stApp { background:radial-gradient(circle at 15% 0%, #0b1832 0%, #050914 34%, #050914 100%); }
+[data-testid="stSidebar"] { background:#070c16; border-right:1px solid #172236; }
+[data-testid="stMetric"] { background:linear-gradient(180deg,rgba(17,28,49,.95),rgba(9,16,29,.95)); border:1px solid #1d2a42; border-radius:16px; padding:14px 16px; }
+.block-container { padding-top:1.25rem; padding-bottom:2rem; max-width:1450px; }
+.rz-brand { font-size:1.48rem; font-weight:900; letter-spacing:-.03em; }
+.rz-brand span { color:#60a5fa; }
+.rz-kicker { color:#60a5fa; font-weight:800; text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; }
+.rz-title { font-size:2rem; font-weight:900; margin:.15rem 0 .2rem; letter-spacing:-.035em; }
+.rz-sub { color:#94a3b8; margin-bottom:1.2rem; }
+.rz-card { background:rgba(10,18,32,.86); border:1px solid #1c2940; border-radius:16px; padding:16px; }
+.rz-alert { border-radius:14px; padding:12px 14px; margin-bottom:9px; background:#0b1425; border:1px solid #1f2d45; }
+.rz-ok { border-left:4px solid #22c55e; }.rz-warn { border-left:4px solid #f59e0b; }.rz-danger { border-left:4px solid #ef4444; }
+.rz-small { color:#94a3b8; font-size:.88rem; }
+div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button { border-radius:10px; }
+div[data-testid="stDataFrame"] { border:1px solid #1c2940; border-radius:12px; overflow:hidden; }
+</style>
+""", unsafe_allow_html=True)
 
 
 def brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def hero(title: str, subtitle: str, eyebrow: str = "MEI FÁCIL") -> None:
-    st.markdown(
-        f"""
-        <div class="hero">
-          <div class="eyebrow">{eyebrow}</div>
-          <h1>{title}</h1>
-          <p>{subtitle}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+def header(title: str, subtitle: str) -> None:
+    st.markdown('<div class="rz-kicker">Razync Pro</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="rz-title">{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="rz-sub">{subtitle}</div>', unsafe_allow_html=True)
 
 
-def dataframe_lancamentos(df: pd.DataFrame, key: str) -> None:
+def tx_dataframe(user_id: int) -> pd.DataFrame:
+    df = pd.DataFrame(list_transactions(user_id))
     if df.empty:
-        st.info("Nenhum lançamento cadastrado ainda.")
-        return
-
-    show = df.copy()
-    st.dataframe(
-        show,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "id": st.column_config.NumberColumn("ID", width="small"),
-            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-            "tipo": "Tipo",
-            "descricao": "Descrição",
-            "categoria": "Categoria",
-            "valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-        },
-        key=key,
-    )
+        return pd.DataFrame(columns=["id", "tx_date", "tx_type", "description", "category", "value"])
+    df["tx_date"] = pd.to_datetime(df["tx_date"])
+    return df
 
 
-def delete_box(df: pd.DataFrame, key: str) -> None:
-    if df.empty:
-        return
-    ids = df["id"].astype(int).tolist()
-    with st.expander("Excluir lançamento"):
-        selected = st.selectbox("Selecione o ID", ids, key=f"delete_{key}")
-        row = df[df["id"] == selected].iloc[0]
-        st.caption(f"{row['descricao']} • {brl(float(row['valor']))}")
-        if st.button("Excluir definitivamente", key=f"btn_{key}", type="secondary"):
-            delete_lancamento(selected)
-            st.success("Lançamento excluído.")
-            st.rerun()
+def ensure_login() -> dict:
+    if "user" in st.session_state:
+        return st.session_state.user
+    left, center, right = st.columns([1, 1.2, 1])
+    with center:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
+        st.caption("Gestão inteligente para MEI e pequenos negócios")
+        login_tab, register_tab = st.tabs(["Entrar", "Criar conta"])
+        with login_tab:
+            with st.form("login_form"):
+                email = st.text_input("E-mail")
+                password = st.text_input("Senha", type="password")
+                if st.form_submit_button("Entrar", type="primary", use_container_width=True):
+                    user = authenticate(email, password)
+                    if user:
+                        st.session_state.user = user
+                        st.rerun()
+                    else:
+                        st.error("E-mail ou senha inválidos.")
+        with register_tab:
+            with st.form("register_form"):
+                name = st.text_input("Seu nome")
+                email = st.text_input("E-mail", key="reg_email")
+                password = st.text_input("Senha", type="password", key="reg_password")
+                confirm = st.text_input("Confirmar senha", type="password")
+                if st.form_submit_button("Criar conta", use_container_width=True):
+                    if len(name.strip()) < 2: st.error("Informe seu nome.")
+                    elif "@" not in email: st.error("Informe um e-mail válido.")
+                    elif len(password) < 6: st.error("Use uma senha com pelo menos 6 caracteres.")
+                    elif password != confirm: st.error("As senhas não conferem.")
+                    else:
+                        ok, message = create_user(name, email, password)
+                        st.success(message + " Agora faça login.") if ok else st.error(message)
+    st.stop()
 
+
+user = ensure_login()
+user_id = int(user["id"])
+profile = get_profile(user_id)
+transactions = tx_dataframe(user_id)
+total_receitas = float(transactions.loc[transactions["tx_type"] == "Receita", "value"].sum()) if not transactions.empty else 0.0
+total_despesas = float(transactions.loc[transactions["tx_type"] == "Despesa", "value"].sum()) if not transactions.empty else 0.0
+resultado = total_receitas - total_despesas
+annual_limit = float(profile.get("annual_limit") or 0)
+usage_pct = (total_receitas / annual_limit * 100) if annual_limit > 0 else 0
 
 with st.sidebar:
-    st.markdown("## 🧾 MEI Fácil")
-    st.caption("Organização financeira sem complicação")
+    st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
+    st.caption("Ecossistema Razync • MEI")
     st.divider()
-    pagina = st.radio(
-        "Navegação",
-        [
-            "Dashboard",
-            "Receitas",
-            "Despesas",
-            "Fluxo de caixa",
-            "DAS",
-            "Declaração anual",
-            "Documentos",
-            "Meu MEI",
-        ],
-        label_visibility="collapsed",
-    )
+    page = st.radio("Navegação", ["Dashboard", "Receitas", "Despesas", "Fluxo de caixa", "DAS", "Declaração anual", "Documentos", "Assistente", "Meu MEI"], label_visibility="collapsed")
     st.divider()
-    st.caption("MVP v0.2 • Streamlit + SQLite")
+    st.caption(user.get("email", ""))
+    if st.button("Sair", use_container_width=True):
+        st.session_state.pop("user", None)
+        st.rerun()
 
-resumo = get_resumo()
-receitas = get_lancamentos("Receita")
-despesas = get_lancamentos("Despesa")
-todos = get_lancamentos()
-mei = get_mei()
-
-if pagina == "Dashboard":
-    nome = str(mei.get("nome") or "seu negócio")
-    hero("Visão geral", f"Acompanhe as principais informações de {nome} em um só lugar.")
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Faturamento", brl(resumo["receitas"]))
-    c2.metric("Despesas", brl(resumo["despesas"]))
-    c3.metric("Resultado estimado", brl(resumo["resultado"]))
-    c4.metric("Lançamentos", int(resumo["quantidade"]))
-
-    st.markdown('<div class="section-title">Evolução financeira</div>', unsafe_allow_html=True)
-    fluxo_mensal = get_fluxo_mensal()
-    left, right = st.columns([1.55, 1])
-
+if page == "Dashboard":
+    header("Visão geral", f"Olá, {user.get('name', '').split(' ')[0]}. Veja o que precisa da sua atenção.")
+    a, b, c, d = st.columns(4)
+    a.metric("Faturamento registrado", brl(total_receitas)); b.metric("Despesas registradas", brl(total_despesas)); c.metric("Resultado estimado", brl(resultado)); d.metric("Uso do limite informado", f"{usage_pct:.1f}%" if annual_limit > 0 else "Não definido")
+    st.divider()
+    left, right = st.columns([1.65, 1])
     with left:
-        if fluxo_mensal.empty:
-            st.info("Cadastre receitas e despesas para começar a visualizar a evolução mensal.")
+        st.subheader("Movimentação")
+        if transactions.empty: st.info("Cadastre sua primeira receita ou despesa.")
         else:
-            chart = fluxo_mensal.melt(
-                id_vars=["mes"],
-                value_vars=["receitas", "despesas"],
-                var_name="tipo",
-                value_name="valor",
-            )
-            fig = px.bar(chart, x="mes", y="valor", color="tipo", barmode="group")
-            fig.update_layout(
-                height=355,
-                margin=dict(l=0, r=0, t=15, b=0),
-                legend_title_text="",
-                xaxis_title="",
-                yaxis_title="R$",
-            )
+            monthly = transactions.copy(); monthly["mes"] = monthly["tx_date"].dt.to_period("M").astype(str)
+            chart = monthly.groupby(["mes", "tx_type"], as_index=False)["value"].sum()
+            fig = px.bar(chart, x="mes", y="value", color="tx_type", barmode="group")
+            fig.update_layout(height=330, margin=dict(l=0,r=0,t=8,b=0), legend_title_text="", xaxis_title="", yaxis_title="")
             st.plotly_chart(fig, use_container_width=True)
-
     with right:
-        st.markdown("#### O que preciso fazer agora?")
-        if not mei.get("cnpj"):
-            st.markdown('<div class="notice warn"><b>⚠ Complete os dados do seu MEI</b><br><span class="muted">Cadastre CNPJ, atividade e data de abertura em Meu MEI.</span></div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="notice good"><b>✓ Cadastro do MEI preenchido</b><br><span class="muted">Os dados principais do negócio estão salvos.</span></div>', unsafe_allow_html=True)
-        st.markdown('<div class="notice info"><b>ℹ Registre as movimentações</b><br><span class="muted">Quanto mais completo o histórico, melhores serão os relatórios.</span></div>', unsafe_allow_html=True)
-        st.markdown('<div class="notice warn"><b>⚠ Módulo DAS em construção</b><br><span class="muted">O controle de vencimentos e pagamentos será a próxima etapa.</span></div>', unsafe_allow_html=True)
-
-    if float(mei.get("limite_anual") or 0) > 0:
-        limite = float(mei["limite_anual"])
-        usado = min(resumo["receitas"] / limite, 1.0) if limite else 0.0
-        st.markdown('<div class="section-title">Acompanhamento do limite configurado</div>', unsafe_allow_html=True)
-        st.progress(usado)
-        st.caption(f"{brl(resumo['receitas'])} registrados de {brl(limite)} configurados para o ano.")
-
-    st.markdown('<div class="section-title">Últimos lançamentos</div>', unsafe_allow_html=True)
-    dataframe_lancamentos(todos.head(10), "dashboard_table")
-
-elif pagina == "Receitas":
-    hero("Receitas", "Registre vendas, serviços e outras entradas do seu negócio.", "FINANCEIRO")
-    with st.form("nova_receita", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        data_receita = c1.date_input("Data", value=date.today())
-        valor_receita = c2.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
-        descricao_receita = st.text_input("Descrição", placeholder="Ex.: serviço realizado para cliente")
-        categoria_receita = st.selectbox("Categoria", ["Vendas", "Serviços", "Outras receitas"])
-        salvar = st.form_submit_button("Adicionar receita", type="primary", use_container_width=True)
-        if salvar:
-            if not descricao_receita.strip() or valor_receita <= 0:
-                st.error("Informe uma descrição e um valor maior que zero.")
-            else:
-                add_lancamento(data_receita.isoformat(), "Receita", descricao_receita, categoria_receita, valor_receita)
-                st.success("Receita salva no banco.")
-                st.rerun()
-
-    c1, c2 = st.columns([1, 3])
-    c1.metric("Total registrado", brl(resumo["receitas"]))
-    c2.caption("Os lançamentos ficam salvos no banco SQLite local deste ambiente.")
-    dataframe_lancamentos(receitas, "receitas_table")
-    delete_box(receitas, "receita")
-
-elif pagina == "Despesas":
-    hero("Despesas", "Organize os gastos para entender melhor para onde o dinheiro está indo.", "FINANCEIRO")
-    with st.form("nova_despesa", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        data_despesa = c1.date_input("Data", value=date.today(), key="despesa_data")
-        valor_despesa = c2.number_input("Valor", min_value=0.0, step=10.0, format="%.2f", key="despesa_valor")
-        descricao_despesa = st.text_input("Descrição", placeholder="Ex.: fornecedor, internet ou combustível")
-        categoria_despesa = st.selectbox("Categoria", ["Fornecedores", "Serviços", "Aluguel", "Transporte", "Marketing", "Impostos", "Outras despesas"])
-        salvar = st.form_submit_button("Adicionar despesa", type="primary", use_container_width=True)
-        if salvar:
-            if not descricao_despesa.strip() or valor_despesa <= 0:
-                st.error("Informe uma descrição e um valor maior que zero.")
-            else:
-                add_lancamento(data_despesa.isoformat(), "Despesa", descricao_despesa, categoria_despesa, valor_despesa)
-                st.success("Despesa salva no banco.")
-                st.rerun()
-
-    st.metric("Total registrado", brl(resumo["despesas"]))
-    dataframe_lancamentos(despesas, "despesas_table")
-    delete_box(despesas, "despesa")
-
-elif pagina == "Fluxo de caixa":
-    hero("Fluxo de caixa", "Visualize entradas, saídas e saldo acumulado ao longo do tempo.", "FINANCEIRO")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Entradas", brl(resumo["receitas"]))
-    c2.metric("Saídas", brl(resumo["despesas"]))
-    c3.metric("Saldo", brl(resumo["resultado"]))
-
-    if todos.empty:
-        st.info("Cadastre movimentações para visualizar o fluxo de caixa.")
+        st.subheader("O que preciso fazer agora?")
+        alerts = []; das_df = pd.DataFrame(list_das(user_id)); today = pd.Timestamp(date.today())
+        if not profile.get("cnpj"): alerts.append(("warn", "Complete os dados do MEI", "Cadastre CNPJ, atividade e data de abertura."))
+        if annual_limit <= 0: alerts.append(("warn", "Defina seu limite anual", "Informe o limite aplicável ao seu caso em Meu MEI."))
+        elif usage_pct >= 90: alerts.append(("danger", "Atenção ao faturamento", f"Você registrou {usage_pct:.1f}% do limite informado."))
+        elif usage_pct >= 70: alerts.append(("warn", "Faturamento em acompanhamento", f"Você registrou {usage_pct:.1f}% do limite informado."))
+        if not das_df.empty:
+            das_df["due_date"] = pd.to_datetime(das_df["due_date"], errors="coerce")
+            overdue = das_df[(das_df["status"] != "Pago") & das_df["due_date"].notna() & (das_df["due_date"] < today)]
+            if not overdue.empty: alerts.append(("danger", "Há DAS marcado como atrasado", f"{len(overdue)} competência(s) precisam de revisão."))
+        if not alerts: alerts.append(("ok", "Tudo organizado por aqui", "Continue registrando as movimentações e obrigações."))
+        for kind, title, text in alerts:
+            st.markdown(f'<div class="rz-alert rz-{kind}"><b>{title}</b><div class="rz-small">{text}</div></div>', unsafe_allow_html=True)
+    st.subheader("Últimos lançamentos")
+    if transactions.empty: st.caption("Nenhum lançamento cadastrado.")
     else:
-        fluxo = todos.sort_values(["data", "id"]).copy()
-        fluxo["movimento"] = fluxo.apply(lambda r: float(r["valor"]) if r["tipo"] == "Receita" else -float(r["valor"]), axis=1)
-        fluxo["saldo_acumulado"] = fluxo["movimento"].cumsum()
-        fig = px.line(fluxo, x="data", y="saldo_acumulado", markers=True)
-        fig.update_layout(height=370, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="", yaxis_title="Saldo")
-        st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(
-            fluxo[["data", "tipo", "descricao", "categoria", "movimento", "saldo_acumulado"]].sort_values("data", ascending=False),
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "movimento": st.column_config.NumberColumn("Movimento", format="R$ %.2f"),
-                "saldo_acumulado": st.column_config.NumberColumn("Saldo acumulado", format="R$ %.2f"),
-            },
-        )
+        st.dataframe(transactions.head(8)[["tx_date","tx_type","description","category","value"]], use_container_width=True, hide_index=True, column_config={"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY"),"tx_type":"Tipo","description":"Descrição","category":"Categoria","value":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
 
-elif pagina == "DAS":
-    hero("DAS", "Central de acompanhamento das obrigações mensais do MEI.", "OBRIGAÇÕES")
-    st.info("Nesta etapa ainda não estamos calculando nem emitindo DAS. Vamos criar primeiro o controle de competências, vencimentos, pagamentos e comprovantes.")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Pendentes", "—")
-    col2.metric("Pagos", "—")
-    col3.metric("Atrasados", "—")
-    st.markdown("#### Próxima implementação")
-    st.write("Calendário mensal, status do DAS, data de pagamento, comprovante e alertas no Dashboard.")
-
-elif pagina == "Declaração anual":
-    hero("Declaração anual", "Organize os dados que serão usados na preparação da DASN-SIMEI.", "OBRIGAÇÕES")
-    ano_atual = datetime.now().year
-    st.metric(f"Faturamento registrado em {ano_atual}", brl(resumo["receitas"]))
-    st.warning("Este módulo é organizacional nesta fase. O envio oficial da declaração ainda não é realizado pelo sistema.")
-    if receitas.empty:
-        st.info("Ainda não existem receitas para consolidar.")
+elif page in ("Receitas", "Despesas"):
+    tx_type = "Receita" if page == "Receitas" else "Despesa"; header(page, f"Cadastre e acompanhe suas {page.lower()}.")
+    categories = ["Vendas","Serviços","Marketplace","Outras receitas"] if tx_type == "Receita" else ["Fornecedores","Serviços","Aluguel","Transporte","Marketing","Impostos","Outras despesas"]
+    with st.form(f"form_{tx_type.lower()}", clear_on_submit=True):
+        c1,c2=st.columns(2); tx_date=c1.date_input("Data",value=date.today(),key=f"date_{tx_type}"); value=c2.number_input("Valor",min_value=0.0,step=10.0,format="%.2f",key=f"value_{tx_type}")
+        description=st.text_input("Descrição",placeholder="Ex.: venda, cliente, fornecedor, conta..."); category=st.selectbox("Categoria",categories)
+        if st.form_submit_button(f"Adicionar {tx_type.lower()}",type="primary",use_container_width=True):
+            if value <= 0 or not description.strip(): st.error("Informe uma descrição e um valor maior que zero.")
+            else: add_transaction(user_id,tx_date.isoformat(),tx_type,description.strip(),category,float(value)); st.success(f"{tx_type} adicionada."); st.rerun()
+    subset=transactions[transactions["tx_type"]==tx_type] if not transactions.empty else transactions
+    st.metric(f"Total de {page.lower()}",brl(float(subset["value"].sum()) if not subset.empty else 0.0))
+    if subset.empty: st.info(f"Nenhuma {tx_type.lower()} cadastrada.")
     else:
-        consolidado = receitas.copy()
-        consolidado["ano"] = consolidado["data"].dt.year
-        consolidado = consolidado.groupby("ano", as_index=False)["valor"].sum()
-        st.dataframe(consolidado, hide_index=True, use_container_width=True, column_config={"valor": st.column_config.NumberColumn("Faturamento", format="R$ %.2f")})
+        st.dataframe(subset[["tx_date","description","category","value"]],use_container_width=True,hide_index=True,column_config={"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY"),"description":"Descrição","category":"Categoria","value":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
+        ids={f"#{int(r.id)} • {r.description} • {brl(float(r.value))}":int(r.id) for r in subset.itertuples()}; selected=st.selectbox("Excluir lançamento",["Selecione..."]+list(ids.keys()))
+        if selected!="Selecione..." and st.button("Excluir selecionado"): delete_transaction(user_id,ids[selected]); st.rerun()
 
-elif pagina == "Documentos":
-    hero("Documentos", "Separe comprovantes, notas e arquivos importantes do seu negócio.", "ARQUIVOS")
-    arquivo = st.file_uploader("Selecionar documento", type=["pdf", "png", "jpg", "jpeg", "xlsx", "csv"])
-    if arquivo is not None:
-        st.success(f"Arquivo selecionado: {arquivo.name}")
-        st.caption("O armazenamento permanente será adicionado quando conectarmos um serviço externo de arquivos.")
+elif page == "Fluxo de caixa":
+    header("Fluxo de caixa","Acompanhe entradas, saídas e evolução do saldo.")
+    a,b,c=st.columns(3); a.metric("Entradas",brl(total_receitas)); b.metric("Saídas",brl(total_despesas)); c.metric("Saldo",brl(resultado))
+    if transactions.empty: st.info("Cadastre movimentações para visualizar o fluxo.")
+    else:
+        flow=transactions.sort_values(["tx_date","id"]).copy(); flow["impact"]=flow.apply(lambda r:r["value"] if r["tx_type"]=="Receita" else -r["value"],axis=1); flow["saldo"]=flow["impact"].cumsum()
+        fig=px.line(flow,x="tx_date",y="saldo",markers=True); fig.update_layout(height=340,margin=dict(l=0,r=0,t=8,b=0),xaxis_title="",yaxis_title=""); st.plotly_chart(fig,use_container_width=True)
+        st.dataframe(flow[["tx_date","tx_type","description","category","value","saldo"]].sort_values("tx_date",ascending=False),use_container_width=True,hide_index=True)
+        st.download_button("Baixar fluxo de caixa em CSV",flow.to_csv(index=False).encode("utf-8-sig"),"razync_pro_fluxo_caixa.csv","text/csv")
 
-elif pagina == "Meu MEI":
-    hero("Meu MEI", "Cadastre os dados principais do negócio e personalize o acompanhamento.", "CADASTRO")
+elif page == "DAS":
+    header("DAS","Controle mensal das competências e pagamentos.")
+    current_year=date.today().year; months=[f"{current_year}-{m:02d}" for m in range(1,13)]
+    with st.form("das_form"):
+        competence=st.selectbox("Competência",months); year,month=map(int,competence.split("-")); default_due=date(year,month,min(20,calendar.monthrange(year,month)[1])); c1,c2=st.columns(2)
+        due_date=c1.date_input("Vencimento",value=default_due); amount=c2.number_input("Valor do DAS",min_value=0.0,format="%.2f"); status=st.selectbox("Situação",["Pendente","Pago","Atrasado"]); payment_date=st.date_input("Data do pagamento",value=date.today()) if status=="Pago" else None; notes=st.text_input("Observações")
+        if st.form_submit_button("Salvar competência",type="primary",use_container_width=True): upsert_das(user_id,competence,due_date.isoformat(),float(amount),status,payment_date.isoformat() if payment_date else None,notes); st.success("DAS atualizado."); st.rerun()
+    das_df=pd.DataFrame(list_das(user_id))
+    if das_df.empty: st.info("Nenhuma competência cadastrada.")
+    else:
+        das_df["due_date"]=pd.to_datetime(das_df["due_date"],errors="coerce"); auto_late=(das_df["status"]!="Pago") & das_df["due_date"].notna() & (das_df["due_date"]<pd.Timestamp(date.today())); das_df.loc[auto_late,"status"]="Atrasado"
+        st.dataframe(das_df[["competence","due_date","amount","status","payment_date","notes"]],use_container_width=True,hide_index=True,column_config={"competence":"Competência","due_date":st.column_config.DateColumn("Vencimento",format="DD/MM/YYYY"),"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"status":"Situação","payment_date":"Pagamento","notes":"Observações"})
 
-    data_salva = mei.get("data_abertura")
-    try:
-        abertura_default = date.fromisoformat(str(data_salva)) if data_salva else date.today()
-    except ValueError:
-        abertura_default = date.today()
+elif page == "Declaração anual":
+    header("Declaração anual","Consolide o que foi registrado ao longo do ano.")
+    if transactions.empty: st.info("Cadastre receitas para gerar o resumo anual.")
+    else:
+        years=sorted(transactions["tx_date"].dt.year.unique().tolist(),reverse=True); selected_year=st.selectbox("Ano",years); yr=transactions[transactions["tx_date"].dt.year==selected_year]; revenue=float(yr.loc[yr["tx_type"]=="Receita","value"].sum()); expense=float(yr.loc[yr["tx_type"]=="Despesa","value"].sum())
+        a,b,c=st.columns(3); a.metric("Receitas do ano",brl(revenue)); b.metric("Despesas do ano",brl(expense)); c.metric("Resultado estimado",brl(revenue-expense))
+        revenue_by_category=yr[yr["tx_type"]=="Receita"].groupby("category",as_index=False)["value"].sum()
+        if not revenue_by_category.empty: st.subheader("Receitas por categoria"); st.dataframe(revenue_by_category,use_container_width=True,hide_index=True)
+        st.caption("Este resumo organiza os dados cadastrados no Razync Pro; ele não substitui validação fiscal nem envio oficial da declaração.")
 
-    with st.form("dados_mei"):
-        nome = st.text_input("Nome do negócio", value=str(mei.get("nome") or ""))
-        cnpj = st.text_input("CNPJ", value=str(mei.get("cnpj") or ""), placeholder="00.000.000/0000-00")
-        atividade = st.text_input("Atividade principal", value=str(mei.get("atividade") or ""))
-        c1, c2 = st.columns(2)
-        abertura = c1.date_input("Data de abertura", value=abertura_default)
-        limite = c2.number_input("Limite anual para acompanhamento", min_value=0.0, value=float(mei.get("limite_anual") or 0), step=1000.0, format="%.2f", help="Campo configurável. Use o limite que se aplica ao seu caso e ao ano acompanhado.")
-        enviado = st.form_submit_button("Salvar dados", type="primary", use_container_width=True)
-        if enviado:
-            save_mei(nome, cnpj, atividade, abertura.isoformat(), limite)
-            st.success("Dados do MEI salvos.")
-            st.rerun()
+elif page == "Documentos":
+    header("Documentos","Guarde comprovantes, notas, extratos e arquivos do negócio.")
+    with st.form("document_form",clear_on_submit=True):
+        category=st.selectbox("Categoria",["Nota fiscal","Comprovante","Extrato","Contrato","DAS","Outros"]); upload=st.file_uploader("Arquivo",type=["pdf","png","jpg","jpeg","xlsx","csv"])
+        if st.form_submit_button("Salvar documento",type="primary",use_container_width=True):
+            if upload is None: st.error("Selecione um arquivo.")
+            else: save_document(user_id,upload.name,upload.type or "",upload.getvalue(),category); st.success("Documento salvo."); st.rerun()
+    docs=list_documents(user_id)
+    if not docs: st.info("Nenhum documento salvo.")
+    else:
+        for doc in docs:
+            with st.expander(f"{doc['category']} • {doc['filename']}"):
+                st.caption(f"{doc['size_bytes']/1024:.1f} KB • {doc['created_at']}"); full=get_document(user_id,int(doc["id"]))
+                if full: st.download_button("Baixar",full["content"],file_name=full["filename"],mime=full["mime_type"] or "application/octet-stream",key=f"download_{doc['id']}")
+                if st.button("Excluir",key=f"delete_doc_{doc['id']}"): delete_document(user_id,int(doc["id"])); st.rerun()
 
-    st.caption("O limite anual é configurável de propósito para evitar deixar regras fiscais fixas no código.")
+elif page == "Assistente":
+    header("Assistente Razync","Pergunte sobre os dados que você registrou no sistema.")
+    st.caption("Nesta etapa o assistente analisa os dados locais. Uma integração com IA externa pode ser adicionada depois.")
+    question=st.text_input("Pergunte algo",placeholder="Ex.: quanto faturei? quanto gastei? como está meu saldo?")
+    if question:
+        q=question.lower()
+        if any(k in q for k in ["faturei","faturamento","receita","entrou"]): answer=f"Você registrou {brl(total_receitas)} em receitas."
+        elif any(k in q for k in ["gastei","despesa","gasto","saiu"]): answer=f"Você registrou {brl(total_despesas)} em despesas."
+        elif any(k in q for k in ["saldo","resultado","lucro","sobrou"]): answer=f"Seu resultado estimado, considerando os lançamentos registrados, é {brl(resultado)}."
+        elif any(k in q for k in ["limite","quanto posso faturar"]): answer=f"Com base no limite que você informou no cadastro, ainda restam {brl(max(annual_limit-total_receitas,0))}. Uso atual: {usage_pct:.1f}%." if annual_limit>0 else "Você ainda não informou um limite anual em Meu MEI."
+        elif "das" in q:
+            das_df=pd.DataFrame(list_das(user_id)); answer="Você ainda não cadastrou competências do DAS." if das_df.empty else f"Você tem {int((das_df['status']!='Pago').sum())} competência(s) do DAS sem status de pago."
+        else: answer="Consigo responder sobre faturamento, despesas, saldo, limite informado e DAS."
+        st.markdown(f'<div class="rz-card"><b>Razync</b><br>{answer}</div>',unsafe_allow_html=True)
 
-st.divider()
-st.caption("MEI Fácil • MVP v0.2 • Streamlit + SQLite")
+elif page == "Meu MEI":
+    header("Meu MEI","Dados principais e parâmetros do seu negócio.")
+    opening=profile.get("opening_date")
+    try: opening_value=datetime.strptime(opening,"%Y-%m-%d").date() if opening else date.today()
+    except ValueError: opening_value=date.today()
+    with st.form("profile_form"):
+        business_name=st.text_input("Nome do negócio",value=profile.get("business_name") or ""); cnpj=st.text_input("CNPJ",value=profile.get("cnpj") or "",placeholder="00.000.000/0000-00"); main_activity=st.text_input("Atividade principal",value=profile.get("main_activity") or ""); c1,c2=st.columns(2); opening_date=c1.date_input("Data de abertura",value=opening_value); annual_limit_input=c2.number_input("Limite anual aplicável ao seu caso",min_value=0.0,value=float(profile.get("annual_limit") or 0),step=1000.0,format="%.2f"); c3,c4=st.columns(2); phone=c3.text_input("Telefone",value=profile.get("phone") or ""); city=c4.text_input("Cidade",value=profile.get("city") or "")
+        st.caption("O limite fica configurável para evitar que o sistema dependa de um valor fiscal fixo no código.")
+        if st.form_submit_button("Salvar dados",type="primary",use_container_width=True): save_profile(user_id,business_name,cnpj,main_activity,opening_date.isoformat(),float(annual_limit_input),phone,city); st.success("Dados atualizados."); st.rerun()
+
+st.divider(); st.caption("Razync Pro • Ecossistema Razync • versão MVP")
