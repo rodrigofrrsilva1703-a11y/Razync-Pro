@@ -34,20 +34,33 @@ init_db()
 
 st.markdown("""
 <style>
-:root{--rz-blue:#2563eb;--rz-blue2:#60a5fa;--rz-bg:#050914;--rz-card:#0b1220;--rz-border:#1f2a3d}
-.stApp{background:radial-gradient(circle at 12% 0%,#0b1832 0%,#050914 36%,#050914 100%)}
-[data-testid="stSidebar"]{background:#070c16;border-right:1px solid #172236}
-.block-container{padding-top:1.05rem;padding-bottom:2rem;max-width:1500px}
-[data-testid="stMetric"]{background:linear-gradient(180deg,rgba(17,28,49,.97),rgba(9,16,29,.97));border:1px solid #1d2a42;border-radius:15px;padding:14px 16px}
-.rz-brand{font-size:1.55rem;font-weight:900;letter-spacing:-.04em}.rz-brand span{color:#60a5fa}
-.rz-kicker{color:#60a5fa;font-weight:800;text-transform:uppercase;letter-spacing:.14em;font-size:.72rem}
-.rz-title{font-size:2rem;font-weight:900;margin:.15rem 0 .18rem;letter-spacing:-.035em}
-.rz-sub{color:#94a3b8;margin-bottom:1rem}
-.rz-alert{border-radius:13px;padding:11px 13px;margin-bottom:8px;background:#0b1425;border:1px solid #1f2d45}
-.rz-ok{border-left:4px solid #22c55e}.rz-info{border-left:4px solid #3b82f6}.rz-warn{border-left:4px solid #f59e0b}.rz-danger{border-left:4px solid #ef4444}
-.rz-small{color:#94a3b8;font-size:.86rem}
-div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{border-radius:10px}
-div[data-testid="stDataFrame"]{border:1px solid #1c2940;border-radius:12px;overflow:hidden}
+:root{--rz-primary:#2563eb;--rz-bg:#f6f8fc;--rz-surface:#ffffff;--rz-text:#172033;--rz-muted:#667085;--rz-border:#e5e9f0}
+.stApp{background:#f6f8fc;color:#172033}
+[data-testid="stSidebar"]{background:#ffffff;border-right:1px solid #e5e9f0}
+[data-testid="stSidebar"] .block-container{padding-top:1.15rem}
+.block-container{padding-top:1.25rem;padding-bottom:2.5rem;max-width:1380px}
+h1,h2,h3{color:#172033;letter-spacing:-.025em}
+[data-testid="stMetric"]{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,24,40,.04)}
+[data-testid="stMetricLabel"]{color:#667085;font-size:.82rem}
+[data-testid="stMetricValue"]{color:#172033;font-size:1.5rem;font-weight:760}
+.rz-brand{font-size:1.45rem;font-weight:900;color:#172033;letter-spacing:-.045em}.rz-brand span{color:#2563eb}
+.rz-kicker{color:#2563eb;font-weight:750;font-size:.7rem;margin-bottom:.12rem;text-transform:uppercase;letter-spacing:.08em}
+.rz-title{font-size:1.72rem;font-weight:820;color:#172033;margin:.05rem 0 .18rem;letter-spacing:-.035em}
+.rz-sub{color:#667085;margin-bottom:1.15rem;font-size:.93rem}
+.rz-alert{border-radius:11px;padding:12px 14px;margin-bottom:8px;background:#fff;border:1px solid #e5e9f0}
+.rz-ok{border-left:3px solid #12b76a}.rz-info{border-left:3px solid #2e90fa}.rz-warn{border-left:3px solid #f79009}.rz-danger{border-left:3px solid #f04438}
+.rz-small{color:#667085;font-size:.84rem;margin-top:2px}
+.rz-section{font-size:1.02rem;font-weight:760;color:#172033;margin:1.05rem 0 .62rem}
+.rz-welcome{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:17px 19px;margin-bottom:14px;box-shadow:0 1px 2px rgba(16,24,40,.025)}
+.rz-welcome-title{font-size:1.1rem;font-weight:760;color:#172033}.rz-welcome-sub{color:#667085;font-size:.87rem;margin-top:3px}
+div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{border-radius:9px;min-height:2.5rem;border:1px solid #d9e0ea;font-weight:650;background:#fff}
+div[data-testid="stButton"] button:hover{border-color:#2563eb;color:#2563eb}
+div[data-testid="stDataFrame"]{border:1px solid #e5e9f0;border-radius:11px;overflow:hidden;background:#fff}
+[data-testid="stExpander"]{background:#fff;border:1px solid #e5e9f0;border-radius:11px}
+[data-baseweb="select"]>div{border-radius:9px}
+[data-testid="stSidebar"] [data-testid="stRadio"] label{padding:.25rem .4rem;border-radius:8px}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{background:#f2f6ff}
+hr{border-color:#e5e9f0}
 </style>
 """, unsafe_allow_html=True)
 
@@ -181,7 +194,7 @@ if pending_page:
 
 with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
-    st.caption("Ecossistema Razync • Gestão completa do MEI")
+    st.caption("Gestão simples para MEI")
     st.divider()
     groups = list(NAV_GROUPS.keys())
     if st.session_state.get("nav_group") not in groups:
@@ -203,11 +216,13 @@ year_expense = float(year_tx[year_tx["tx_type"]=="Despesa"]["value"].sum()) if n
 limit_pct = (year_revenue/limit*100) if limit else 0.0
 
 if page == "Dashboard":
-    header("Visão geral","Uma central contábil e financeira para acompanhar o seu MEI.")
-    c1,c2,c3,c4,c5 = st.columns(5)
-    c1.metric("Receita no ano",brl(year_revenue)); c2.metric("Despesas no ano",brl(year_expense)); c3.metric("Resultado estimado",brl(year_revenue-year_expense)); c4.metric("Limite utilizado",f"{limit_pct:.1f}%"); c5.metric("Documentos",len(docs))
+    business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
+    header("Início", "Entenda seu negócio e resolva o que precisa sem complicação.")
+    st.markdown(f'<div class="rz-welcome"><div class="rz-welcome-title">{business_label}</div><div class="rz-welcome-sub">Resumo de {CURRENT_YEAR} • informações calculadas a partir dos dados cadastrados</div></div>', unsafe_allow_html=True)
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Entradas",brl(year_revenue)); c2.metric("Saídas",brl(year_expense)); c3.metric("Resultado",brl(year_revenue-year_expense)); c4.metric("Limite do MEI",f"{limit_pct:.1f}% usado")
 
-    st.subheader("Prioridades de hoje")
+    st.markdown('<div class="rz-section">O que você precisa resolver</div>', unsafe_allow_html=True)
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
     for idx, item in enumerate(priorities[:4]):
         a,b = st.columns([5,1])
@@ -219,7 +234,7 @@ if page == "Dashboard":
                 st.session_state["_navigate_to"] = item["page"]
                 st.rerun()
 
-    st.caption("Ações rápidas")
+    st.markdown('<div class="rz-section">Atalhos</div>', unsafe_allow_html=True)
     q1,q2,q3,q4 = st.columns(4)
     if q1.button("+ Lançamento", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
     if q2.button("Importar extrato", use_container_width=True): st.session_state["_navigate_to"]="Importar Extrato"; st.rerun()
@@ -227,22 +242,22 @@ if page == "Dashboard":
     if q4.button("Obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
     left,right = st.columns([1.55,1])
     with left:
-        st.subheader("Faturamento por mês")
+        st.markdown('<div class="rz-section">Entradas por mês</div>', unsafe_allow_html=True)
         chart = pd.DataFrame(monthly_rows(transactions,CURRENT_YEAR))
         fig = px.bar(chart,x="month_name",y="total")
         fig.update_layout(height=330,margin=dict(l=0,r=0,t=8,b=0),xaxis_title="",yaxis_title="Receita")
         st.plotly_chart(fig,use_container_width=True)
     with right:
-        st.subheader("O que precisa de atenção")
+        st.markdown('<div class="rz-section">Avisos importantes</div>', unsafe_allow_html=True)
         for level,title,text in build_alerts(year_revenue,limit,das_rows,obligations,profile):
             alert_box(level,title,text)
-    st.subheader("Últimos lançamentos")
+    st.markdown('<div class="rz-section">Movimentações recentes</div>', unsafe_allow_html=True)
     if transactions.empty:
         st.info("Cadastre sua primeira movimentação.")
     else:
         st.dataframe(transactions.head(10)[["tx_date","tx_type","description","counterparty","value"]],use_container_width=True,hide_index=True,column_config={"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY"),"value":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
 
-    st.subheader("Saúde do seu MEI")
+    st.markdown('<div class="rz-section">Como está sua organização</div>', unsafe_allow_html=True)
     health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
     a,b = st.columns([1,2])
     with a:
