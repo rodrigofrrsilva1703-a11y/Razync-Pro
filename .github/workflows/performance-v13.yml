@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - scripts/performance_v13.py
+      - .github/workflows/performance-v13.yml
 jobs:
   apply:
     runs-on: ubuntu-latest
