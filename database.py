@@ -53,7 +53,7 @@ def _resolve_database_url():
 DATABASE_URL = _resolve_database_url()
 
 engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
-if DATABASE_URL.startswith("sqlite"):
+if str(DATABASE_URL).startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 
 engine = create_engine(DATABASE_URL, future=True, **engine_kwargs)
@@ -61,7 +61,7 @@ metadata = MetaData()
 
 
 def database_runtime_info() -> dict[str, Any]:
-    is_sqlite = DATABASE_URL.startswith("sqlite")
+    is_sqlite = str(DATABASE_URL).startswith("sqlite")
     return {
         "backend": "SQLite temporário" if is_sqlite else "PostgreSQL",
         "persistent": not is_sqlite,
