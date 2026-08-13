@@ -66,16 +66,79 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 
 def ensure_login() -> dict:
-    email = "dev@local"
-    password = "dev"
-    user = authenticate(email, password)
-    if not user:
-        create_user("Desenvolvimento", email, password)
-        user = authenticate(email, password)
-    if not user:
-        st.stop()
-    st.session_state.user = user
-    return user
+    """Require an authenticated session before loading any business data."""
+    if "user" in st.session_state:
+        user = st.session_state["user"]
+        with st.sidebar:
+            st.caption(f"Conectado como {user['name']}")
+            if st.button("Sair", use_container_width=True):
+                for key in list(st.session_state):
+                    del st.session_state[key]
+                st.rerun()
+        return user
+
+    st.title("Razync Pro")
+    st.caption("Gestão financeira e fiscal para MEI")
+    login_tab, signup_tab = st.tabs(["Entrar", "Criar conta"])
+
+    with login_tab:
+        with st.form("login_form"):
+            email = st.text_input("E-mail", key="login_email").strip()
+            password = st.text_input("Senha", type="password", key="login_password")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+
+        if submitted:
+            if not email or not password:
+                st.warning("Informe o e-mail e a senha.")
+            else:
+                try:
+                    user = authenticate(email, password)
+                except DatabaseConnectionError as exc:
+                    st.error("Não foi possível acessar sua conta agora.")
+                    st.warning(str(exc))
+                    st.stop()
+                if user:
+                    st.session_state["user"] = user
+                    st.rerun()
+                st.error("E-mail ou senha inválidos.")
+
+    with signup_tab:
+        with st.form("signup_form"):
+            name = st.text_input("Nome", key="signup_name").strip()
+            email = st.text_input("E-mail", key="signup_email").strip()
+            password = st.text_input(
+                "Senha",
+                type="password",
+                key="signup_password",
+                help="Use pelo menos 8 caracteres.",
+            )
+            password_confirmation = st.text_input(
+                "Confirmar senha",
+                type="password",
+                key="signup_password_confirmation",
+            )
+            submitted = st.form_submit_button("Criar conta", use_container_width=True)
+
+        if submitted:
+            if password != password_confirmation:
+                st.error("As senhas não coincidem.")
+            else:
+                try:
+                    created, message = create_user(name, email, password)
+                except DatabaseConnectionError as exc:
+                    st.error("Não foi possível criar sua conta agora.")
+                    st.warning(str(exc))
+                    st.stop()
+                if created:
+                    user = authenticate(email, password)
+                    if user:
+                        st.session_state["user"] = user
+                        st.success(message)
+                        st.rerun()
+                else:
+                    st.error(message)
+
+    st.stop()
 
 def tx_df(uid: int) -> pd.DataFrame:
     df = pd.DataFrame(list_transactions(uid))
