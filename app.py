@@ -19,10 +19,11 @@ from fiscal_rules import (
     MEI_ANNUAL_LIMIT, annual_limit_for, build_alerts, competence_list,
     das_due_date, das_status,
 )
-from reports import dasn_summary_pdf, monthly_report_pdf
+from reports import dasn_summary_pdf, monthly_report_pdf, financial_summary_pdf, closing_summary_pdf
 from bank_import import read_statement, prepare_statement, is_probable_duplicate, suggest_category
 from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
+from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
 
 CURRENT_YEAR = date.today().year
 
@@ -172,13 +173,23 @@ obligations = list_obligations(uid)
 
 pending_page = st.session_state.pop("_navigate_to", None)
 if pending_page:
-    st.session_state["nav_page"] = pending_page
+    target_group = group_for_page(pending_page)
+    st.session_state["nav_group"] = target_group
+    st.session_state[f"nav_page_{target_group}"] = pending_page
 
 with st.sidebar:
     st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
-    st.caption("Ecossistema Razync • MEI")
+    st.caption("Ecossistema Razync • Gestão completa do MEI")
     st.divider()
-    page = st.radio("Navegação", ["Dashboard","Movimentações","Importar Extrato","Fluxo de Caixa","Análise Financeira","Fechamento Mensal","Relatório Mensal","Notas Fiscais","DAS","DASN-SIMEI","Obrigações","Clientes e Fornecedores","Empregado","Documentos","Assistente Razync","Meu MEI","Backup"], label_visibility="collapsed", key="nav_page")
+    groups = list(NAV_GROUPS.keys())
+    if st.session_state.get("nav_group") not in groups:
+        st.session_state["nav_group"] = "Visão Geral"
+    selected_group = st.selectbox("Área", groups, key="nav_group")
+    group_pages = NAV_GROUPS[selected_group]
+    page_key = f"nav_page_{selected_group}"
+    if st.session_state.get(page_key) not in group_pages:
+        st.session_state[page_key] = group_pages[0]
+    page = st.radio("Navegação", group_pages, label_visibility="collapsed", key=page_key)
     st.divider()
     st.caption("Modo de desenvolvimento • acesso direto")
 
@@ -193,6 +204,19 @@ if page == "Dashboard":
     header("Visão geral","Uma central contábil e financeira para acompanhar o seu MEI.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Receita no ano",brl(year_revenue)); c2.metric("Despesas no ano",brl(year_expense)); c3.metric("Resultado estimado",brl(year_revenue-year_expense)); c4.metric("Limite utilizado",f"{limit_pct:.1f}%"); c5.metric("Documentos",len(docs))
+
+    st.subheader("Prioridades de hoje")
+    priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
+    for idx, item in enumerate(priorities[:4]):
+        a,b = st.columns([5,1])
+        with a:
+            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
+            alert_box(level, item["title"], item["detail"])
+        with b:
+            if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
+                st.session_state["_navigate_to"] = item["page"]
+                st.rerun()
+
     st.caption("Ações rápidas")
     q1,q2,q3,q4 = st.columns(4)
     if q1.button("+ Lançamento", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
@@ -295,6 +319,34 @@ elif page == "Importar Extrato":
         except Exception as exc:
             st.error(f"Não foi possível ler esse extrato: {exc}")
 
+elif page == "Conciliação":
+    header("Conciliação","Confira notas, receitas e possíveis duplicidades antes do fechamento mensal.")
+    rec = reconciliation_summary(transactions, invoices)
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Notas emitidas", rec["total_invoices"])
+    c2.metric("Notas conciliadas", rec["reconciled_invoices"])
+    c3.metric("Possíveis duplicidades", rec["possible_duplicate_transactions"])
+    pending_inv = rec["pending_invoices"]
+    st.subheader("Notas pendentes de conciliação")
+    if pending_inv.empty:
+        st.success("Todas as notas com número informado estão conciliadas com receitas cadastradas.")
+    else:
+        st.dataframe(pending_inv, use_container_width=True, hide_index=True, column_config={"Valor":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        selected_invoice = st.selectbox("Conciliar nota", pending_inv["ID"].tolist(), key="rec_invoice")
+        source = invoices[invoices["id"] == selected_invoice].iloc[0]
+        if st.button("Criar receita a partir desta nota", type="primary", use_container_width=True):
+            issue = source["issue_date"]
+            tx_date_value = issue.date() if hasattr(issue, "date") else issue
+            add_transaction(uid, tx_date=tx_date_value, tx_type="Receita", description=source.get("description") or f"Nota {source.get('number') or ''}", category="Serviços" if source.get("invoice_type") == "Serviço" else "Vendas", value=float(source.get("amount") or 0), document_number=str(source.get("number") or ""), counterparty=str(source.get("customer") or ""), payment_method="Outro")
+            st.success("Receita criada e nota conciliada.")
+            st.rerun()
+    st.subheader("Validações")
+    checks = pd.DataFrame(consistency_checks(transactions, invoices, das_rows))
+    st.dataframe(checks, use_container_width=True, hide_index=True)
+    if st.button("Importar novo extrato", use_container_width=True):
+        st.session_state["_navigate_to"] = "Importar Extrato"
+        st.rerun()
+
 elif page == "Fluxo de Caixa":
     header("Fluxo de Caixa","Acompanhe entradas, saídas, resultado mensal e evolução do saldo do negócio.")
     years = {CURRENT_YEAR}
@@ -346,6 +398,32 @@ elif page == "Análise Financeira":
     st.subheader("Verificações de consistência")
     checks = pd.DataFrame(consistency_checks(transactions, invoices, das_rows))
     st.dataframe(checks, use_container_width=True, hide_index=True)
+
+elif page == "Central Fiscal":
+    header("Central Fiscal MEI","Uma visão única do limite, DAS, relatório mensal, DASN-SIMEI e obrigações.")
+    overdue_das = [d for d in das_rows if das_status(d.get("status","Pendente"), d.get("due_date")) == "Atrasado"]
+    pending_das = [d for d in das_rows if das_status(d.get("status","Pendente"), d.get("due_date")) == "Pendente"]
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Faturamento no ano", brl(year_revenue))
+    c2.metric("Limite restante", brl(max(limit-year_revenue,0)))
+    c3.metric("DAS em atraso", len(overdue_das))
+    c4.metric("DAS pendentes", len(pending_das))
+    st.progress(min(limit_pct/100, 1.0))
+    st.caption(f"{limit_pct:.1f}% do limite monitorado utilizado.")
+
+    st.subheader("Próximas obrigações")
+    auto = pd.DataFrame(automatic_obligations(CURRENT_YEAR, opening))
+    if not auto.empty:
+        future = auto[auto["Vencimento"] >= date.today()].sort_values("Vencimento").head(6)
+        st.dataframe(future, use_container_width=True, hide_index=True, column_config={"Vencimento":st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY")})
+
+    st.subheader("Acessos fiscais")
+    a,b,c,d = st.columns(4)
+    if a.button("DAS", use_container_width=True): st.session_state["_navigate_to"]="DAS"; st.rerun()
+    if b.button("Relatório Mensal", use_container_width=True): st.session_state["_navigate_to"]="Relatório Mensal"; st.rerun()
+    if c.button("DASN-SIMEI", use_container_width=True): st.session_state["_navigate_to"]="DASN-SIMEI"; st.rerun()
+    if d.button("Obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
+    st.info("O Razync Pro organiza e confere os dados. Envios e pagamentos oficiais continuam nos serviços governamentais correspondentes.")
 
 elif page == "Fechamento Mensal":
     header("Fechamento Mensal","Revise receitas, despesas, notas, documentos e DAS antes de considerar o mês organizado.")
@@ -502,19 +580,37 @@ elif page == "Documentos":
             a,b=st.columns(2); a.download_button("Baixar documento",doc["content"],doc["filename"],doc.get("mime_type") or "application/octet-stream",use_container_width=True)
             if b.button("Excluir documento",use_container_width=True): delete_document(uid,int(did)); st.rerun()
 
+elif page == "Central de Relatórios":
+    header("Central de Relatórios","Gere documentos gerenciais e fiscais a partir dos dados já cadastrados.")
+    years = {CURRENT_YEAR}
+    if not transactions.empty:
+        years.update(int(y) for y in transactions["tx_date"].dt.year.unique())
+    report_year = st.selectbox("Ano", sorted(years, reverse=True), key="report_center_year")
+    report_month = st.selectbox("Mês para fechamento", list(range(1,13)), index=max(date.today().month-1,0), key="report_center_month")
+    analysis_report = financial_analysis(transactions, int(report_year))
+    closing_report = monthly_closing(transactions, invoices, docs, das_rows, int(report_year), int(report_month))
+    monthly_data = monthly_rows(transactions, int(report_year))
+    services_report, sales_report = category_totals_for_dasn(transactions, int(report_year))
+    active_employee_report = any(e.get("status") == "Ativo" for e in employees)
+
+    st.subheader("Relatórios disponíveis")
+    r1,r2 = st.columns(2)
+    with r1:
+        st.download_button("Análise financeira em PDF", financial_summary_pdf(profile, int(report_year), analysis_report), f"analise_financeira_{report_year}.pdf", "application/pdf", use_container_width=True)
+        st.download_button("Relatório Mensal em PDF", monthly_report_pdf(profile, int(report_year), monthly_data), f"relatorio_mensal_{report_year}.pdf", "application/pdf", use_container_width=True)
+    with r2:
+        st.download_button("Fechamento mensal em PDF", closing_summary_pdf(profile, int(report_year), int(report_month), closing_report), f"fechamento_{report_year}_{int(report_month):02d}.pdf", "application/pdf", use_container_width=True)
+        st.download_button("Resumo DASN-SIMEI em PDF", dasn_summary_pdf(profile, int(report_year), services_report, sales_report, active_employee_report), f"dasn_{report_year}.pdf", "application/pdf", use_container_width=True)
+    st.caption("Todos os relatórios são gerados com base nos dados cadastrados no Razync Pro e devem ser conferidos antes de uso oficial.")
+
 elif page == "Assistente Razync":
-    header("Assistente Razync","Respostas rápidas usando os dados cadastrados no sistema.")
-    question=st.text_input("Pergunte sobre seu MEI",placeholder="Ex.: quanto faturei? Tenho DAS atrasado? Quanto falta para o limite?")
+    header("Assistente Razync","Pergunte sobre faturamento, despesas, limite, DAS e conciliação usando os dados do seu MEI.")
+    st.caption("Sugestões: Quanto posso faturar? • Quanto sobrou? • Quais são meus maiores gastos? • Tenho DAS atrasado? • Existem notas pendentes?")
+    question = st.text_input("Pergunte sobre seu MEI", key="assistant_question")
     if question:
-        q=question.lower()
-        if "limite" in q: st.success(f"Você registrou {brl(year_revenue)} no ano. O limite monitorado é {brl(limit)} e restam {brl(max(limit-year_revenue,0))}.")
-        elif "das" in q:
-            overdue=[d for d in das_rows if das_status(d.get("status","Pendente"),d.get("due_date"))=="Atrasado"]; pending=[d for d in das_rows if das_status(d.get("status","Pendente"),d.get("due_date"))=="Pendente"]; st.info(f"DAS atrasados: {len(overdue)}. DAS pendentes: {len(pending)}.")
-        elif "fature" in q or "receita" in q: st.info(f"Receita registrada em {CURRENT_YEAR}: {brl(year_revenue)}.")
-        elif "despesa" in q: st.info(f"Despesas registradas em {CURRENT_YEAR}: {brl(year_expense)}.")
-        elif "dasn" in q:
-            services,sales=category_totals_for_dasn(transactions,CURRENT_YEAR-1); st.info(f"Para {CURRENT_YEAR-1}, o sistema apurou {brl(services+sales)} de receita bruta registrada.")
-        else: st.info("Posso responder sobre faturamento, despesas, limite do MEI, DAS e DASN-SIMEI com base nos seus dados cadastrados.")
+        st.info(assistant_answer(question, transactions, invoices, das_rows, limit, CURRENT_YEAR))
+    st.divider()
+    st.caption("O Assistente Razync usa os dados cadastrados no sistema. Para situações fiscais especiais, desenquadramento ou decisões profissionais, confirme a orientação em fonte oficial ou com profissional habilitado.")
 
 elif page == "Meu MEI":
     header("Meu MEI","Dados usados nos cálculos, relatórios e alertas do Razync Pro.")
