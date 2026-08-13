@@ -13,24 +13,42 @@ from sqlalchemy import (
     MetaData, String, Table, Text, create_engine, delete, insert, select, update
 )
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.engine import URL
 
-def _resolve_database_url() -> str:
-    configured = os.getenv("DATABASE_URL", "").strip()
-    if not configured:
-        try:
-            import streamlit as st
-            configured = str(st.secrets.get("DATABASE_URL", "")).strip()
-        except Exception:
-            configured = ""
+def _secret(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+    try:
+        import streamlit as st
+        return str(st.secrets.get(name, "")).strip()
+    except Exception:
+        return ""
+
+
+def _resolve_database_url():
+    password = _secret("SUPABASE_DB_PASSWORD")
+    if password:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username="postgres.etimfgenlludorrftapb",
+            password=password,
+            host="aws-0-sa-east-1.pooler.supabase.com",
+            port=5432,
+            database="postgres",
+            query={"sslmode": "require"},
+        )
+
+    configured = _secret("DATABASE_URL")
     if configured:
         if configured.startswith("postgres://"):
             configured = "postgresql+psycopg://" + configured[len("postgres://"):]
         elif configured.startswith("postgresql://") and "+psycopg" not in configured:
             configured = "postgresql+psycopg://" + configured[len("postgresql://"):]
         return configured
+
     fallback = Path(tempfile.gettempdir()) / "razync_pro.db"
     return f"sqlite:///{fallback.as_posix()}"
-
 
 DATABASE_URL = _resolve_database_url()
 
