@@ -25,3 +25,4 @@ if flow_insert in s and 'elif page == "Fluxo de Caixa"' not in s:
 
 p.write_text(s, encoding='utf-8')
 print('upgrade applied')
+# trigger upgrade workflow
