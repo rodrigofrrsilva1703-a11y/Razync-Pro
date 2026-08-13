@@ -33,15 +33,14 @@ s=s.replace(
     1,
 )
 
-# Sidebar spacing and light-theme hierarchy.
 extra='''\n[data-testid="stSidebar"] [data-baseweb="select"]>div{{background:{THEME['surface']}!important;border:1px solid {THEME['border']}!important}}\n[data-testid="stSidebar"] hr{{margin:.8rem 0}}\n[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p{{color:{THEME['primary']}!important;font-weight:700}}\n[data-testid="stSidebar"] [data-testid="stRadio"] label{{margin-bottom:2px}}\n[data-testid="stSidebar"] .stCaption{{color:{THEME['muted']}!important}}\n'''
 anchor='hr{{border-color:{THEME[\'border\']}}}'
 if extra.strip() not in s:
     s=s.replace(anchor, anchor+extra,1)
 
-# Cleaner light cards and section rhythm.
 s=s.replace('border-radius:14px;padding:15px 17px;box-shadow:{THEME[\'shadow\']}', 'border-radius:12px;padding:15px 17px;box-shadow:{THEME[\'shadow\']}',1)
 s=s.replace('.rz-section{{font-size:1.02rem;font-weight:760;color:{THEME[\'text\']};margin:1.05rem 0 .62rem}}', '.rz-section{{font-size:.98rem;font-weight:760;color:{THEME[\'text\']};margin:1.2rem 0 .58rem}}',1)
 
 p.write_text(s, encoding='utf-8')
 print('light theme refined')
+# trigger refinement
