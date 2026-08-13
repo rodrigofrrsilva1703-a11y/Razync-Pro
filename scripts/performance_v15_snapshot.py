@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Performance V15: snapshot único em memória para navegação fluida.
 # ---------------- database.py ----------------
 p = Path('database.py')
 s = p.read_text(encoding='utf-8')
