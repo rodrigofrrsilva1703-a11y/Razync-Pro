@@ -75,9 +75,6 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 
 def ensure_login() -> dict:
-    cached = st.session_state.get("user")
-    if cached and cached.get("id"):
-        return cached
     email = "dev@local"
     password = "dev"
     user = authenticate(email, password)
