@@ -227,6 +227,14 @@ def delete_transaction(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id))
 
+
+def link_transaction_document(user_id: int, item_id: int, document_number: str, counterparty: str = "") -> None:
+    payload = {"document_number": (document_number or "").strip()}
+    if counterparty:
+        payload["counterparty"] = counterparty.strip()
+    with engine.begin() as conn:
+        conn.execute(update(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id).values(**payload))
+
 def upsert_das(user_id: int, competence: str, due_date, amount: float, status: str, payment_date, notes: str) -> None:
     with engine.begin() as conn:
         row = conn.execute(select(das_items.c.id).where(das_items.c.user_id == user_id, das_items.c.competence == competence)).first()
