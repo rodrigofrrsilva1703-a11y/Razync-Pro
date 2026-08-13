@@ -6,6 +6,7 @@ import calendar
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from PIL import Image
 
 from database import (
     add_contact, add_employee, add_invoice, add_obligation, add_transaction,
@@ -34,7 +35,8 @@ from ui_system import inject_design_system, page_header, section, business_card,
 
 CURRENT_YEAR = date.today().year
 
-st.set_page_config(page_title="Razync Pro", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
+RAZYNC_ICON = Image.open("assets/rz-logo.png")
+st.set_page_config(page_title="Razync Pro", page_icon=RAZYNC_ICON, layout="wide", initial_sidebar_state="expanded")
 try:
     init_db()
 except DatabaseConnectionError as exc:
@@ -224,6 +226,7 @@ if page == "Movimentações" and not transactions.empty:
     transactions = transactions.iloc[offset:offset + page_size].copy()
 
 with st.sidebar:
+    st.image("assets/rz-logo.png", width=92)
     st.markdown("### RAZYNC PRO")
     st.caption("Contabilidade simples para MEI")
     st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
