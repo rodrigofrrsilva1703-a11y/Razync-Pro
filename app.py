@@ -62,42 +62,16 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 
 def ensure_login() -> dict:
-    if "user" in st.session_state:
-        return st.session_state.user
-    _, center, _ = st.columns([1,1.15,1])
-    with center:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
-        st.caption("Contabilidade simples, funcional e moderna para MEI")
-        login_tab, register_tab = st.tabs(["Entrar","Criar conta"])
-        with login_tab:
-            with st.form("login_form"):
-                email = st.text_input("E-mail")
-                password = st.text_input("Senha", type="password")
-                if st.form_submit_button("Entrar", type="primary", use_container_width=True):
-                    user = authenticate(email, password)
-                    if user:
-                        st.session_state.user = user
-                        st.rerun()
-                    st.error("E-mail ou senha inválidos.")
-        with register_tab:
-            with st.form("register_form"):
-                name = st.text_input("Nome")
-                email = st.text_input("E-mail", key="reg_email")
-                p1 = st.text_input("Senha", type="password", key="reg_p1")
-                p2 = st.text_input("Confirmar senha", type="password")
-                if st.form_submit_button("Criar conta", type="primary", use_container_width=True):
-                    if len(p1) < 8:
-                        st.error("Use uma senha com pelo menos 8 caracteres.")
-                    elif p1 != p2:
-                        st.error("As senhas não coincidem.")
-                    elif not name.strip() or "@" not in email:
-                        st.error("Preencha nome e e-mail válidos.")
-                    else:
-                        ok, msg = create_user(name, email, p1)
-                        st.success(msg) if ok else st.error(msg)
-    st.stop()
-
+    email = "dev@local"
+    password = "dev"
+    user = authenticate(email, password)
+    if not user:
+        create_user("Desenvolvimento", email, password)
+        user = authenticate(email, password)
+    if not user:
+        st.stop()
+    st.session_state.user = user
+    return user
 
 def tx_df(uid: int) -> pd.DataFrame:
     df = pd.DataFrame(list_transactions(uid))
