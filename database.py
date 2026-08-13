@@ -1,147 +1,240 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
 import sqlite3
-from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
+from typing import Any
 
-import pandas as pd
-
-DB_PATH = Path(__file__).with_name("mei_facil.db")
+DB_PATH = Path("razync_pro.db")
 
 
-@contextmanager
-def connection():
-    conn = sqlite3.connect(DB_PATH)
+def connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 def init_db() -> None:
-    with connection() as conn:
+    with connect() as conn:
         conn.executescript(
             """
-            CREATE TABLE IF NOT EXISTS lancamentos (
+            CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                data TEXT NOT NULL,
-                tipo TEXT NOT NULL CHECK (tipo IN ('Receita', 'Despesa')),
-                descricao TEXT NOT NULL,
-                categoria TEXT NOT NULL,
-                valor REAL NOT NULL CHECK (valor >= 0),
-                criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
-            CREATE TABLE IF NOT EXISTS mei (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                nome TEXT DEFAULT '',
+            CREATE TABLE IF NOT EXISTS mei_profiles (
+                user_id INTEGER PRIMARY KEY,
+                business_name TEXT DEFAULT '',
                 cnpj TEXT DEFAULT '',
-                atividade TEXT DEFAULT '',
-                data_abertura TEXT,
-                limite_anual REAL DEFAULT 0
+                main_activity TEXT DEFAULT '',
+                opening_date TEXT,
+                annual_limit REAL NOT NULL DEFAULT 0,
+                phone TEXT DEFAULT '',
+                city TEXT DEFAULT '',
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                tx_date TEXT NOT NULL,
+                tx_type TEXT NOT NULL CHECK(tx_type IN ('Receita', 'Despesa')),
+                description TEXT NOT NULL,
+                category TEXT NOT NULL,
+                value REAL NOT NULL CHECK(value >= 0),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS das_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                competence TEXT NOT NULL,
+                due_date TEXT,
+                amount REAL NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'Pendente',
+                payment_date TEXT,
+                notes TEXT DEFAULT '',
+                UNIQUE(user_id, competence),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                mime_type TEXT DEFAULT '',
+                content BLOB NOT NULL,
+                category TEXT DEFAULT 'Outros',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             """
         )
 
 
-def add_lancamento(data: str, tipo: str, descricao: str, categoria: str, valor: float) -> None:
-    with connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO lancamentos (data, tipo, descricao, categoria, valor)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (data, tipo, descricao.strip(), categoria, float(valor)),
-        )
+def _hash_password(password: str, salt: bytes | None = None) -> str:
+    salt = salt or os.urandom(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 210_000)
+    return f"{salt.hex()}:{digest.hex()}"
 
 
-def delete_lancamento(lancamento_id: int) -> None:
-    with connection() as conn:
-        conn.execute("DELETE FROM lancamentos WHERE id = ?", (int(lancamento_id),))
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_hex, digest_hex = stored.split(":", 1)
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(digest_hex)
+    except ValueError:
+        return False
+    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 210_000)
+    return hmac.compare_digest(actual, expected)
 
 
-def get_lancamentos(tipo: str | None = None) -> pd.DataFrame:
-    query = "SELECT id, data, tipo, descricao, categoria, valor FROM lancamentos"
-    params: tuple = ()
-    if tipo:
-        query += " WHERE tipo = ?"
-        params = (tipo,)
-    query += " ORDER BY date(data) DESC, id DESC"
+def create_user(name: str, email: str, password: str) -> tuple[bool, str]:
+    try:
+        with connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+                (name.strip(), email.strip().lower(), _hash_password(password)),
+            )
+            user_id = int(cur.lastrowid)
+            conn.execute(
+                "INSERT OR IGNORE INTO mei_profiles (user_id, opening_date, annual_limit) VALUES (?, ?, ?)",
+                (user_id, date.today().isoformat(), 0),
+            )
+        return True, "Conta criada com sucesso."
+    except sqlite3.IntegrityError:
+        return False, "Já existe uma conta com este e-mail."
 
-    with connection() as conn:
-        df = pd.read_sql_query(query, conn, params=params)
 
-    if not df.empty:
-        df["data"] = pd.to_datetime(df["data"])
-    return df
+def authenticate(email: str, password: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT id, name, email, password_hash FROM users WHERE email = ?",
+            (email.strip().lower(),),
+        ).fetchone()
+    if not row or not _verify_password(password, row["password_hash"]):
+        return None
+    return {"id": row["id"], "name": row["name"], "email": row["email"]}
 
 
-def get_resumo() -> dict[str, float]:
-    with connection() as conn:
+def get_profile(user_id: int) -> dict[str, Any]:
+    with connect() as conn:
         row = conn.execute(
             """
-            SELECT
-                COALESCE(SUM(CASE WHEN tipo = 'Receita' THEN valor ELSE 0 END), 0) AS receitas,
-                COALESCE(SUM(CASE WHEN tipo = 'Despesa' THEN valor ELSE 0 END), 0) AS despesas,
-                COUNT(*) AS quantidade
-            FROM lancamentos
-            """
-        ).fetchone()
-
-    receitas = float(row["receitas"])
-    despesas = float(row["despesas"])
-    return {
-        "receitas": receitas,
-        "despesas": despesas,
-        "resultado": receitas - despesas,
-        "quantidade": int(row["quantidade"]),
-    }
-
-
-def get_fluxo_mensal() -> pd.DataFrame:
-    with connection() as conn:
-        df = pd.read_sql_query(
-            """
-            SELECT
-                substr(data, 1, 7) AS mes,
-                SUM(CASE WHEN tipo = 'Receita' THEN valor ELSE 0 END) AS receitas,
-                SUM(CASE WHEN tipo = 'Despesa' THEN valor ELSE 0 END) AS despesas
-            FROM lancamentos
-            GROUP BY substr(data, 1, 7)
-            ORDER BY mes
+            SELECT u.name, u.email, p.business_name, p.cnpj, p.main_activity,
+                   p.opening_date, p.annual_limit, p.phone, p.city
+            FROM users u
+            LEFT JOIN mei_profiles p ON p.user_id = u.id
+            WHERE u.id = ?
             """,
-            conn,
-        )
-    if not df.empty:
-        df["saldo"] = df["receitas"] - df["despesas"]
-    return df
+            (user_id,),
+        ).fetchone()
+    return dict(row) if row else {}
 
 
-def save_mei(nome: str, cnpj: str, atividade: str, data_abertura: str, limite_anual: float) -> None:
-    with connection() as conn:
+def save_profile(user_id: int, business_name: str, cnpj: str, main_activity: str, opening_date: str, annual_limit: float, phone: str, city: str) -> None:
+    with connect() as conn:
         conn.execute(
             """
-            INSERT INTO mei (id, nome, cnpj, atividade, data_abertura, limite_anual)
-            VALUES (1, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                nome = excluded.nome,
+            INSERT INTO mei_profiles
+                (user_id, business_name, cnpj, main_activity, opening_date, annual_limit, phone, city)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                business_name = excluded.business_name,
                 cnpj = excluded.cnpj,
-                atividade = excluded.atividade,
-                data_abertura = excluded.data_abertura,
-                limite_anual = excluded.limite_anual
+                main_activity = excluded.main_activity,
+                opening_date = excluded.opening_date,
+                annual_limit = excluded.annual_limit,
+                phone = excluded.phone,
+                city = excluded.city
             """,
-            (nome.strip(), cnpj.strip(), atividade.strip(), data_abertura, float(limite_anual)),
+            (user_id, business_name, cnpj, main_activity, opening_date, annual_limit, phone, city),
         )
 
 
-def get_mei() -> dict[str, object]:
-    with connection() as conn:
-        row = conn.execute(
-            "SELECT nome, cnpj, atividade, data_abertura, limite_anual FROM mei WHERE id = 1"
-        ).fetchone()
+def add_transaction(user_id: int, tx_date: str, tx_type: str, description: str, category: str, value: float) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO transactions (user_id, tx_date, tx_type, description, category, value) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, tx_date, tx_type, description, category, value),
+        )
 
-    if row is None:
-        return {"nome": "", "cnpj": "", "atividade": "", "data_abertura": None, "limite_anual": 0.0}
-    return dict(row)
+
+def list_transactions(user_id: int) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, tx_date, tx_type, description, category, value, created_at FROM transactions WHERE user_id = ? ORDER BY tx_date DESC, id DESC",
+            (user_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_transaction(user_id: int, transaction_id: int) -> None:
+    with connect() as conn:
+        conn.execute("DELETE FROM transactions WHERE user_id = ? AND id = ?", (user_id, transaction_id))
+
+
+def upsert_das(user_id: int, competence: str, due_date: str | None, amount: float, status: str, payment_date: str | None, notes: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO das_items (user_id, competence, due_date, amount, status, payment_date, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, competence) DO UPDATE SET
+                due_date = excluded.due_date,
+                amount = excluded.amount,
+                status = excluded.status,
+                payment_date = excluded.payment_date,
+                notes = excluded.notes
+            """,
+            (user_id, competence, due_date, amount, status, payment_date, notes),
+        )
+
+
+def list_das(user_id: int) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, competence, due_date, amount, status, payment_date, notes FROM das_items WHERE user_id = ? ORDER BY competence DESC",
+            (user_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def save_document(user_id: int, filename: str, mime_type: str, content: bytes, category: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO documents (user_id, filename, mime_type, content, category) VALUES (?, ?, ?, ?, ?)",
+            (user_id, filename, mime_type, content, category),
+        )
+
+
+def list_documents(user_id: int) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, filename, mime_type, category, created_at, length(content) AS size_bytes FROM documents WHERE user_id = ? ORDER BY id DESC",
+            (user_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_document(user_id: int, document_id: int) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT id, filename, mime_type, content, category FROM documents WHERE user_id = ? AND id = ?",
+            (user_id, document_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_document(user_id: int, document_id: int) -> None:
+    with connect() as conn:
+        conn.execute("DELETE FROM documents WHERE user_id = ? AND id = ?", (user_id, document_id))
