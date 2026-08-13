@@ -1,19 +1,20 @@
 # MEI Fácil
 
-Aplicação em Streamlit para ajudar microempreendedores individuais a organizar a rotina financeira e acompanhar obrigações básicas do negócio.
+Aplicação em Streamlit para ajudar microempreendedores individuais a organizar receitas, despesas, fluxo de caixa e informações importantes do negócio.
 
 ## Funcionalidades atuais
 
-- Dashboard com receitas, despesas e resultado estimado
-- Cadastro de receitas
-- Cadastro de despesas
-- Fluxo de caixa
+- Dashboard com faturamento, despesas, resultado e últimos lançamentos
+- Gráfico mensal de receitas x despesas
+- Cadastro persistente de receitas em SQLite
+- Cadastro persistente de despesas em SQLite
+- Exclusão de lançamentos
+- Fluxo de caixa com saldo acumulado
+- Cadastro dos dados do MEI
+- Limite anual configurável para acompanhamento
 - Estrutura inicial para DAS
 - Estrutura inicial para declaração anual
-- Upload de documentos em modo demonstrativo
-- Cadastro dos dados do MEI em modo demonstrativo
-
-> Nesta primeira versão, os dados ficam apenas na sessão do Streamlit. Persistência em banco de dados será adicionada nas próximas etapas.
+- Área inicial de documentos
 
 ## Como executar
 
@@ -22,11 +23,15 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+O banco `mei_facil.db` é criado automaticamente na primeira execução e não é versionado no GitHub.
+
+> Importante: SQLite atende bem ao desenvolvimento local e ao MVP. Em hospedagens como o Streamlit Community Cloud, o armazenamento local pode ser reiniciado. Antes de colocar usuários reais no sistema, a persistência deve ser migrada para um banco externo, como Supabase/PostgreSQL.
+
 ## Próximos passos
 
-1. Banco de dados e autenticação
-2. Persistência de receitas e despesas
-3. Controle de DAS
-4. Controle de faturamento e alertas
-5. Documentos persistentes
+1. Controle completo do DAS
+2. Login e separação de dados por usuário
+3. Migração para Supabase/PostgreSQL
+4. Armazenamento permanente de documentos
+5. Controle de faturamento anual e alertas
 6. Assistente com IA
