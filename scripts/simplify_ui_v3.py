@@ -5,10 +5,8 @@ ui_path = Path('ui_system.py')
 s = app_path.read_text(encoding='utf-8')
 u = ui_path.read_text(encoding='utf-8')
 
-# Stronger light-theme palette and explicit native control colors.
 u = u.replace('"bg": "#f4f7fb",', '"bg": "#f7f9fc",')
 u = u.replace('"surface_soft": "#f8fafc",', '"surface_soft": "#f1f5f9",')
-u = u.replace('"sidebar": "#ffffff",', '"sidebar": "#ffffff",')
 u = u.replace('"text": "#0f172a",', '"text": "#111827",')
 u = u.replace('"muted": "#64748b",', '"muted": "#526071",')
 u = u.replace('"border": "#dfe6ef",', '"border": "#d9e2ec",')
@@ -29,7 +27,6 @@ extra = '''
 if extra.strip() not in u and insert_after in u:
     u = u.replace(insert_after, insert_after + extra, 1)
 
-# More application-like sidebar CSS.
 nav_marker = '/* Sidebar navigation */\n'
 nav_extra = '''
 .rz-sidebar-section {{ font-size:.67rem; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:var(--rz-muted); margin:.8rem .15rem .32rem; }}
@@ -46,7 +43,6 @@ if nav_extra.strip() not in u and nav_marker in u:
 
 ui_path.write_text(u, encoding='utf-8')
 
-# Replace navigation state + sidebar with simple app navigation.
 nav_start = s.index('pending_page = st.session_state.pop("_navigate_to", None)')
 nav_end = s.index('\nopening = opening_date_from(profile)', nav_start)
 new_nav = '''pending_page = st.session_state.pop("_navigate_to", None)
@@ -89,7 +85,6 @@ with st.sidebar:
 '''
 s = s[:nav_start] + new_nav + s[nav_end:]
 
-# Replace the Dashboard with a deliberately lean command center.
 dash_start = s.index('if page == "Dashboard":')
 dash_end = s.index('\nelif page == "Movimentações":', dash_start)
 new_dashboard = '''if page == "Dashboard":
@@ -132,7 +127,6 @@ new_dashboard = '''if page == "Dashboard":
         if st.button("▣ Central Fiscal", key="home_fiscal", use_container_width=True):
             st.session_state["_navigate_to"] = "Central Fiscal"; st.rerun()
 
-    # One compact fiscal status line; deeper information stays in its own modules.
     overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
     remaining = max(limit - year_revenue, 0)
     st.caption(f"Faturamento no ano: {brl(year_revenue)}  •  Limite restante: {brl(remaining)}  •  DAS em atraso: {overdue_das}")
@@ -141,3 +135,4 @@ s = s[:dash_start] + new_dashboard + s[dash_end:]
 
 app_path.write_text(s, encoding='utf-8')
 print('UI v3 simplified')
+# trigger
