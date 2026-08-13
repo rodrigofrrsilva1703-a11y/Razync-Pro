@@ -36,11 +36,17 @@ st.markdown("""
 <style>
 :root{--rz-primary:#2563eb;--rz-bg:#f6f8fc;--rz-surface:#ffffff;--rz-text:#172033;--rz-muted:#667085;--rz-border:#e5e9f0}
 .stApp{background:#f6f8fc;color:#172033}
-[data-testid="stSidebar"]{background:#ffffff;border-right:1px solid #e5e9f0}
+[data-testid="stSidebar"]{background:#111827;border-right:0;color:#f8fafc}
+[data-testid="stSidebar"] *{color:#e5e7eb}
+[data-testid="stSidebar"] .rz-brand{color:#ffffff}
+[data-testid="stSidebar"] .rz-brand span{color:#60a5fa}
+[data-testid="stSidebar"] [data-baseweb="select"]>div{background:#1f2937;border-color:#374151}
+[data-testid="stSidebar"] [role="radiogroup"] label{color:#cbd5e1}
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){background:#1d4ed8;color:#fff}
 [data-testid="stSidebar"] .block-container{padding-top:1.15rem}
-.block-container{padding-top:1.25rem;padding-bottom:2.5rem;max-width:1380px}
+.block-container{padding-top:1.1rem;padding-bottom:2.5rem;max-width:1240px}
 h1,h2,h3{color:#172033;letter-spacing:-.025em}
-[data-testid="stMetric"]{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,24,40,.04)}
+[data-testid="stMetric"]{background:#fff;border:1px solid #e7ebf2;border-radius:14px;padding:15px 17px;box-shadow:0 4px 14px rgba(16,24,40,.035)}
 [data-testid="stMetricLabel"]{color:#667085;font-size:.82rem}
 [data-testid="stMetricValue"]{color:#172033;font-size:1.5rem;font-weight:760}
 .rz-brand{font-size:1.45rem;font-weight:900;color:#172033;letter-spacing:-.045em}.rz-brand span{color:#2563eb}
@@ -51,15 +57,15 @@ h1,h2,h3{color:#172033;letter-spacing:-.025em}
 .rz-ok{border-left:3px solid #12b76a}.rz-info{border-left:3px solid #2e90fa}.rz-warn{border-left:3px solid #f79009}.rz-danger{border-left:3px solid #f04438}
 .rz-small{color:#667085;font-size:.84rem;margin-top:2px}
 .rz-section{font-size:1.02rem;font-weight:760;color:#172033;margin:1.05rem 0 .62rem}
-.rz-welcome{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:17px 19px;margin-bottom:14px;box-shadow:0 1px 2px rgba(16,24,40,.025)}
-.rz-welcome-title{font-size:1.1rem;font-weight:760;color:#172033}.rz-welcome-sub{color:#667085;font-size:.87rem;margin-top:3px}
+.rz-welcome{background:linear-gradient(135deg,#1d4ed8,#2563eb);border:0;border-radius:16px;padding:18px 20px;margin-bottom:14px;box-shadow:0 8px 22px rgba(37,99,235,.12)}
+.rz-welcome-title{font-size:1.08rem;font-weight:760;color:#fff}.rz-welcome-sub{color:#dbeafe;font-size:.86rem;margin-top:3px}
 div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{border-radius:9px;min-height:2.5rem;border:1px solid #d9e0ea;font-weight:650;background:#fff}
 div[data-testid="stButton"] button:hover{border-color:#2563eb;color:#2563eb}
 div[data-testid="stDataFrame"]{border:1px solid #e5e9f0;border-radius:11px;overflow:hidden;background:#fff}
 [data-testid="stExpander"]{background:#fff;border:1px solid #e5e9f0;border-radius:11px}
 [data-baseweb="select"]>div{border-radius:9px}
 [data-testid="stSidebar"] [data-testid="stRadio"] label{padding:.25rem .4rem;border-radius:8px}
-[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{background:#f2f6ff}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{background:#1f2937}
 hr{border-color:#e5e9f0}
 </style>
 """, unsafe_allow_html=True)
@@ -222,24 +228,25 @@ if page == "Dashboard":
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("Entradas",brl(year_revenue)); c2.metric("Saídas",brl(year_expense)); c3.metric("Resultado",brl(year_revenue-year_expense)); c4.metric("Limite do MEI",f"{limit_pct:.1f}% usado")
 
-    st.markdown('<div class="rz-section">O que você precisa resolver</div>', unsafe_allow_html=True)
+    main_col, side_col = st.columns([1.65,1], gap="large")
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
-    for idx, item in enumerate(priorities[:4]):
-        a,b = st.columns([5,1])
-        with a:
-            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-            alert_box(level, item["title"], item["detail"])
-        with b:
-            if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
-                st.session_state["_navigate_to"] = item["page"]
-                st.rerun()
-
-    st.markdown('<div class="rz-section">Atalhos</div>', unsafe_allow_html=True)
-    q1,q2,q3,q4 = st.columns(4)
-    if q1.button("+ Lançamento", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
-    if q2.button("Importar extrato", use_container_width=True): st.session_state["_navigate_to"]="Importar Extrato"; st.rerun()
-    if q3.button("Ver DAS", use_container_width=True): st.session_state["_navigate_to"]="DAS"; st.rerun()
-    if q4.button("Obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
+    with main_col:
+        st.markdown('<div class="rz-section">O que precisa da sua atenção</div>', unsafe_allow_html=True)
+        for idx, item in enumerate(priorities[:3]):
+            a,b = st.columns([4.6,1.15])
+            with a:
+                level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
+                alert_box(level, item["title"], item["detail"])
+            with b:
+                if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
+    with side_col:
+        st.markdown('<div class="rz-section">Acesso rápido</div>', unsafe_allow_html=True)
+        if st.button("＋ Nova movimentação", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
+        if st.button("↥ Importar extrato", use_container_width=True): st.session_state["_navigate_to"]="Importar Extrato"; st.rerun()
+        if st.button("▣ Ver impostos e DAS", use_container_width=True): st.session_state["_navigate_to"]="Central Fiscal"; st.rerun()
+        if st.button("✓ Ver obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
     left,right = st.columns([1.55,1])
     with left:
         st.markdown('<div class="rz-section">Entradas por mês</div>', unsafe_allow_html=True)
@@ -248,27 +255,18 @@ if page == "Dashboard":
         fig.update_layout(height=330,margin=dict(l=0,r=0,t=8,b=0),xaxis_title="",yaxis_title="Receita")
         st.plotly_chart(fig,use_container_width=True)
     with right:
-        st.markdown('<div class="rz-section">Avisos importantes</div>', unsafe_allow_html=True)
-        for level,title,text in build_alerts(year_revenue,limit,das_rows,obligations,profile):
-            alert_box(level,title,text)
+        st.markdown('<div class="rz-section">Organização do MEI</div>', unsafe_allow_html=True)
+        health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
+        st.metric("Índice de organização", f"{health_score}/100")
+        st.progress(health_score/100)
+        if health_notes:
+            for note in health_notes[:3]: st.caption(f"• {note}")
+        else: st.success("Tudo organizado com os dados cadastrados.")
     st.markdown('<div class="rz-section">Movimentações recentes</div>', unsafe_allow_html=True)
     if transactions.empty:
         st.info("Cadastre sua primeira movimentação.")
     else:
         st.dataframe(transactions.head(10)[["tx_date","tx_type","description","counterparty","value"]],use_container_width=True,hide_index=True,column_config={"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY"),"value":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
-
-    st.markdown('<div class="rz-section">Como está sua organização</div>', unsafe_allow_html=True)
-    health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
-    a,b = st.columns([1,2])
-    with a:
-        st.metric("Índice de organização", f"{health_score}/100")
-        st.progress(health_score/100)
-    with b:
-        if health_notes:
-            for note in health_notes:
-                st.caption(f"• {note}")
-        else:
-            st.success("Seu cadastro e obrigações monitoradas estão organizados.")
 
     with st.expander("Checklist de configuração do MEI", expanded=not bool(profile.get("cnpj"))):
         checklist = [
