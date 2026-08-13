@@ -335,19 +335,49 @@ def _verify_password(password: str, stored: str) -> bool:
 
 
 def create_user(name: str, email: str, password: str) -> tuple[bool, str]:
+    name = name.strip()
+    email = email.strip().lower()
+
+    if len(name) < 2:
+        return False, "Informe seu nome."
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        return False, "Informe um e-mail válido."
+    if len(password) < 8:
+        return False, "A senha precisa ter pelo menos 8 caracteres."
+    if len(password) > 128:
+        return False, "A senha deve ter no máximo 128 caracteres."
+
     try:
         with engine.begin() as conn:
-            result = conn.execute(insert(users).values(name=name.strip(), email=email.strip().lower(), password_hash=_hash_password(password)))
+            result = conn.execute(
+                insert(users).values(
+                    name=name,
+                    email=email,
+                    password_hash=_hash_password(password),
+                )
+            )
             uid = int(result.inserted_primary_key[0])
             conn.execute(insert(profiles).values(user_id=uid))
         return True, "Conta criada com sucesso."
     except IntegrityError:
         return False, "Já existe uma conta com este e-mail."
+    except OperationalError as exc:
+        raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
 
 
 def authenticate(email: str, password: str) -> dict[str, Any] | None:
-    with engine.connect() as conn:
-        row = conn.execute(select(users).where(users.c.email == email.strip().lower())).mappings().first()
+    email = email.strip().lower()
+    if not email or not password:
+        return None
+
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                select(users).where(users.c.email == email)
+            ).mappings().first()
+    except OperationalError as exc:
+        raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+
     if not row or not _verify_password(password, row["password_hash"]):
         return None
     return {"id": row["id"], "name": row["name"], "email": row["email"]}
