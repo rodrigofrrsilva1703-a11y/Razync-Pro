@@ -4,18 +4,52 @@ from calendar import monthrange
 from datetime import date, timedelta
 from typing import Iterable
 
+# Regras oficiais monitoradas por ano. Mantemos as regras em um único módulo
+# para facilitar atualização quando houver mudança normativa.
 MEI_ANNUAL_LIMIT = 81_000.0
-MEI_MONTHLY_PROPORTION = 6_750.0
+MEI_LIMITS_BY_YEAR = {
+    2026: 81_000.0,
+    2027: 110_000.0,
+    2028: 140_000.0,
+}
 DASN_DEADLINE_MONTH = 5
 DASN_DEADLINE_DAY = 31
 
 
+def official_annual_limit(year: int) -> float:
+    if year <= 2026:
+        return 81_000.0
+    if year == 2027:
+        return 110_000.0
+    return 140_000.0
+
+
+def monthly_proportion_for(year: int) -> float:
+    return official_annual_limit(year) / 12.0
+
+
 def annual_limit_for(opening_date: date | None, year: int, configured_limit: float | None = None) -> float:
+    official = official_annual_limit(year)
     configured = float(configured_limit or 0)
-    base = configured if configured > 0 else MEI_ANNUAL_LIMIT
+
+    # Bancos antigos podem ter 81 mil gravados como valor padrão. A partir de
+    # 2027 esse valor legado não deve impedir a atualização automática oficial.
+    if configured > 0 and not (year >= 2027 and abs(configured - 81_000.0) < 0.01):
+        base = configured
+    else:
+        base = official
+
     if opening_date and opening_date.year == year:
-        return MEI_MONTHLY_PROPORTION * (13 - opening_date.month)
+        months = 13 - opening_date.month
+        official_monthly = base / 12.0
+        return official_monthly * months
     return base
+
+
+def next_business_day_if_weekend(day: date) -> date:
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
 
 
 def das_due_date(competence: str) -> date:
@@ -24,11 +58,15 @@ def das_due_date(competence: str) -> date:
         due_year, due_month = year + 1, 1
     else:
         due_year, due_month = year, month + 1
-    day = min(20, monthrange(due_year, due_month)[1])
-    due = date(due_year, due_month, day)
-    while due.weekday() >= 5:
-        due += timedelta(days=1)
-    return due
+    due = date(due_year, due_month, min(20, monthrange(due_year, due_month)[1]))
+    return next_business_day_if_weekend(due)
+
+
+def monthly_report_due_date(competence: str) -> date:
+    year, month = map(int, competence.split("-"))
+    if month == 12:
+        return date(year + 1, 1, 20)
+    return date(year, month + 1, 20)
 
 
 def competence_list(year: int) -> list[str]:
@@ -105,7 +143,7 @@ def build_alerts(
         alerts.append(("warn", "Cadastro incompleto", "Complete CNPJ, atividade principal e data de abertura em Meu MEI."))
 
     deadline = dasn_deadline(today.year)
-    if today <= deadline and today.month >= 1:
+    if today <= deadline:
         alerts.append(("info", "DASN-SIMEI", f"Confira a declaração anual antes de {deadline.strftime('%d/%m/%Y')}."))
 
     if not alerts:
