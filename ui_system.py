@@ -4,21 +4,21 @@ import streamlit as st
 
 THEMES = {
     "Claro": {
-        "bg": "#f7f9fc",
+        "bg": "#f6f8fc",
         "surface": "#ffffff",
-        "surface_soft": "#f1f5f9",
-        "sidebar": "#ffffff",
-        "text": "#111827",
-        "muted": "#526071",
-        "border": "#d9e2ec",
-        "primary": "#2563eb",
-        "primary_hover": "#1d4ed8",
-        "primary_soft": "#e8f1ff",
-        "success": "#16a34a",
-        "warning": "#d97706",
-        "danger": "#dc2626",
-        "shadow": "0 8px 28px rgba(15, 23, 42, .06)",
-        "shadow_soft": "0 2px 10px rgba(15, 23, 42, .04)",
+        "surface_soft": "#eef3f9",
+        "sidebar": "#f8faff",
+        "text": "#334155",
+        "muted": "#718096",
+        "border": "#dce5f0",
+        "primary": "#4f7fc9",
+        "primary_hover": "#3f6fb7",
+        "primary_soft": "#eaf2fc",
+        "success": "#3f8f69",
+        "warning": "#b9853d",
+        "danger": "#c65f67",
+        "shadow": "0 8px 28px rgba(71, 85, 105, .045)",
+        "shadow_soft": "0 2px 10px rgba(71, 85, 105, .035)",
         "plot": "plotly_white",
     },
     "Escuro": {
@@ -48,6 +48,28 @@ def tokens(theme_name: str) -> dict:
 
 def inject_design_system(theme_name: str) -> None:
     t = tokens(theme_name)
+    light_overrides = "" if theme_name != "Claro" else """
+/* Tema claro: neutraliza superfícies escuras nativas do Streamlit/BaseWeb */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#f6f8fc !important; }
+[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#f8faff !important; }
+[data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { color:#718096 !important; }
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stAlert"], [data-testid="stDataFrame"] { background:#ffffff !important; }
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#ffffff !important; color:#334155 !important; }
+[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"], [role="option"] { background:#ffffff !important; color:#334155 !important; }
+button:not([kind="primary"]) { background:#ffffff !important; color:#475569 !important; border-color:#dce5f0 !important; }
+button:not([kind="primary"]):hover { background:#eef3f9 !important; color:#3f6fb7 !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:#eaf2fc !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"], [data-testid="stSidebar"] details, [data-testid="stSidebar"] summary { background:transparent !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:#eef3f9 !important; }
+[data-testid="stFileUploaderDropzone"] { background:#f8faff !important; border-color:#dce5f0 !important; }
+[data-testid="stFileUploaderDropzone"] * { color:#526071 !important; }
+[data-testid="stTabs"] button { color:#64748b !important; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:#4f7fc9 !important; }
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p { color:#475569 !important; }
+h1,h2,h3,h4,h5,h6 { color:#334155 !important; }
+hr { border-color:#e4ebf3 !important; }
+"""
     st.markdown(
         f"""
 <style>
@@ -60,23 +82,18 @@ def inject_design_system(theme_name: str) -> None:
 html, body, [class*="css"] {{ font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
 .stApp {{ background:var(--rz-bg); color:var(--rz-text); }}
 [data-testid="stHeader"] {{ background:rgba(0,0,0,0); }}
-[data-testid="stSidebar"] {{ background:var(--rz-sidebar, {t['sidebar']}); border-right:1px solid var(--rz-border); }}
+[data-testid="stSidebar"] {{ background:{t['sidebar']}; border-right:1px solid var(--rz-border); }}
 [data-testid="stSidebar"] > div:first-child {{ padding-top:.55rem; }}
 .block-container {{ max-width:1320px; padding-top:1.25rem; padding-bottom:3rem; }}
 h1,h2,h3,h4,p,label,span {{ color:var(--rz-text); }}
 small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!important; }}
-
-/* Explicit color ownership prevents Streamlit dark defaults leaking into light theme */
 [data-testid="stSidebar"] p,[data-testid="stSidebar"] span,[data-testid="stSidebar"] label {{ color:var(--rz-text)!important; }}
 [data-testid="stSidebar"] small,[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {{ color:var(--rz-muted)!important; }}
-[data-testid="stSidebar"] [data-baseweb="base-input"], [data-testid="stSidebar"] [data-baseweb="select"] > div {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; }}
 [data-testid="stSidebar"] svg {{ fill:currentColor; color:var(--rz-muted); }}
 [data-testid="stAlert"] {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; border-color:var(--rz-border)!important; }}
 [data-testid="stAlert"] p {{ color:var(--rz-text)!important; }}
 [data-testid="stMarkdownContainer"] a {{ color:var(--rz-primary)!important; }}
 [data-testid="stWidgetLabel"] p {{ color:var(--rz-text)!important; }}
-
-/* Brand / shell */
 .rz-brand-wrap {{ padding:.55rem .2rem .7rem; }}
 .rz-brand {{ font-size:1.48rem; line-height:1; font-weight:900; letter-spacing:-.055em; color:var(--rz-text); }}
 .rz-brand span {{ color:var(--rz-primary); }}
@@ -86,19 +103,13 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 .rz-page-sub {{ font-size:.93rem; color:var(--rz-muted); margin-top:.3rem; margin-bottom:1.25rem; max-width:760px; }}
 .rz-section-title {{ font-size:1rem; font-weight:760; color:var(--rz-text); margin:.45rem 0 .7rem; }}
 .rz-section-sub {{ font-size:.82rem; color:var(--rz-muted); margin-top:-.45rem; margin-bottom:.7rem; }}
-
-/* Business context card */
 .rz-business {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:16px; padding:17px 19px; box-shadow:var(--rz-shadow-soft); position:relative; overflow:hidden; }}
 .rz-business:before {{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--rz-primary); }}
 .rz-business-name {{ font-size:1.05rem; font-weight:780; color:var(--rz-text); }}
 .rz-business-meta {{ font-size:.8rem; color:var(--rz-muted); margin-top:4px; }}
-
-/* KPI cards */
 [data-testid="stMetric"] {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:15px; padding:16px 17px; box-shadow:var(--rz-shadow-soft); min-height:105px; }}
 [data-testid="stMetricLabel"] p {{ color:var(--rz-muted)!important; font-size:.8rem; font-weight:650; }}
 [data-testid="stMetricValue"] {{ color:var(--rz-text)!important; font-size:1.48rem; font-weight:800; letter-spacing:-.035em; }}
-
-/* Attention cards */
 .rz-alert {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:12px; padding:12px 14px; margin-bottom:8px; box-shadow:var(--rz-shadow-soft); }}
 .rz-alert-title {{ font-size:.9rem; font-weight:740; color:var(--rz-text); }}
 .rz-alert-text {{ font-size:.8rem; color:var(--rz-muted); margin-top:3px; }}
@@ -106,11 +117,7 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 .rz-alert.rz-warn {{ border-left:3px solid {t['warning']}; }}
 .rz-alert.rz-info {{ border-left:3px solid {t['primary']}; }}
 .rz-alert.rz-ok {{ border-left:3px solid {t['success']}; }}
-
-/* Native controls */
-div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button {{
-  border-radius:10px; min-height:2.55rem; border:1px solid var(--rz-border); background:var(--rz-surface); color:var(--rz-text); font-weight:660; box-shadow:none;
-}}
+div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button {{ border-radius:10px; min-height:2.55rem; border:1px solid var(--rz-border); background:var(--rz-surface); color:var(--rz-text); font-weight:660; box-shadow:none; }}
 div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover {{ border-color:var(--rz-primary); color:var(--rz-primary); }}
 div[data-testid="stFormSubmitButton"] button[kind="primary"], button[kind="primary"] {{ background:var(--rz-primary)!important; color:white!important; border-color:var(--rz-primary)!important; }}
 [data-baseweb="select"] > div, [data-baseweb="input"] > div, input, textarea {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; border-color:var(--rz-border)!important; border-radius:10px!important; }}
@@ -119,9 +126,6 @@ div[data-testid="stFormSubmitButton"] button[kind="primary"], button[kind="prima
 [data-testid="stExpander"] {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:12px; box-shadow:var(--rz-shadow-soft); }}
 [data-testid="stProgressBar"] > div > div {{ background:var(--rz-primary)!important; }}
 hr {{ border-color:var(--rz-border); }}
-
-/* Sidebar navigation */
-
 .rz-sidebar-section {{ font-size:.67rem; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:var(--rz-muted); margin:.8rem .15rem .32rem; }}
 [data-testid="stSidebar"] [data-testid="stExpander"] {{ box-shadow:none; border:0; background:transparent; border-radius:10px; }}
 [data-testid="stSidebar"] [data-testid="stExpander"] details {{ border:0; }}
@@ -136,8 +140,7 @@ hr {{ border-color:var(--rz-border); }}
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p {{ color:var(--rz-primary)!important; font-weight:720; }}
 .rz-nav-label {{ font-size:.68rem; font-weight:760; text-transform:uppercase; letter-spacing:.08em; color:var(--rz-muted); margin:.45rem 0 .15rem; }}
 .rz-dev {{ background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:10px; padding:9px 10px; font-size:.72rem; color:var(--rz-muted); margin-top:.65rem; }}
-
-/* Responsive behavior */
+{light_overrides}
 @media (max-width: 1000px) {{ .block-container {{ padding-left:1rem; padding-right:1rem; }} [data-testid="stMetric"] {{ min-height:96px; }} }}
 @media (max-width: 720px) {{ .rz-page-title {{ font-size:1.5rem; }} .block-container {{ padding-top:.7rem; }} }}
 </style>
@@ -162,30 +165,17 @@ def business_card(name: str, year: int, cnpj: str | None = None) -> None:
     meta = f"Ano {year}"
     if cnpj:
         meta += f" • CNPJ {cnpj}"
-    st.markdown(
-        f'<div class="rz-business"><div class="rz-business-name">{name}</div><div class="rz-business-meta">{meta} • visão consolidada financeira e fiscal</div></div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="rz-business"><div class="rz-business-name">{name}</div><div class="rz-business-meta">{meta} • visão consolidada financeira e fiscal</div></div>', unsafe_allow_html=True)
 
 
 def alert_card(level: str, title: str, text: str) -> None:
     cls = {"danger": "rz-danger", "warn": "rz-warn", "info": "rz-info", "ok": "rz-ok"}.get(level, "rz-info")
-    st.markdown(
-        f'<div class="rz-alert {cls}"><div class="rz-alert-title">{title}</div><div class="rz-alert-text">{text}</div></div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="rz-alert {cls}"><div class="rz-alert-title">{title}</div><div class="rz-alert-text">{text}</div></div>', unsafe_allow_html=True)
 
 
 def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None:
     t = tokens(theme_name)
-    kwargs = {
-        "template": t["plot"],
-        "paper_bgcolor": "rgba(0,0,0,0)",
-        "plot_bgcolor": "rgba(0,0,0,0)",
-        "font": {"color": t["text"]},
-        "margin": dict(l=0, r=0, t=12, b=0),
-        "legend_title_text": "",
-    }
+    kwargs = {"template": t["plot"], "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": t["text"]}, "margin": dict(l=0, r=0, t=12, b=0), "legend_title_text": ""}
     if height:
         kwargs["height"] = height
     fig.update_layout(**kwargs)
