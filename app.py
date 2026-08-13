@@ -76,9 +76,6 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 
 def ensure_login() -> dict:
-    existing = st.session_state.get("user")
-    if isinstance(existing, dict) and existing.get("id"):
-        return existing
     email = "dev@local"
     password = "dev"
     user = authenticate(email, password)
