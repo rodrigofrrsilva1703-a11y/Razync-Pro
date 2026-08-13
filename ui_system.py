@@ -253,6 +253,17 @@ def alert_card(level: str, title: str, text: str) -> None:
     st.markdown(f'<div class="rz-alert {cls}"><div class="rz-alert-title">{title}</div><div class="rz-alert-text">{text}</div></div>', unsafe_allow_html=True)
 
 
+
+def empty_state(title: str, text: str, icon: str = "○") -> None:
+    st.markdown(
+        f'<div class="rz-empty"><div class="rz-empty-icon">{icon}</div><div class="rz-empty-title">{title}</div><div class="rz-empty-text">{text}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def helper_note(text: str) -> None:
+    st.markdown(f'<div class="rz-helper">{text}</div>', unsafe_allow_html=True)
+
 def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None:
     """Apply Razync theme tokens to the entire Plotly figure, including axes and hover UI."""
     t = tokens(theme_name)

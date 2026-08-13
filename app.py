@@ -26,7 +26,7 @@ from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
 from backup_tools import build_backup_zip, document_coverage
-from ui_system import inject_design_system, page_header, section, business_card, alert_card, apply_plot_theme, tokens
+from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
 
 CURRENT_YEAR = date.today().year
 
@@ -314,22 +314,38 @@ if page == "Dashboard":
             st.write(("✓ " if done else "○ ") + label)
 
 elif page == "Movimentações":
-    header("Movimentações","Registre receitas e despesas. Os dados alimentam automaticamente o dashboard, o Relatório Mensal e a DASN-SIMEI.")
-    with st.form("tx_form",clear_on_submit=True):
-        a,b,c = st.columns(3); tx_type = a.selectbox("Tipo",["Receita","Despesa"]); tx_date = b.date_input("Data",date.today()); value = c.number_input("Valor",min_value=0.0,step=10.0)
-        desc = st.text_input("Descrição")
-        a,b,c = st.columns(3); category = a.selectbox("Categoria",["Serviços","Vendas","Fornecedores","Aluguel","Transporte","Marketing","Impostos","Folha","Outras"]); counterparty = b.text_input("Cliente/fornecedor"); payment_method = c.selectbox("Forma de pagamento",["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
-        document_number = st.text_input("Número da nota/documento (opcional)")
-        if st.form_submit_button("Salvar lançamento",type="primary",use_container_width=True):
-            if not desc.strip() or value <= 0: st.error("Informe descrição e valor maior que zero.")
+    header("Movimentações", "Registre o que entrou e saiu do negócio. Os detalhes adicionais são opcionais.")
+    section("Novo lançamento", "Comece pelas informações essenciais.")
+    with st.form("tx_form", clear_on_submit=True):
+        tx_type = st.radio("O que aconteceu?", ["Receita", "Despesa"], horizontal=True)
+        a,b = st.columns([1,1])
+        value = a.number_input("Valor", min_value=0.0, step=10.0, placeholder="0,00")
+        tx_date = b.date_input("Data", date.today())
+        desc = st.text_input("Descrição", placeholder="Ex.: pagamento de cliente, compra de material...")
+        with st.expander("Mais detalhes (opcional)"):
+            a,b = st.columns(2)
+            category = a.selectbox("Categoria", ["Serviços","Vendas","Fornecedores","Aluguel","Transporte","Marketing","Impostos","Folha","Outras"])
+            counterparty = b.text_input("Cliente ou fornecedor")
+            a,b = st.columns(2)
+            payment_method = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
+            document_number = b.text_input("Nota ou documento")
+        if st.form_submit_button("Salvar movimentação", type="primary", use_container_width=True):
+            if not desc.strip() or value <= 0:
+                st.error("Informe uma descrição e um valor maior que zero.")
             else:
-                add_transaction(uid,tx_date=tx_date,tx_type=tx_type,description=desc.strip(),category=category,value=float(value),document_number=document_number.strip(),counterparty=counterparty.strip(),payment_method=payment_method); st.rerun()
-    if transactions.empty: st.info("Nenhum lançamento.")
+                add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=float(value), document_number=document_number.strip(), counterparty=counterparty.strip(), payment_method=payment_method)
+                st.rerun()
+
+    section("Histórico", "Seus lançamentos mais recentes e os dados usados nos relatórios.")
+    if transactions.empty:
+        empty_state("Nenhuma movimentação registrada", "Quando você salvar a primeira receita ou despesa, ela aparecerá aqui e começará a alimentar o financeiro do Razync Pro.", "↕")
     else:
-        st.dataframe(transactions[["id","tx_date","tx_type","description","category","document_number","counterparty","payment_method","value"]],use_container_width=True,hide_index=True)
-        with st.expander("Excluir lançamento"):
-            selected = st.selectbox("ID do lançamento",transactions["id"].tolist())
-            if st.button("Excluir definitivamente"): delete_transaction(uid,int(selected)); st.rerun()
+        st.dataframe(transactions[["id","tx_date","tx_type","description","category","counterparty","value"]], use_container_width=True, hide_index=True, column_config={"tx_date":st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "value":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        with st.expander("Gerenciar lançamento"):
+            selected = st.selectbox("Lançamento", transactions["id"].tolist())
+            st.caption("A exclusão é definitiva e remove o lançamento dos relatórios.")
+            if st.button("Excluir lançamento", use_container_width=True):
+                delete_transaction(uid, int(selected)); st.rerun()
 
 elif page == "Importar Extrato":
     header("Importar Extrato","Importe CSV ou Excel, confira as colunas e transforme movimentações bancárias em lançamentos do Razync Pro.")
@@ -438,7 +454,7 @@ elif page == "Análise Financeira":
     with right:
         exp = analysis["expense_categories"]
         if exp.empty:
-            st.info("Ainda não existem despesas no período.")
+            empty_state("Sem despesas no período", "Quando houver despesas registradas, a distribuição por categoria aparecerá aqui.", "◫")
         else:
             fig = px.pie(exp, names="Categoria", values="Valor", hole=.45)
             fig.update_layout(template=PLOT_TEMPLATE,height=340, margin=dict(l=0,r=0,t=8,b=0))
@@ -514,26 +530,46 @@ elif page == "Relatório Mensal":
     a,b = st.columns(2); a.download_button("Baixar relatório em PDF",pdf,f"relatorio_mensal_{selected_year}.pdf","application/pdf",use_container_width=True); b.download_button("Baixar relatório em CSV",csv,f"relatorio_mensal_{selected_year}.csv","text/csv",use_container_width=True)
 
 elif page == "Notas Fiscais":
-    header("Notas Fiscais","Controle as notas e concilie cada emissão com o faturamento.")
-    with st.form("invoice_form",clear_on_submit=True):
-        a,b,c = st.columns(3); issue_date = a.date_input("Data de emissão",date.today()); invoice_type = b.selectbox("Tipo",["Serviço","Mercadoria"]); number = c.text_input("Número")
-        customer = st.text_input("Cliente"); a,b = st.columns(2); customer_document = a.text_input("CPF/CNPJ do cliente"); amount = b.number_input("Valor",min_value=0.0); description = st.text_input("Descrição"); status = st.selectbox("Situação",["Emitida","Cancelada","Substituída"])
-        if st.form_submit_button("Registrar nota",type="primary",use_container_width=True):
-            if amount <= 0 or not customer.strip(): st.error("Informe cliente e valor.")
-            else: add_invoice(uid,issue_date=issue_date,invoice_type=invoice_type,number=number.strip(),customer=customer.strip(),customer_document=customer_document.strip(),description=description.strip(),amount=float(amount),status=status); st.rerun()
-    st.link_button("Abrir Emissor Nacional de NFS-e","https://www.nfse.gov.br/EmissorNacional",use_container_width=True)
-    if invoices.empty: st.info("Nenhuma nota registrada.")
+    header("Notas Fiscais", "Registre as emissões e acompanhe se cada nota já está refletida no faturamento.")
+    section("Registrar nota", "Preencha primeiro os dados principais da emissão.")
+    with st.form("invoice_form", clear_on_submit=True):
+        a,b = st.columns(2)
+        customer = a.text_input("Cliente", placeholder="Nome ou razão social")
+        amount = b.number_input("Valor", min_value=0.0, step=10.0)
+        a,b,c = st.columns(3)
+        issue_date = a.date_input("Data de emissão", date.today())
+        invoice_type = b.selectbox("Tipo", ["Serviço","Mercadoria"])
+        number = c.text_input("Número da nota")
+        with st.expander("Mais detalhes (opcional)"):
+            customer_document = st.text_input("CPF/CNPJ do cliente")
+            description = st.text_input("Descrição da nota")
+            status = st.selectbox("Situação", ["Emitida","Cancelada","Substituída"])
+        if st.form_submit_button("Registrar nota", type="primary", use_container_width=True):
+            if amount <= 0 or not customer.strip():
+                st.error("Informe o cliente e um valor maior que zero.")
+            else:
+                add_invoice(uid, issue_date=issue_date, invoice_type=invoice_type, number=number.strip(), customer=customer.strip(), customer_document=customer_document.strip(), description=description.strip(), amount=float(amount), status=status)
+                st.rerun()
+    st.link_button("Abrir Emissor Nacional de NFS-e", "https://www.nfse.gov.br/EmissorNacional", use_container_width=True)
+    section("Notas registradas")
+    if invoices.empty:
+        empty_state("Nenhuma nota registrada", "Registre uma nota emitida para acompanhar faturamento e conciliação com as receitas.", "▧")
     else:
-        st.dataframe(invoices[["id","issue_date","invoice_type","number","customer","amount","status"]],use_container_width=True,hide_index=True)
-        active = invoices[invoices["status"]=="Emitida"]; documented = set(transactions["document_number"].fillna("").astype(str)) if not transactions.empty else set(); unreconciled = active[~active["number"].fillna("").astype(str).isin(documented)]
+        st.dataframe(invoices[["id","issue_date","invoice_type","number","customer","amount","status"]], use_container_width=True, hide_index=True, column_config={"issue_date":st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "amount":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        active = invoices[invoices["status"]=="Emitida"]
+        documented = set(transactions["document_number"].fillna("").astype(str)) if not transactions.empty else set()
+        unreconciled = active[~active["number"].fillna("").astype(str).isin(documented)]
         if not unreconciled.empty:
-            st.warning(f"{len(unreconciled)} nota(s) emitida(s) ainda não aparecem vinculadas a uma receita pelo número do documento.")
-            selected = st.selectbox("Criar receita a partir da nota",unreconciled["id"].tolist()); row = unreconciled[unreconciled["id"]==selected].iloc[0]
-            if st.button("Conciliar nota como receita",type="primary"):
-                add_transaction(uid,tx_date=row["issue_date"].date(),tx_type="Receita",description=row["description"] or f"Nota {row['number']}",category="Serviços" if row["invoice_type"]=="Serviço" else "Vendas",value=float(row["amount"]),document_number=str(row["number"] or ""),counterparty=str(row["customer"] or ""),payment_method="Outro"); st.rerun()
-        with st.expander("Excluir registro de nota"):
-            iid = st.selectbox("ID da nota",invoices["id"].tolist())
-            if st.button("Excluir nota do controle"): delete_invoice(uid,int(iid)); st.rerun()
+            helper_note(f"{len(unreconciled)} nota(s) emitida(s) ainda não estão vinculadas a uma receita pelo número do documento.")
+            selected = st.selectbox("Nota para conciliar", unreconciled["id"].tolist())
+            row = unreconciled[unreconciled["id"]==selected].iloc[0]
+            if st.button("Criar receita e conciliar", type="primary", use_container_width=True):
+                add_transaction(uid, tx_date=row["issue_date"].date(), tx_type="Receita", description=row["description"] or f"Nota {row['number']}", category="Serviços" if row["invoice_type"]=="Serviço" else "Vendas", value=float(row["amount"]), document_number=str(row["number"] or ""), counterparty=str(row["customer"] or ""), payment_method="Outro")
+                st.rerun()
+        with st.expander("Gerenciar notas"):
+            iid = st.selectbox("Nota", invoices["id"].tolist())
+            if st.button("Excluir nota do controle", use_container_width=True):
+                delete_invoice(uid, int(iid)); st.rerun()
 
 elif page == "DAS":
     header("DAS","Calendário por competência, vencimento, pagamento e atraso automático.")
@@ -548,6 +584,8 @@ elif page == "DAS":
         if not ddf.empty:
             ddf["status_atual"] = [das_status(r["status"],r["due_date"]) for _,r in ddf.iterrows()]
             st.dataframe(ddf[["competence","due_date","amount","status_atual","payment_date","notes"]],use_container_width=True,hide_index=True,column_config={"due_date":st.column_config.DateColumn("Vencimento",format="DD/MM/YYYY"),"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"payment_date":st.column_config.DateColumn("Pagamento",format="DD/MM/YYYY")})
+        else:
+            empty_state("Calendário ainda não criado", "Gere o calendário anual para acompanhar vencimentos e pagamentos do DAS por competência.", "▣")
     st.subheader("Atualizar competência")
     with st.form("das_update"):
         comp = st.selectbox("Competência",competence_list(int(year))); current = existing.get(comp,{}); due = st.date_input("Vencimento",value=current.get("due_date") or das_due_date(comp)); amount = st.number_input("Valor do DAS",min_value=0.0,value=float(current.get("amount") or 0),step=1.0)
@@ -585,55 +623,97 @@ elif page == "Obrigações":
         a,b,c=st.columns(3); title=a.text_input("Obrigação/tarefa"); due_date=b.date_input("Vencimento",date.today()); category=c.selectbox("Categoria",["Fiscal","Financeira","Trabalhista","Documental","Outra"]); notes=st.text_input("Observações")
         if st.form_submit_button("Adicionar",type="primary") and title.strip(): add_obligation(uid,title=title.strip(),due_date=due_date,category=category,notes=notes); st.rerun()
     odf=pd.DataFrame(list_obligations(uid))
-    if odf.empty: st.info("Nenhuma obrigação cadastrada.")
+    if odf.empty: empty_state("Nenhuma tarefa personalizada", "O calendário automático continua funcionando. Crie uma tarefa aqui apenas quando precisar acompanhar algo específico do seu MEI.", "✓")
     else:
         st.dataframe(odf,use_container_width=True,hide_index=True); a,b=st.columns(2); oid=a.selectbox("ID",odf["id"].tolist()); new_status=b.selectbox("Status",["Pendente","Concluído"]); c,d=st.columns(2)
         if c.button("Atualizar status",use_container_width=True): update_obligation_status(uid,int(oid),new_status); st.rerun()
         if d.button("Excluir obrigação",use_container_width=True): delete_obligation(uid,int(oid)); st.rerun()
 
 elif page == "Clientes e Fornecedores":
-    header("Clientes e Fornecedores","Organize os contatos usados nas vendas, compras e documentos.")
-    with st.form("contact_form",clear_on_submit=True):
-        a,b=st.columns(2); ctype=a.selectbox("Tipo",["Cliente","Fornecedor"]); name=b.text_input("Nome"); a,b,c=st.columns(3); document=a.text_input("CPF/CNPJ"); email=b.text_input("E-mail"); phone=c.text_input("Telefone"); notes=st.text_input("Observações")
-        if st.form_submit_button("Salvar contato",type="primary") and name.strip(): add_contact(uid,contact_type=ctype,name=name.strip(),document=document,email=email,phone=phone,notes=notes); st.rerun()
-    cdf=pd.DataFrame(list_contacts(uid))
-    if cdf.empty: st.info("Nenhum contato.")
+    header("Clientes e Fornecedores", "Mantenha os contatos usados nas vendas, compras e documentos.")
+    section("Novo contato")
+    with st.form("contact_form", clear_on_submit=True):
+        a,b = st.columns([1,2])
+        ctype = a.selectbox("Tipo", ["Cliente","Fornecedor"])
+        name = b.text_input("Nome", placeholder="Nome ou razão social")
+        with st.expander("Dados de contato (opcional)"):
+            a,b,c = st.columns(3)
+            document = a.text_input("CPF/CNPJ")
+            email = b.text_input("E-mail")
+            phone = c.text_input("Telefone")
+            notes = st.text_area("Observações", height=90)
+        if st.form_submit_button("Salvar contato", type="primary", use_container_width=True):
+            if not name.strip(): st.error("Informe o nome do contato.")
+            else: add_contact(uid, contact_type=ctype, name=name.strip(), document=document, email=email, phone=phone, notes=notes); st.rerun()
+    section("Contatos")
+    cdf = pd.DataFrame(list_contacts(uid))
+    if cdf.empty:
+        empty_state("Nenhum contato cadastrado", "Adicione clientes e fornecedores para deixar lançamentos e documentos mais organizados.", "◇")
     else:
-        st.dataframe(cdf,use_container_width=True,hide_index=True); cid=st.selectbox("Excluir contato por ID",cdf["id"].tolist())
-        if st.button("Excluir contato"): delete_contact(uid,int(cid)); st.rerun()
+        st.dataframe(cdf, use_container_width=True, hide_index=True)
+        with st.expander("Gerenciar contato"):
+            cid = st.selectbox("Contato", cdf["id"].tolist())
+            if st.button("Excluir contato", use_container_width=True): delete_contact(uid, int(cid)); st.rerun()
 
 elif page == "Empregado":
-    header("Empregado","Controle básico do empregado do MEI e mantenha a informação pronta para conferência anual.")
-    with st.form("employee_form",clear_on_submit=True):
-        name=st.text_input("Nome"); a,b,c=st.columns(3); cpf=a.text_input("CPF"); admission=b.date_input("Admissão",date.today()); salary=c.number_input("Salário",min_value=0.0); status=st.selectbox("Status",["Ativo","Desligado"]); notes=st.text_input("Observações")
-        if st.form_submit_button("Salvar empregado",type="primary") and name.strip(): add_employee(uid,name=name.strip(),cpf=cpf,admission_date=admission,salary=float(salary),status=status,notes=notes); st.rerun()
-    edf=pd.DataFrame(list_employees(uid))
-    if edf.empty: st.info("Nenhum empregado cadastrado.")
+    header("Empregado", "Organize os dados básicos do empregado do MEI para conferências e declaração anual.")
+    section("Cadastrar empregado")
+    with st.form("employee_form", clear_on_submit=True):
+        name = st.text_input("Nome", placeholder="Nome completo")
+        a,b = st.columns(2)
+        cpf = a.text_input("CPF")
+        admission = b.date_input("Data de admissão", date.today())
+        with st.expander("Mais detalhes"):
+            a,b = st.columns(2)
+            salary = a.number_input("Salário", min_value=0.0)
+            status = b.selectbox("Status", ["Ativo","Desligado"])
+            notes = st.text_area("Observações", height=90)
+        if st.form_submit_button("Salvar empregado", type="primary", use_container_width=True):
+            if not name.strip(): st.error("Informe o nome do empregado.")
+            else: add_employee(uid, name=name.strip(), cpf=cpf, admission_date=admission, salary=float(salary), status=status, notes=notes); st.rerun()
+    section("Empregados")
+    edf = pd.DataFrame(list_employees(uid))
+    if edf.empty:
+        empty_state("Nenhum empregado cadastrado", "Se o MEI possuir empregado, cadastre aqui para manter essa informação disponível nos relatórios anuais.", "♙")
     else:
-        st.dataframe(edf,use_container_width=True,hide_index=True); eid=st.selectbox("Excluir empregado por ID",edf["id"].tolist())
-        if st.button("Excluir empregado"): delete_employee(uid,int(eid)); st.rerun()
+        st.dataframe(edf, use_container_width=True, hide_index=True)
+        with st.expander("Gerenciar empregado"):
+            eid = st.selectbox("Empregado", edf["id"].tolist())
+            if st.button("Excluir empregado", use_container_width=True): delete_employee(uid, int(eid)); st.rerun()
 
 elif page == "Documentos":
-    header("Documentos","Cofre de notas, recibos, comprovantes, DAS e outros documentos do MEI.")
-    coverage_year = st.selectbox("Ano da cobertura documental", list(range(CURRENT_YEAR-3, CURRENT_YEAR+2))[::-1], key="docs_coverage_year")
-    coverage = document_coverage(docs, int(coverage_year))
-    c1,c2 = st.columns(2)
-    c1.metric("Documentos armazenados", len(docs))
-    c2.metric("Meses com documentos", int((coverage["Documentos"] > 0).sum()))
-    st.dataframe(coverage, use_container_width=True, hide_index=True)
-    st.caption("Use o mês de referência no formato AAAA-MM para que o fechamento mensal consiga localizar os documentos da competência.")
-    with st.form("doc_form",clear_on_submit=True):
-        category=st.selectbox("Categoria",["Nota fiscal","Recibo","Comprovante","DAS","DASN-SIMEI","Contrato","Extrato","Outro"]); reference_month=st.text_input("Mês de referência",placeholder="AAAA-MM"); uploaded=st.file_uploader("Arquivo",type=["pdf","png","jpg","jpeg","xlsx","csv"])
-        if st.form_submit_button("Salvar documento",type="primary"):
+    header("Documentos", "Guarde notas, recibos, comprovantes, DAS, extratos e outros arquivos importantes do MEI.")
+    section("Adicionar documento")
+    with st.form("doc_form", clear_on_submit=True):
+        uploaded = st.file_uploader("Arquivo", type=["pdf","png","jpg","jpeg","xlsx","csv"])
+        a,b = st.columns(2)
+        category = a.selectbox("Categoria", ["Nota fiscal","Recibo","Comprovante","DAS","DASN-SIMEI","Contrato","Extrato","Outro"])
+        reference_month = b.text_input("Competência", placeholder="AAAA-MM")
+        st.caption("A competência ajuda o fechamento mensal a localizar o documento certo.")
+        if st.form_submit_button("Salvar documento", type="primary", use_container_width=True):
             if uploaded is None: st.error("Selecione um arquivo.")
-            else: save_document(uid,uploaded.name,uploaded.type or "",uploaded.getvalue(),category,reference_month.strip()); st.rerun()
-    ddf=pd.DataFrame(list_documents(uid))
-    if ddf.empty: st.info("Nenhum documento salvo.")
+            else: save_document(uid, uploaded.name, uploaded.type or "", uploaded.getvalue(), category, reference_month.strip()); st.rerun()
+
+    ddf = pd.DataFrame(list_documents(uid))
+    section("Arquivos armazenados")
+    if ddf.empty:
+        empty_state("Seu cofre ainda está vazio", "Adicione o primeiro documento para começar a organizar comprovantes e competências em um só lugar.", "▤")
     else:
-        st.dataframe(ddf,use_container_width=True,hide_index=True); did=st.selectbox("Documento",ddf["id"].tolist()); doc=get_document(uid,int(did))
-        if doc:
-            a,b=st.columns(2); a.download_button("Baixar documento",doc["content"],doc["filename"],doc.get("mime_type") or "application/octet-stream",use_container_width=True)
-            if b.button("Excluir documento",use_container_width=True): delete_document(uid,int(did)); st.rerun()
+        coverage_year = st.selectbox("Ano da cobertura", list(range(CURRENT_YEAR-3, CURRENT_YEAR+2))[::-1], key="docs_coverage_year")
+        coverage = document_coverage(docs, int(coverage_year))
+        c1,c2 = st.columns(2)
+        c1.metric("Documentos", len(docs))
+        c2.metric("Meses com arquivos", int((coverage["Documentos"] > 0).sum()))
+        with st.expander("Ver cobertura por competência"):
+            st.dataframe(coverage, use_container_width=True, hide_index=True)
+        st.dataframe(ddf, use_container_width=True, hide_index=True)
+        with st.expander("Gerenciar documento"):
+            did = st.selectbox("Documento", ddf["id"].tolist())
+            doc = get_document(uid, int(did))
+            if doc:
+                a,b = st.columns(2)
+                a.download_button("Baixar documento", doc["content"], doc["filename"], doc.get("mime_type") or "application/octet-stream", use_container_width=True)
+                if b.button("Excluir documento", use_container_width=True): delete_document(uid, int(did)); st.rerun()
 
 elif page == "Central de Relatórios":
     header("Central de Relatórios","Gere documentos gerenciais e fiscais a partir dos dados já cadastrados.")
