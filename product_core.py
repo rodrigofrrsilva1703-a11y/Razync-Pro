@@ -165,3 +165,5 @@ def assistant_answer(
     if "fatur" in q or "receita" in q:
         return f"A receita registrada em {year} é {money(revenue)}."
     return "Posso analisar faturamento, limite do MEI, despesas, resultado, DAS e conciliação de notas usando os dados cadastrados no Razync Pro."
+
+# trigger product restructure
