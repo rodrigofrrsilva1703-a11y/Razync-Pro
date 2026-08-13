@@ -31,6 +31,7 @@ from backup_tools import build_backup_zip, document_coverage
 from onboarding_tools import onboarding_progress, recommended_setup
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
+from login_security import login_attempt_guard
 
 CURRENT_YEAR = date.today().year
 
@@ -91,16 +92,32 @@ def ensure_login() -> dict:
             if not email or not password:
                 st.warning("Informe o e-mail e a senha.")
             else:
-                try:
-                    user = authenticate(email, password)
-                except DatabaseConnectionError as exc:
-                    st.error("Não foi possível acessar sua conta agora.")
-                    st.warning(str(exc))
-                    st.stop()
-                if user:
-                    st.session_state["user"] = user
-                    st.rerun()
-                st.error("E-mail ou senha inválidos.")
+                retry_after = login_attempt_guard.retry_after(email)
+                if retry_after:
+                    minutes = max(1, (retry_after + 59) // 60)
+                    st.error(
+                        f"Muitas tentativas. Tente novamente em {minutes} minuto(s)."
+                    )
+                else:
+                    try:
+                        user = authenticate(email, password)
+                    except DatabaseConnectionError as exc:
+                        st.error("Não foi possível acessar sua conta agora.")
+                        st.warning(str(exc))
+                        st.stop()
+                    if user:
+                        login_attempt_guard.record_success(email)
+                        st.session_state["user"] = user
+                        st.rerun()
+
+                    retry_after = login_attempt_guard.record_failure(email)
+                    if retry_after:
+                        minutes = max(1, (retry_after + 59) // 60)
+                        st.error(
+                            f"Muitas tentativas. Tente novamente em {minutes} minuto(s)."
+                        )
+                    else:
+                        st.error("E-mail ou senha inválidos.")
 
     with signup_tab:
         with st.form("signup_form"):
