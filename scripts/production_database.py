@@ -18,3 +18,5 @@ if "def database_runtime_info" not in s:
 
 p.write_text(s, encoding="utf-8")
 print("database production configuration applied")
+
+# trigger production database workflow
