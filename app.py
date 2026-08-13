@@ -40,17 +40,21 @@ IS_DARK = UI_THEME == "Escuro"
 PLOT_TEMPLATE = "plotly_dark" if IS_DARK else "plotly_white"
 
 THEME = {
-    "bg": "#0b1020" if IS_DARK else "#f5f7fb",
+    "bg": "#0b1020" if IS_DARK else "#f8fafc",
     "surface": "#111827" if IS_DARK else "#ffffff",
-    "surface2": "#182235" if IS_DARK else "#f8fafc",
-    "sidebar": "#0f172a" if IS_DARK else "#ffffff",
-    "text": "#f8fafc" if IS_DARK else "#172033",
-    "muted": "#94a3b8" if IS_DARK else "#667085",
-    "border": "#263349" if IS_DARK else "#e4e9f1",
-    "primary": "#3b82f6" if IS_DARK else "#2563eb",
-    "primary_soft": "#172554" if IS_DARK else "#eff6ff",
+    "surface2": "#182235" if IS_DARK else "#f1f5f9",
+    "sidebar": "#0f172a" if IS_DARK else "#f8fafc",
+    "text": "#f8fafc" if IS_DARK else "#0f172a",
+    "muted": "#94a3b8" if IS_DARK else "#64748b",
+    "border": "#263349" if IS_DARK else "#dbe3ed",
+    "primary": "#3b82f6" if IS_DARK else "#1d4ed8",
+    "primary_soft": "#172554" if IS_DARK else "#eaf2ff",
     "input": "#111827" if IS_DARK else "#ffffff",
-    "shadow": "0 8px 24px rgba(0,0,0,.18)" if IS_DARK else "0 5px 18px rgba(16,24,40,.05)",
+    "shadow": "0 8px 24px rgba(0,0,0,.18)" if IS_DARK else "0 2px 8px rgba(15,23,42,.045)",
+    "hero_bg": "linear-gradient(135deg,#1d4ed8,#2563eb)" if IS_DARK else "#ffffff",
+    "hero_text": "#ffffff" if IS_DARK else "#0f172a",
+    "hero_sub": "#dbeafe" if IS_DARK else "#64748b",
+    "hero_border": "transparent" if IS_DARK else "#cfe0fb",
 }
 
 st.markdown(f"""
@@ -64,19 +68,19 @@ html,body,[class*="css"]{{font-family:Inter,ui-sans-serif,system-ui,-apple-syste
 .block-container{{padding-top:1.1rem;padding-bottom:2.5rem;max-width:1240px}}
 h1,h2,h3,h4,p,span,label{{color:{THEME['text']}}}
 [data-testid="stCaptionContainer"],.stCaption{{color:{THEME['muted']}!important}}
-[data-testid="stMetric"]{{background:{THEME['surface']};border:1px solid {THEME['border']};border-radius:14px;padding:15px 17px;box-shadow:{THEME['shadow']}}}
+[data-testid="stMetric"]{{background:{THEME['surface']};border:1px solid {THEME['border']};border-radius:12px;padding:15px 17px;box-shadow:{THEME['shadow']}}}
 [data-testid="stMetricLabel"] p{{color:{THEME['muted']}!important;font-size:.82rem}}
 [data-testid="stMetricValue"]{{color:{THEME['text']}!important;font-size:1.5rem;font-weight:760}}
 .rz-brand{{font-size:1.45rem;font-weight:900;color:{THEME['text']};letter-spacing:-.045em}}.rz-brand span{{color:{THEME['primary']}}}
 .rz-kicker{{color:{THEME['primary']};font-weight:750;font-size:.7rem;margin-bottom:.12rem;text-transform:uppercase;letter-spacing:.08em}}
 .rz-title{{font-size:1.72rem;font-weight:820;color:{THEME['text']};margin:.05rem 0 .18rem;letter-spacing:-.035em}}
 .rz-sub{{color:{THEME['muted']};margin-bottom:1.15rem;font-size:.93rem}}
-.rz-section{{font-size:1.02rem;font-weight:760;color:{THEME['text']};margin:1.05rem 0 .62rem}}
+.rz-section{{font-size:.98rem;font-weight:760;color:{THEME['text']};margin:1.2rem 0 .58rem}}
 .rz-alert{{border-radius:11px;padding:12px 14px;margin-bottom:8px;background:{THEME['surface']};border:1px solid {THEME['border']};box-shadow:{THEME['shadow']}}}
 .rz-ok{{border-left:3px solid #12b76a}}.rz-info{{border-left:3px solid #2e90fa}}.rz-warn{{border-left:3px solid #f79009}}.rz-danger{{border-left:3px solid #f04438}}
 .rz-small{{color:{THEME['muted']};font-size:.84rem;margin-top:2px}}
-.rz-welcome{{background:linear-gradient(135deg,{THEME['primary']},#60a5fa);border:0;border-radius:16px;padding:18px 20px;margin-bottom:14px;box-shadow:{THEME['shadow']}}}
-.rz-welcome-title{{font-size:1.08rem;font-weight:760;color:#fff}}.rz-welcome-sub{{color:#dbeafe;font-size:.86rem;margin-top:3px}}
+.rz-welcome{{background:{THEME['hero_bg']};border:1px solid {THEME['hero_border']};border-left:4px solid {THEME['primary']};border-radius:14px;padding:17px 19px;margin-bottom:14px;box-shadow:{THEME['shadow']}}}
+.rz-welcome-title{{font-size:1.08rem;font-weight:760;color:{THEME['hero_text']}}}.rz-welcome-sub{{color:{THEME['hero_sub']};font-size:.86rem;margin-top:3px}}
 div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{{border-radius:9px;min-height:2.5rem;border:1px solid {THEME['border']};font-weight:650;background:{THEME['surface']};color:{THEME['text']}}}
 div[data-testid="stButton"] button:hover,div[data-testid="stFormSubmitButton"] button:hover{{border-color:{THEME['primary']};color:{THEME['primary']}}}
 div[data-testid="stDataFrame"]{{border:1px solid {THEME['border']};border-radius:11px;overflow:hidden;background:{THEME['surface']}}}
@@ -89,6 +93,12 @@ div[data-testid="stDataFrame"]{{border:1px solid {THEME['border']};border-radius
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked){{background:{THEME['primary_soft']}}}
 [data-testid="stProgressBar"]>div>div{{background:{THEME['primary']}!important}}
 hr{{border-color:{THEME['border']}}}
+[data-testid="stSidebar"] [data-baseweb="select"]>div{{background:{THEME['surface']}!important;border:1px solid {THEME['border']}!important}}
+[data-testid="stSidebar"] hr{{margin:.8rem 0}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p{{color:{THEME['primary']}!important;font-weight:700}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label{{margin-bottom:2px}}
+[data-testid="stSidebar"] .stCaption{{color:{THEME['muted']}!important}}
+
 </style>
 """, unsafe_allow_html=True)
 
