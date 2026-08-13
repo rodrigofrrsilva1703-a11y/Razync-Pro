@@ -26,6 +26,7 @@ from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
 from backup_tools import build_backup_zip, document_coverage
+from ui_system import inject_design_system, page_header, section, business_card, alert_card, apply_plot_theme, tokens
 
 CURRENT_YEAR = date.today().year
 
@@ -36,71 +37,8 @@ if "ui_theme" not in st.session_state:
     st.session_state["ui_theme"] = "Claro"
 
 UI_THEME = st.session_state["ui_theme"]
-IS_DARK = UI_THEME == "Escuro"
-PLOT_TEMPLATE = "plotly_dark" if IS_DARK else "plotly_white"
-
-THEME = {
-    "bg": "#0b1020" if IS_DARK else "#f8fafc",
-    "surface": "#111827" if IS_DARK else "#ffffff",
-    "surface2": "#182235" if IS_DARK else "#f1f5f9",
-    "sidebar": "#0f172a" if IS_DARK else "#f8fafc",
-    "text": "#f8fafc" if IS_DARK else "#0f172a",
-    "muted": "#94a3b8" if IS_DARK else "#64748b",
-    "border": "#263349" if IS_DARK else "#dbe3ed",
-    "primary": "#3b82f6" if IS_DARK else "#1d4ed8",
-    "primary_soft": "#172554" if IS_DARK else "#eaf2ff",
-    "input": "#111827" if IS_DARK else "#ffffff",
-    "shadow": "0 8px 24px rgba(0,0,0,.18)" if IS_DARK else "0 2px 8px rgba(15,23,42,.045)",
-    "hero_bg": "linear-gradient(135deg,#1d4ed8,#2563eb)" if IS_DARK else "#ffffff",
-    "hero_text": "#ffffff" if IS_DARK else "#0f172a",
-    "hero_sub": "#dbeafe" if IS_DARK else "#64748b",
-    "hero_border": "transparent" if IS_DARK else "#cfe0fb",
-}
-
-st.markdown(f"""
-<style>
-:root{{--rz-primary:{THEME['primary']};--rz-bg:{THEME['bg']};--rz-surface:{THEME['surface']};--rz-text:{THEME['text']};--rz-muted:{THEME['muted']};--rz-border:{THEME['border']}}}
-html,body,[class*="css"]{{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}
-.stApp{{background:{THEME['bg']};color:{THEME['text']}}}
-[data-testid="stHeader"]{{background:{THEME['bg']};border-bottom:1px solid {THEME['border']}}}
-[data-testid="stSidebar"]{{background:{THEME['sidebar']};border-right:1px solid {THEME['border']}}}
-[data-testid="stSidebar"] .block-container{{padding-top:1.15rem}}
-.block-container{{padding-top:1.1rem;padding-bottom:2.5rem;max-width:1240px}}
-h1,h2,h3,h4,p,span,label{{color:{THEME['text']}}}
-[data-testid="stCaptionContainer"],.stCaption{{color:{THEME['muted']}!important}}
-[data-testid="stMetric"]{{background:{THEME['surface']};border:1px solid {THEME['border']};border-radius:12px;padding:15px 17px;box-shadow:{THEME['shadow']}}}
-[data-testid="stMetricLabel"] p{{color:{THEME['muted']}!important;font-size:.82rem}}
-[data-testid="stMetricValue"]{{color:{THEME['text']}!important;font-size:1.5rem;font-weight:760}}
-.rz-brand{{font-size:1.45rem;font-weight:900;color:{THEME['text']};letter-spacing:-.045em}}.rz-brand span{{color:{THEME['primary']}}}
-.rz-kicker{{color:{THEME['primary']};font-weight:750;font-size:.7rem;margin-bottom:.12rem;text-transform:uppercase;letter-spacing:.08em}}
-.rz-title{{font-size:1.72rem;font-weight:820;color:{THEME['text']};margin:.05rem 0 .18rem;letter-spacing:-.035em}}
-.rz-sub{{color:{THEME['muted']};margin-bottom:1.15rem;font-size:.93rem}}
-.rz-section{{font-size:.98rem;font-weight:760;color:{THEME['text']};margin:1.2rem 0 .58rem}}
-.rz-alert{{border-radius:11px;padding:12px 14px;margin-bottom:8px;background:{THEME['surface']};border:1px solid {THEME['border']};box-shadow:{THEME['shadow']}}}
-.rz-ok{{border-left:3px solid #12b76a}}.rz-info{{border-left:3px solid #2e90fa}}.rz-warn{{border-left:3px solid #f79009}}.rz-danger{{border-left:3px solid #f04438}}
-.rz-small{{color:{THEME['muted']};font-size:.84rem;margin-top:2px}}
-.rz-welcome{{background:{THEME['hero_bg']};border:1px solid {THEME['hero_border']};border-left:4px solid {THEME['primary']};border-radius:14px;padding:17px 19px;margin-bottom:14px;box-shadow:{THEME['shadow']}}}
-.rz-welcome-title{{font-size:1.08rem;font-weight:760;color:{THEME['hero_text']}}}.rz-welcome-sub{{color:{THEME['hero_sub']};font-size:.86rem;margin-top:3px}}
-div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{{border-radius:9px;min-height:2.5rem;border:1px solid {THEME['border']};font-weight:650;background:{THEME['surface']};color:{THEME['text']}}}
-div[data-testid="stButton"] button:hover,div[data-testid="stFormSubmitButton"] button:hover{{border-color:{THEME['primary']};color:{THEME['primary']}}}
-div[data-testid="stDataFrame"]{{border:1px solid {THEME['border']};border-radius:11px;overflow:hidden;background:{THEME['surface']}}}
-[data-testid="stExpander"]{{background:{THEME['surface']};border:1px solid {THEME['border']};border-radius:11px}}
-[data-baseweb="select"]>div,[data-baseweb="input"]>div,input,textarea{{background:{THEME['input']}!important;color:{THEME['text']}!important;border-color:{THEME['border']}!important}}
-[data-baseweb="popover"] [role="listbox"]{{background:{THEME['surface']}!important;color:{THEME['text']}!important}}
-[data-baseweb="popover"] li{{background:{THEME['surface']}!important;color:{THEME['text']}!important}}
-[data-testid="stSidebar"] [data-testid="stRadio"] label{{padding:.28rem .45rem;border-radius:8px}}
-[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{{background:{THEME['primary_soft']}}}
-[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked){{background:{THEME['primary_soft']}}}
-[data-testid="stProgressBar"]>div>div{{background:{THEME['primary']}!important}}
-hr{{border-color:{THEME['border']}}}
-[data-testid="stSidebar"] [data-baseweb="select"]>div{{background:{THEME['surface']}!important;border:1px solid {THEME['border']}!important}}
-[data-testid="stSidebar"] hr{{margin:.8rem 0}}
-[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p{{color:{THEME['primary']}!important;font-weight:700}}
-[data-testid="stSidebar"] [data-testid="stRadio"] label{{margin-bottom:2px}}
-[data-testid="stSidebar"] .stCaption{{color:{THEME['muted']}!important}}
-
-</style>
-""", unsafe_allow_html=True)
+PLOT_TEMPLATE = tokens(UI_THEME)["plot"]
+inject_design_system(UI_THEME)
 
 
 def brl(value: float) -> str:
@@ -108,14 +46,11 @@ def brl(value: float) -> str:
 
 
 def header(title: str, subtitle: str) -> None:
-    st.markdown('<div class="rz-kicker">Razync Pro • MEI</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="rz-title">{title}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="rz-sub">{subtitle}</div>', unsafe_allow_html=True)
+    page_header(title, subtitle)
 
 
 def alert_box(level: str, title: str, text: str) -> None:
-    cls = {"ok":"rz-ok","info":"rz-info","warn":"rz-warn","danger":"rz-danger"}.get(level, "rz-info")
-    st.markdown(f'<div class="rz-alert {cls}"><b>{title}</b><div class="rz-small">{text}</div></div>', unsafe_allow_html=True)
+    alert_card(level, title, text)
 
 
 def ensure_login() -> dict:
@@ -231,21 +166,31 @@ if pending_page:
     st.session_state[f"nav_page_{target_group}"] = pending_page
 
 with st.sidebar:
-    st.markdown('<div class="rz-brand">RAZYNC <span>PRO</span></div>', unsafe_allow_html=True)
-    st.caption("Gestão simples para MEI")
-    st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme", label_visibility="collapsed")
-    st.divider()
+    st.markdown('<div class="rz-brand-wrap"><div class="rz-brand">RAZYNC <span>PRO</span></div><div class="rz-brand-sub">Contabilidade simples para MEI</div></div>', unsafe_allow_html=True)
+    st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
+    st.markdown('<div class="rz-nav-label">Menu</div>', unsafe_allow_html=True)
     groups = list(NAV_GROUPS.keys())
     if st.session_state.get("nav_group") not in groups:
         st.session_state["nav_group"] = "Visão Geral"
-    selected_group = st.selectbox("Área", groups, key="nav_group")
+    group_icons = {
+        "Visão Geral":"⌂", "Financeiro":"◫", "Fiscal MEI":"▣",
+        "Gestão":"◇", "Relatórios":"▤", "Configurações":"⚙"
+    }
+    selected_group = st.radio(
+        "Área", groups, key="nav_group", label_visibility="collapsed",
+        format_func=lambda g: f"{group_icons.get(g, '•')}  {g}"
+    )
     group_pages = NAV_GROUPS[selected_group]
-    page_key = f"nav_page_{selected_group}"
-    if st.session_state.get(page_key) not in group_pages:
-        st.session_state[page_key] = group_pages[0]
-    page = st.radio("Navegação", group_pages, label_visibility="collapsed", key=page_key)
-    st.divider()
-    st.caption("Modo de desenvolvimento • acesso direto")
+    if len(group_pages) == 1:
+        page = group_pages[0]
+        st.session_state[f"nav_page_{selected_group}"] = page
+    else:
+        st.markdown(f'<div class="rz-nav-label">{selected_group}</div>', unsafe_allow_html=True)
+        page_key = f"nav_page_{selected_group}"
+        if st.session_state.get(page_key) not in group_pages:
+            st.session_state[page_key] = group_pages[0]
+        page = st.radio("Página", group_pages, key=page_key, label_visibility="collapsed")
+    st.markdown('<div class="rz-dev">Ambiente de desenvolvimento • acesso direto</div>', unsafe_allow_html=True)
 
 opening = opening_date_from(profile)
 limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))
@@ -256,62 +201,100 @@ limit_pct = (year_revenue/limit*100) if limit else 0.0
 
 if page == "Dashboard":
     business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
-    header("Início", "Entenda seu negócio e resolva o que precisa sem complicação.")
-    st.markdown(f'<div class="rz-welcome"><div class="rz-welcome-title">{business_label}</div><div class="rz-welcome-sub">Resumo de {CURRENT_YEAR} • informações calculadas a partir dos dados cadastrados</div></div>', unsafe_allow_html=True)
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Entradas",brl(year_revenue)); c2.metric("Saídas",brl(year_expense)); c3.metric("Resultado",brl(year_revenue-year_expense)); c4.metric("Limite do MEI",f"{limit_pct:.1f}% usado")
+    cnpj_label = str(profile.get("cnpj") or "").strip() or None
+    page_header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
+    business_card(business_label, CURRENT_YEAR, cnpj_label)
 
-    main_col, side_col = st.columns([1.65,1], gap="large")
+    today = date.today()
+    month_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR) & (transactions["tx_date"].dt.month == today.month)] if not transactions.empty else transactions
+    month_in = float(month_tx[month_tx["tx_type"] == "Receita"]["value"].sum()) if not month_tx.empty else 0.0
+    month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
+    month_result = month_in - month_out
+
+    section("Resumo financeiro", "Valores do mês atual e faturamento acumulado no ano.")
+    k1,k2,k3,k4 = st.columns(4)
+    k1.metric("Entradas no mês", brl(month_in))
+    k2.metric("Saídas no mês", brl(month_out))
+    k3.metric("Resultado do mês", brl(month_result))
+    k4.metric("Faturamento no ano", brl(year_revenue))
+
+    action_col, quick_col = st.columns([1.72, 1], gap="large")
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
-    with main_col:
-        st.markdown('<div class="rz-section">O que precisa da sua atenção</div>', unsafe_allow_html=True)
+    with action_col:
+        section("Centro de ação", "Pendências priorizadas pelo Razync Pro.")
         for idx, item in enumerate(priorities[:3]):
-            a,b = st.columns([4.6,1.15])
-            with a:
+            row, btn = st.columns([4.8,1.15])
+            with row:
                 level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-                alert_box(level, item["title"], item["detail"])
-            with b:
+                alert_card(level, item["title"], item["detail"])
+            with btn:
                 if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
                     st.session_state["_navigate_to"] = item["page"]
                     st.rerun()
-    with side_col:
-        st.markdown('<div class="rz-section">Acesso rápido</div>', unsafe_allow_html=True)
-        if st.button("＋ Nova movimentação", use_container_width=True): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
-        if st.button("↥ Importar extrato", use_container_width=True): st.session_state["_navigate_to"]="Importar Extrato"; st.rerun()
-        if st.button("▣ Ver impostos e DAS", use_container_width=True): st.session_state["_navigate_to"]="Central Fiscal"; st.rerun()
-        if st.button("✓ Ver obrigações", use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
-    left,right = st.columns([1.55,1])
-    with left:
-        st.markdown('<div class="rz-section">Entradas por mês</div>', unsafe_allow_html=True)
-        chart = pd.DataFrame(monthly_rows(transactions,CURRENT_YEAR))
-        fig = px.bar(chart,x="month_name",y="total")
-        fig.update_layout(template=PLOT_TEMPLATE,height=330,margin=dict(l=0,r=0,t=8,b=0),xaxis_title="",yaxis_title="Receita")
-        st.plotly_chart(fig,use_container_width=True)
-    with right:
-        st.markdown('<div class="rz-section">Organização do MEI</div>', unsafe_allow_html=True)
+    with quick_col:
+        section("Acesso rápido", "As ações mais usadas no dia a dia.")
+        if st.button("＋ Nova movimentação", key="dash_new_tx", use_container_width=True):
+            st.session_state["_navigate_to"] = "Movimentações"; st.rerun()
+        if st.button("↥ Importar extrato", key="dash_import", use_container_width=True):
+            st.session_state["_navigate_to"] = "Importar Extrato"; st.rerun()
+        if st.button("▣ Impostos e DAS", key="dash_fiscal", use_container_width=True):
+            st.session_state["_navigate_to"] = "Central Fiscal"; st.rerun()
+        if st.button("✓ Obrigações", key="dash_oblig", use_container_width=True):
+            st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
+
+    chart_col, status_col = st.columns([1.65,1], gap="large")
+    with chart_col:
+        section("Evolução do faturamento", "Receitas registradas mês a mês no ano atual.")
+        chart = pd.DataFrame(monthly_rows(transactions, CURRENT_YEAR))
+        fig = px.area(chart, x="month_name", y="total", markers=True)
+        apply_plot_theme(fig, UI_THEME, height=320)
+        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(37,99,235,.10)")
+        fig.update_xaxes(title="", showgrid=False)
+        fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    with status_col:
+        section("Situação do MEI", "Limite, DAS e nível de organização.")
         health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
-        st.metric("Índice de organização", f"{health_score}/100")
+        s1,s2 = st.columns(2)
+        s1.metric("Limite usado", f"{limit_pct:.1f}%")
+        overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
+        s2.metric("DAS atrasado", overdue_das)
+        st.caption(f"Limite monitorado: {brl(limit)} • restante: {brl(max(limit-year_revenue,0))}")
+        st.progress(min(max(limit_pct/100, 0), 1.0))
+        st.caption(f"Índice de organização: {health_score}/100")
         st.progress(health_score/100)
         if health_notes:
-            for note in health_notes[:3]: st.caption(f"• {note}")
-        else: st.success("Tudo organizado com os dados cadastrados.")
-    st.markdown('<div class="rz-section">Movimentações recentes</div>', unsafe_allow_html=True)
-    if transactions.empty:
-        st.info("Cadastre sua primeira movimentação.")
-    else:
-        st.dataframe(transactions.head(10)[["tx_date","tx_type","description","counterparty","value"]],use_container_width=True,hide_index=True,column_config={"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY"),"value":st.column_config.NumberColumn("Valor",format="R$ %.2f")})
+            for note in health_notes[:2]: st.caption(f"• {note}")
 
-    with st.expander("Checklist de configuração do MEI", expanded=not bool(profile.get("cnpj"))):
+    section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
+    if transactions.empty:
+        st.info("Ainda não há movimentações. Use “Nova movimentação” ou importe um extrato para começar.")
+    else:
+        recent = transactions.sort_values("tx_date", ascending=False).head(8)
+        st.dataframe(
+            recent[["tx_date","tx_type","description","counterparty","value"]],
+            use_container_width=True, hide_index=True,
+            column_config={
+                "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
+                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+            },
+        )
+
+    with st.expander("Configuração inicial do MEI", expanded=not bool(profile.get("cnpj"))):
         checklist = [
-            ("Dados do CNPJ preenchidos", bool(profile.get("cnpj"))),
+            ("CNPJ cadastrado", bool(profile.get("cnpj"))),
             ("Atividade principal informada", bool(profile.get("main_activity"))),
             ("Data de abertura cadastrada", bool(profile.get("opening_date"))),
             ("Primeira movimentação registrada", not transactions.empty),
             ("Calendário do DAS criado", bool(das_rows)),
-            ("Primeiro documento armazenado", bool(docs)),
+            ("Documento armazenado", bool(docs)),
         ]
+        done_count = sum(1 for _, done in checklist if done)
+        st.caption(f"{done_count} de {len(checklist)} etapas concluídas")
+        st.progress(done_count/len(checklist))
         for label, done in checklist:
-            st.write(("✅ " if done else "⬜ ") + label)
+            st.write(("✓ " if done else "○ ") + label)
 
 elif page == "Movimentações":
     header("Movimentações","Registre receitas e despesas. Os dados alimentam automaticamente o dashboard, o Relatório Mensal e a DASN-SIMEI.")
