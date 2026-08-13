@@ -1,30 +1,21 @@
 from __future__ import annotations
 
-import streamlit as st
-
-# No modo preview, a configuração da página precisa ser o primeiro comando Streamlit.
-st.set_page_config(
-    page_title="Razync Pro",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-from database import init_db
-from preview_access import get_preview_user
-
-# Inicializa o banco e entra automaticamente com o usuário técnico de desenvolvimento.
-init_db()
-st.session_state.user = get_preview_user()
-
-# Reutiliza todo o app principal, removendo apenas o segundo set_page_config,
-# que não pode ser chamado novamente na mesma execução do Streamlit.
+# O preview executa exatamente o mesmo app principal.
+# A única diferença é substituir a chamada de login por um usuário técnico automático.
 with open("app.py", "r", encoding="utf-8") as app_file:
     source = app_file.read()
 
+# Importa o helper de preview dentro do app executado.
 source = source.replace(
-    'st.set_page_config(page_title="Razync Pro", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")\n',
-    "",
+    "from reports import dasn_summary_pdf, monthly_report_pdf\n",
+    "from reports import dasn_summary_pdf, monthly_report_pdf\nfrom preview_access import get_preview_user\n",
+    1,
+)
+
+# Pula somente a tela de login, preservando todo o restante do app.py.
+source = source.replace(
+    "user = ensure_login()\n",
+    "user = get_preview_user()\n",
     1,
 )
 
