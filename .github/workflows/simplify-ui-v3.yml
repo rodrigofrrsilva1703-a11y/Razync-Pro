@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - scripts/simplify_ui_v3.py
+      - .github/workflows/simplify-ui-v3.yml
 jobs:
   apply:
     runs-on: ubuntu-latest
