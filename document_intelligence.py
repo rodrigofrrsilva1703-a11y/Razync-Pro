@@ -48,7 +48,7 @@ def _competence(text: str, filename: str) -> str:
     patterns = (
         r"(?i)(?:compet[eê]ncia|refer[eê]ncia)\s*[:\-]?\s*(0[1-9]|1[0-2])[\/-](20\d{2})",
         r"(?i)(?:compet[eê]ncia|refer[eê]ncia)\s*[:\-]?\s*(20\d{2})[\/-](0[1-9]|1[0-2])",
-        r"\b(20\d{2})[-_](0[1-9]|1[0-2])\b",
+        r"(?<!\d)(20\d{2})[-_](0[1-9]|1[0-2])(?!\d)",
     )
     for index, pattern in enumerate(patterns):
         match = re.search(pattern, haystack)
@@ -71,7 +71,7 @@ def _money_values(text: str) -> list[float]:
 
 def _document_number(text: str) -> str:
     patterns = (
-        r"(?i)(?:n[uú]mero|n[º°]|nota)\s*[:\-]?\s*([A-Z0-9.\/-]{4,30})",
+        r"(?i)(?:n[uú]mero(?:\s+da\s+nota)?|n[º°])\s*[:\-]\s*([A-Z0-9.\/-]{4,30})",
         r"\b(\d{44})\b",
     )
     for pattern in patterns:
