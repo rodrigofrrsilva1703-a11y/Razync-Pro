@@ -3,19 +3,19 @@ from __future__ import annotations
 import streamlit as st
 
 # Identidade compartilhada do grupo Razync.
-# Referência visual: Razync usa #0b0f13, #111820, #27333e e cyan #13b9e8.
+# Referência visual: Razync usa #07111b, #0d1824, #22384b e cyan #10bdf2.
 THEMES = {
     "Claro": {
-        "bg": "#f5f9fb",
+        "bg": "#f1f6fa",
         "surface": "#ffffff",
-        "surface_soft": "#edf6f9",
-        "sidebar": "#f7fbfc",
-        "text": "#1d2a33",
-        "muted": "#71818d",
-        "border": "#d7e5ea",
-        "primary": "#0eaedb",
-        "primary_hover": "#0b95bd",
-        "primary_soft": "#e4f7fc",
+        "surface_soft": "#e4f2f8",
+        "sidebar": "#f7fafc",
+        "text": "#111c27",
+        "muted": "#607487",
+        "border": "#cfdee8",
+        "primary": "#08b9ef",
+        "primary_hover": "#009dce",
+        "primary_soft": "#ddf6ff",
         "success": "#3f8f69",
         "warning": "#b9853d",
         "danger": "#c65f67",
@@ -24,15 +24,15 @@ THEMES = {
         "plot": "plotly_white",
     },
     "Escuro": {
-        "bg": "#0b0f13",
-        "surface": "#111820",
-        "surface_soft": "#16212b",
-        "sidebar": "#0e141a",
-        "text": "#f4f7fa",
-        "muted": "#94a4b3",
-        "border": "#27333e",
-        "primary": "#13b9e8",
-        "primary_hover": "#42c9ee",
+        "bg": "#07111b",
+        "surface": "#0d1824",
+        "surface_soft": "#132232",
+        "sidebar": "#09131e",
+        "text": "#f5f9fc",
+        "muted": "#91a7ba",
+        "border": "#22384b",
+        "primary": "#10bdf2",
+        "primary_hover": "#43cdf7",
         "primary_soft": "rgba(19, 185, 232, .12)",
         "success": "#56b98b",
         "warning": "#d4a457",
@@ -54,57 +54,57 @@ def inject_design_system(theme_name: str) -> None:
 
     if dark:
         native = """
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#0b0f13 !important; color:#f4f7fa !important; }
-[data-testid="stHeader"] { background:#0b0f13 !important; border-bottom:1px solid #202a33 !important; }
-[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#0e141a !important; border-right:1px solid #27333e !important; }
-[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stAlert"], [data-testid="stDataFrame"] { background:#111820 !important; border-color:#27333e !important; }
-[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#111820 !important; color:#f4f7fa !important; border-color:#33424f !important; box-shadow:none !important; }
-input::placeholder, textarea::placeholder { color:#758796 !important; opacity:1 !important; }
-[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"], [role="option"] { background:#111820 !important; color:#f4f7fa !important; border-color:#33424f !important; }
-[role="option"]:hover, [role="option"][aria-selected="true"] { background:#162a35 !important; color:#ffffff !important; }
-button:not([kind="primary"]) { background:#111820 !important; color:#dce5eb !important; border-color:#33424f !important; box-shadow:none !important; }
-button:not([kind="primary"]):hover { background:#16212b !important; color:#42c9ee !important; border-color:#13b9e8 !important; }
-button[kind="primary"] { background:#13b9e8 !important; color:#071017 !important; border-color:#13b9e8 !important; font-weight:750 !important; }
-[data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; border-color:transparent !important; color:#dce5eb !important; }
-[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:rgba(19,185,232,.10) !important; color:#42c9ee !important; }
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#07111b !important; color:#f5f9fc !important; }
+[data-testid="stHeader"] { background:#07111b !important; border-bottom:1px solid #1b3042 !important; }
+[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#09131e !important; border-right:1px solid #22384b !important; }
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stAlert"], [data-testid="stDataFrame"] { background:#0d1824 !important; border-color:#22384b !important; }
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#0d1824 !important; color:#f5f9fc !important; border-color:#2c455a !important; box-shadow:none !important; }
+input::placeholder, textarea::placeholder { color:#7890a4 !important; opacity:1 !important; }
+[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"], [role="option"] { background:#0d1824 !important; color:#f5f9fc !important; border-color:#2c455a !important; }
+[role="option"]:hover, [role="option"][aria-selected="true"] { background:#123044 !important; color:#ffffff !important; }
+button:not([kind="primary"]) { background:#0d1824 !important; color:#dce8f1 !important; border-color:#2c455a !important; box-shadow:none !important; }
+button:not([kind="primary"]):hover { background:#132232 !important; color:#43cdf7 !important; border-color:#10bdf2 !important; }
+button[kind="primary"] { background:#10bdf2 !important; color:#04101a !important; border-color:#10bdf2 !important; font-weight:750 !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; border-color:transparent !important; color:#dce8f1 !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:rgba(16,189,242,.10) !important; color:#43cdf7 !important; }
 [data-testid="stSidebar"] [data-testid="stExpander"], [data-testid="stSidebar"] details, [data-testid="stSidebar"] summary { background:transparent !important; border-color:transparent !important; }
-[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:rgba(19,185,232,.08) !important; }
-[data-testid="stFileUploaderDropzone"] { background:#111820 !important; border-color:#33424f !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:rgba(16,189,242,.08) !important; }
+[data-testid="stFileUploaderDropzone"] { background:#0d1824 !important; border-color:#2c455a !important; }
 [data-testid="stFileUploaderDropzone"] * { color:#aebdc8 !important; }
-[data-testid="stTabs"] button { color:#94a4b3 !important; }
-[data-testid="stTabs"] button[aria-selected="true"] { color:#42c9ee !important; }
-[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p, label, p, span { color:#dce5eb !important; }
-h1,h2,h3,h4,h5,h6 { color:#f4f7fa !important; }
-small,[data-testid="stCaptionContainer"],.stCaption { color:#94a4b3 !important; }
-[data-testid="stProgressBar"] > div { background:#1b2730 !important; }
-[data-testid="stProgressBar"] > div > div { background:#13b9e8 !important; }
-hr { border-color:#27333e !important; }
+[data-testid="stTabs"] button { color:#91a7ba !important; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:#43cdf7 !important; }
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p, label, p, span { color:#dce8f1 !important; }
+h1,h2,h3,h4,h5,h6 { color:#f5f9fc !important; }
+small,[data-testid="stCaptionContainer"],.stCaption { color:#91a7ba !important; }
+[data-testid="stProgressBar"] > div { background:#122333 !important; }
+[data-testid="stProgressBar"] > div > div { background:#10bdf2 !important; }
+hr { border-color:#22384b !important; }
 """
     else:
         native = """
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#f5f9fb !important; color:#1d2a33 !important; }
-[data-testid="stHeader"] { background:#f5f9fb !important; border-bottom:1px solid #e1ebef !important; }
-[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#f7fbfc !important; border-right:1px solid #d7e5ea !important; }
-[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stAlert"], [data-testid="stDataFrame"] { background:#ffffff !important; border-color:#d7e5ea !important; }
-[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#ffffff !important; color:#1d2a33 !important; border-color:#d7e5ea !important; }
-[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"], [role="option"] { background:#ffffff !important; color:#1d2a33 !important; }
-[role="option"]:hover, [role="option"][aria-selected="true"] { background:#e4f7fc !important; color:#0b7897 !important; }
-button:not([kind="primary"]) { background:#ffffff !important; color:#344650 !important; border-color:#d7e5ea !important; box-shadow:none !important; }
-button:not([kind="primary"]):hover { background:#edf6f9 !important; color:#0b95bd !important; border-color:#8ad9eb !important; }
-button[kind="primary"] { background:#0eaedb !important; color:#ffffff !important; border-color:#0eaedb !important; }
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background:#f1f6fa !important; color:#111c27 !important; }
+[data-testid="stHeader"] { background:#f1f6fa !important; border-bottom:1px solid #dbe7ee !important; }
+[data-testid="stSidebar"], [data-testid="stSidebarContent"] { background:#f7fafc !important; border-right:1px solid #cfdee8 !important; }
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"], [data-testid="stAlert"], [data-testid="stDataFrame"] { background:#ffffff !important; border-color:#cfdee8 !important; }
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, input, textarea { background:#ffffff !important; color:#111c27 !important; border-color:#cfdee8 !important; }
+[data-baseweb="popover"], [data-baseweb="popover"] > div, [role="listbox"], [role="option"] { background:#ffffff !important; color:#111c27 !important; }
+[role="option"]:hover, [role="option"][aria-selected="true"] { background:#ddf6ff !important; color:#007fa8 !important; }
+button:not([kind="primary"]) { background:#ffffff !important; color:#314657 !important; border-color:#cfdee8 !important; box-shadow:none !important; }
+button:not([kind="primary"]):hover { background:#e4f2f8 !important; color:#009dce !important; border-color:#75d9f5 !important; }
+button[kind="primary"] { background:#08b9ef !important; color:#ffffff !important; border-color:#08b9ef !important; }
 [data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; border-color:transparent !important; }
-[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:#e4f7fc !important; color:#0b95bd !important; }
+[data-testid="stSidebar"] button:not([kind="primary"]):hover { background:#ddf6ff !important; color:#009dce !important; }
 [data-testid="stSidebar"] [data-testid="stExpander"], [data-testid="stSidebar"] details, [data-testid="stSidebar"] summary { background:transparent !important; border-color:transparent !important; }
-[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:#edf6f9 !important; }
-[data-testid="stFileUploaderDropzone"] { background:#f7fbfc !important; border-color:#d7e5ea !important; }
-[data-testid="stFileUploaderDropzone"] * { color:#536772 !important; }
-[data-testid="stTabs"] button { color:#71818d !important; }
-[data-testid="stTabs"] button[aria-selected="true"] { color:#0eaedb !important; }
-[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p { color:#344650 !important; }
-h1,h2,h3,h4,h5,h6 { color:#1d2a33 !important; }
-small,[data-testid="stCaptionContainer"],.stCaption { color:#71818d !important; }
-[data-testid="stProgressBar"] > div > div { background:#0eaedb !important; }
-hr { border-color:#d7e5ea !important; }
+[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background:#e4f2f8 !important; }
+[data-testid="stFileUploaderDropzone"] { background:#f7fafc !important; border-color:#cfdee8 !important; }
+[data-testid="stFileUploaderDropzone"] * { color:#536b7e !important; }
+[data-testid="stTabs"] button { color:#607487 !important; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:#08b9ef !important; }
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p { color:#314657 !important; }
+h1,h2,h3,h4,h5,h6 { color:#111c27 !important; }
+small,[data-testid="stCaptionContainer"],.stCaption { color:#607487 !important; }
+[data-testid="stProgressBar"] > div > div { background:#08b9ef !important; }
+hr { border-color:#cfdee8 !important; }
 """
 
     st.markdown(
@@ -137,9 +137,9 @@ html, body, [class*="css"] {{ font-family:Inter, ui-sans-serif, system-ui, -appl
     linear-gradient(30deg, transparent 44%, var(--rz-primary) 45%, var(--rz-primary) 51%, transparent 52%),
     linear-gradient(150deg, transparent 44%, var(--rz-primary) 45%, var(--rz-primary) 51%, transparent 52%),
     radial-gradient(circle at center, var(--rz-primary) 0 3px, transparent 4px),
-    linear-gradient(145deg, rgba(19,185,232,.18), rgba(19,185,232,.045));
-  border:1px solid rgba(19,185,232,.42);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.025), 0 5px 16px rgba(19,185,232,.08);
+    linear-gradient(145deg, rgba(16,189,242,.18), rgba(16,189,242,.045));
+  border:1px solid rgba(16,189,242,.42);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.025), 0 5px 16px rgba(16,189,242,.08);
 }}
 .rz-brand {{ font-size:1.44rem; line-height:1; font-weight:900; letter-spacing:-.052em; color:var(--rz-text); }}
 .rz-brand span {{ color:var(--rz-primary); font-size:.72rem; letter-spacing:.09em; margin-left:.22rem; vertical-align:.18rem; }}
@@ -159,7 +159,7 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 .rz-section-sub {{ font-size:.82rem; color:var(--rz-muted); margin-top:-.45rem; margin-bottom:.7rem; }}
 
 .rz-business {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:14px; padding:17px 19px; box-shadow:var(--rz-shadow-soft); position:relative; overflow:hidden; }}
-.rz-business:before {{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--rz-primary),rgba(19,185,232,.3)); }}
+.rz-business:before {{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--rz-primary),rgba(16,189,242,.3)); }}
 .rz-business-name {{ font-size:1.05rem; font-weight:780; color:var(--rz-text); }}
 .rz-business-meta {{ font-size:.8rem; color:var(--rz-muted); margin-top:4px; }}
 
@@ -179,7 +179,7 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 .rz-empty-icon {{ color:var(--rz-primary); font-size:1.4rem; margin-bottom:7px; }}
 .rz-empty-title {{ color:var(--rz-text); font-size:.94rem; font-weight:750; }}
 .rz-empty-text {{ color:var(--rz-muted); font-size:.82rem; margin:5px auto 0; max-width:620px; line-height:1.5; }}
-.rz-helper {{ background:var(--rz-primary-soft); border:1px solid rgba(19,185,232,.20); border-radius:10px; padding:10px 12px; color:var(--rz-muted); font-size:.8rem; }}
+.rz-helper {{ background:var(--rz-primary-soft); border:1px solid rgba(16,189,242,.20); border-radius:10px; padding:10px 12px; color:var(--rz-muted); font-size:.8rem; }}
 
 div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button {{ border-radius:9px; min-height:2.55rem; border:1px solid var(--rz-border); background:var(--rz-surface); color:var(--rz-text); font-weight:660; box-shadow:none; }}
 div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover {{ border-color:var(--rz-primary); color:var(--rz-primary); }}
@@ -206,7 +206,7 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stMain"] {{
   background:
-    radial-gradient(circle at 8% 8%, rgba(14,174,219,.16), transparent 27rem),
+    radial-gradient(circle at 8% 8%, rgba(8,185,239,.16), transparent 27rem),
     radial-gradient(circle at 92% 86%, rgba(8,127,167,.11), transparent 30rem),
     linear-gradient(160deg, var(--rz-bg) 0%, var(--rz-soft) 100%)!important;
 }}
@@ -220,8 +220,8 @@ hr {{ border-color:var(--rz-border); }}
 .rz-login-brand {{ display:inline-flex; align-items:center; justify-content:center; gap:.68rem; margin-bottom:1.35rem; padding:.42rem .72rem .42rem .48rem; border:1px solid var(--rz-border); border-radius:999px; background:color-mix(in srgb,var(--rz-surface) 88%,transparent); box-shadow:var(--rz-shadow-soft); backdrop-filter:blur(12px); }}
 .rz-login-brand strong {{ font-size:1.08rem; letter-spacing:-.045em; font-weight:900; }}
 .rz-login-brand span {{ color:var(--rz-primary); font-size:.57rem; font-weight:850; letter-spacing:.13em; margin-left:.25rem; vertical-align:.17rem; }}
-.rz-login-mark {{ width:32px; height:32px; display:block; object-fit:cover; border-radius:9px; border:1px solid rgba(19,185,232,.45);
-  box-shadow:0 8px 24px rgba(14,174,219,.18);
+.rz-login-mark {{ width:32px; height:32px; display:block; object-fit:cover; border-radius:9px; border:1px solid rgba(16,189,242,.45);
+  box-shadow:0 8px 24px rgba(8,185,239,.18);
 }}
 .rz-login-kicker {{ color:var(--rz-primary); font-size:.68rem; font-weight:850; letter-spacing:.14em; text-transform:uppercase; margin-bottom:.65rem; }}
 .rz-login-shell h1 {{ font-size:clamp(2rem,4.5vw,3.35rem); line-height:1.02; letter-spacing:-.055em; margin:0; font-weight:900; }}
@@ -243,10 +243,10 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {{ font-size:.76rem; font-weight:720; color:var(--rz-text)!important; }}
 .stApp:has(.rz-login-shell) [data-baseweb="input"] {{ background:var(--rz-soft)!important; border:1px solid var(--rz-border)!important; border-radius:10px!important; overflow:hidden; }}
 .stApp:has(.rz-login-shell) input {{ min-height:2.75rem; border-radius:10px; background:transparent!important; padding-left:.78rem!important; }}
-.stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(14,174,219,.12)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(14,174,219,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
+.stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(8,185,239,.12)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:white!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(14,174,219,.30)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(8,185,239,.30)!important; }}
 .rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
 
@@ -318,11 +318,11 @@ def helper_note(text: str) -> None:
 def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None:
     t = tokens(theme_name)
     dark = theme_name == "Escuro"
-    grid = "#27333e" if dark else "#e2ecef"
-    axis = "#52636f" if dark else "#c8d8de"
-    hover_bg = "#111820" if dark else "#ffffff"
-    hover_text = "#f4f7fa" if dark else "#1d2a33"
-    hover_border = "#3b4b59" if dark else "#d7e5ea"
+    grid = "#22384b" if dark else "#d9e7ee"
+    axis = "#587084" if dark else "#bfd2de"
+    hover_bg = "#0d1824" if dark else "#ffffff"
+    hover_text = "#f5f9fc" if dark else "#111c27"
+    hover_border = "#365268" if dark else "#cfdee8"
     colorway = [
         t["primary"],
         t["success"],
