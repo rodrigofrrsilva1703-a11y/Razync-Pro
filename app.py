@@ -174,12 +174,15 @@ def ensure_login() -> dict:
             <div><strong>Razync</strong><span>PRO</span></div>
           </div>
           <div class="rz-login-kicker">Gestão inteligente para MEI</div>
-          <h1>Seu negócio organizado.<br><em>Suas decisões mais simples.</em></h1>
-          <p class="rz-login-lead">Finanças, obrigações fiscais e documentos em um só lugar, com segurança e clareza para você focar no crescimento.</p>
+          <h1>Menos planilhas.<br><em>Mais controle do seu MEI.</em></h1>
+          <p class="rz-login-lead">Organize o financeiro, acompanhe obrigações e mantenha seus documentos prontos para decidir com tranquilidade.</p>
           <div class="rz-login-benefits">
-            <span>✓ Controle financeiro</span>
-            <span>✓ Rotina fiscal</span>
-            <span>✓ Documentos protegidos</span>
+            <span><b>01</b> Financeiro em dia</span>
+            <span><b>02</b> Alertas fiscais</span>
+            <span><b>03</b> Dados protegidos</span>
+          </div>
+          <div class="rz-login-proof">
+            <span>Feito para a rotina real do MEI</span><i></i><span>Simples de começar</span>
           </div>
         </div>
         """,
@@ -196,6 +199,7 @@ def ensure_login() -> dict:
     )
 
     with login_tab:
+        st.markdown('<div class="rz-auth-heading"><strong>Bem-vindo de volta</strong><span>Entre para continuar cuidando do seu negócio.</span></div>', unsafe_allow_html=True)
         with st.form("login_form"):
             email = st.text_input("E-mail", key="login_email").strip()
             password = st.text_input("Senha", type="password", key="login_password")
@@ -256,6 +260,7 @@ def ensure_login() -> dict:
                         st.error("E-mail ou senha inválidos, ou e-mail ainda não confirmado.")
 
     with signup_tab:
+        st.markdown('<div class="rz-auth-heading"><strong>Crie sua conta</strong><span>Comece a organizar seu MEI em poucos minutos.</span></div>', unsafe_allow_html=True)
         with st.form("signup_form"):
             name = st.text_input("Nome", key="signup_name").strip()
             email = st.text_input("E-mail", key="signup_email").strip()
@@ -303,6 +308,7 @@ def ensure_login() -> dict:
                         st.error(message)
 
     with recovery_tab:
+        st.markdown('<div class="rz-auth-heading"><strong>Recupere o acesso</strong><span>Informe seu e-mail para receber as instruções.</span></div>', unsafe_allow_html=True)
         if auth_enabled:
             with st.form("password_recovery_form"):
                 email = st.text_input("E-mail", key="recovery_email").strip()
@@ -320,6 +326,7 @@ def ensure_login() -> dict:
         else:
             st.info("A recuperação estará disponível após configurar o Supabase Auth.")
 
+    st.markdown('<div class="rz-login-security">🔒 Conexão segura · seus dados permanecem privados</div>', unsafe_allow_html=True)
     st.stop()
 
 
