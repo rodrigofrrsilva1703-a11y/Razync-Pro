@@ -38,6 +38,7 @@ from login_security import login_attempt_guard
 from storage_service import download_document, remove_document, upload_document
 from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
+    github_authorization_url, github_sign_in, is_developer_github_configured,
     restore_session as supabase_restore_session,
     sign_in as supabase_sign_in, sign_out as supabase_sign_out,
     sign_up as supabase_sign_up, update_password as supabase_update_password,
@@ -159,6 +160,29 @@ def ensure_login() -> dict:
                 persist_refresh_token(session_controller, identity["refresh_token"])
                 st.rerun()
 
+    oauth_state = str(st.query_params.get("state", ""))
+    oauth_code = str(st.query_params.get("code", ""))
+    if (
+        "user" not in st.session_state
+        and is_developer_github_configured()
+        and oauth_code
+        and oauth_state.startswith("rzgh.")
+    ):
+        try:
+            identity = github_sign_in(oauth_code, oauth_state)
+            user = resolve_supabase_user(
+                identity["auth_user_id"], identity["email"], identity["name"]
+            )
+        except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
+            st.query_params.clear()
+            st.error(str(exc))
+        else:
+            st.query_params.clear()
+            st.session_state["auth_provider"] = "github"
+            st.session_state["github_login"] = identity["github_login"]
+            st.session_state["user"] = user
+            st.rerun()
+
     if "user" in st.session_state:
         user = st.session_state["user"]
         with st.sidebar:
@@ -218,6 +242,17 @@ def ensure_login() -> dict:
 
     with login_tab:
         st.markdown('<div class="rz-auth-heading"><strong>Bem-vindo de volta</strong><span>Entre para continuar cuidando do seu negócio.</span></div>', unsafe_allow_html=True)
+        if is_developer_github_configured():
+            st.link_button(
+                "Entrar como desenvolvedor com GitHub",
+                github_authorization_url(),
+                width="stretch",
+                type="primary",
+            )
+            st.caption(
+                "Acesso administrativo protegido e liberado somente para a conta autorizada."
+            )
+            st.divider()
         with st.form("login_form"):
             email = st.text_input("E-mail", key="login_email").strip()
             password = st.text_input("Senha", type="password", key="login_password")
@@ -1380,26 +1415,32 @@ elif page == "Meu MEI":
 
 elif page == "Segurança da Conta":
     header("Segurança da Conta", "Atualize sua senha e confira como sua sessão é protegida.")
-    with st.container(border=True):
-        st.subheader("Alterar senha")
-        with st.form("change_password_form", clear_on_submit=True):
-            new_password = st.text_input("Nova senha", type="password", help="Use pelo menos 8 caracteres.")
-            password_confirmation = st.text_input("Confirmar nova senha", type="password")
-            change_password = st.form_submit_button("Alterar senha", type="primary", width="stretch")
-        if change_password:
-            if new_password != password_confirmation:
-                st.error("As senhas não coincidem.")
-            elif len(new_password) < 8:
-                st.error("A nova senha deve ter pelo menos 8 caracteres.")
-            elif not is_supabase_auth_configured():
-                st.error("A alteração de senha requer o Supabase Auth.")
-            else:
-                try:
-                    supabase_update_password(st.session_state.get("access_token", ""), st.session_state.get("refresh_token", ""), new_password)
-                except AuthServiceError as exc:
-                    st.error(str(exc))
+    if st.session_state.get("auth_provider") == "github":
+        st.success(
+            f"Acesso de desenvolvedor conectado com GitHub: @{st.session_state.get('github_login', '')}."
+        )
+        st.info("A segurança e a senha deste acesso são administradas diretamente pelo GitHub.")
+    else:
+        with st.container(border=True):
+            st.subheader("Alterar senha")
+            with st.form("change_password_form", clear_on_submit=True):
+                new_password = st.text_input("Nova senha", type="password", help="Use pelo menos 8 caracteres.")
+                password_confirmation = st.text_input("Confirmar nova senha", type="password")
+                change_password = st.form_submit_button("Alterar senha", type="primary", width="stretch")
+            if change_password:
+                if new_password != password_confirmation:
+                    st.error("As senhas não coincidem.")
+                elif len(new_password) < 8:
+                    st.error("A nova senha deve ter pelo menos 8 caracteres.")
+                elif not is_supabase_auth_configured():
+                    st.error("A alteração de senha requer o Supabase Auth.")
                 else:
-                    st.success("Senha alterada com sucesso.")
+                    try:
+                        supabase_update_password(st.session_state.get("access_token", ""), st.session_state.get("refresh_token", ""), new_password)
+                    except AuthServiceError as exc:
+                        st.error(str(exc))
+                    else:
+                        st.success("Senha alterada com sucesso.")
     section("Sessão e privacidade")
     st.write("✓ A opção **Manter conectado** armazena somente um token de renovação criptografado.")
     st.write("✓ Ao sair, a sessão local e o token persistente são removidos.")
