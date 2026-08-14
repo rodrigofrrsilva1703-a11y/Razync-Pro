@@ -9,7 +9,7 @@ from fiscal_rules import das_status
 
 NAV_GROUPS = {
     "Visão Geral": ["Dashboard"],
-    "Financeiro": ["Movimentações", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
+    "Financeiro": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
     "Fiscal MEI": ["Central Fiscal", "Fechamento Mensal", "Relatório Mensal", "Notas Fiscais", "DAS", "DASN-SIMEI", "Obrigações"],
     "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos"],
     "Relatórios": ["Central de Relatórios", "Assistente Razync"],
