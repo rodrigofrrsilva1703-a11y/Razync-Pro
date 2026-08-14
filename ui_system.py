@@ -267,6 +267,22 @@ hr {{ border-color:var(--rz-border); }}
   .rz-login-benefits span {{ font-size:.68rem; padding:.35rem .55rem; }}
   .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.7rem .75rem 1rem; border-radius:14px; }}
   .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.78rem; }}
+  [data-testid="stTabs"] [role="tablist"] {{ overflow-x:auto; scrollbar-width:thin; justify-content:flex-start; }}
+  [data-testid="stTabs"] [role="tab"] {{ flex:0 0 auto; white-space:nowrap; }}
+  [data-testid="stFileUploaderDropzone"] {{ padding:.75rem; }}
+  [data-testid="stFileUploaderDropzone"] button {{ min-height:44px; }}
+  [data-testid="stDataFrame"] > div {{ overflow-x:auto; }}
+  .rz-business {{ padding:14px 15px; }}
+  .rz-empty {{ padding:22px 14px; }}
+}}
+@media (max-width:480px) {{
+  .block-container {{ padding-left:.58rem; padding-right:.58rem; }}
+  .rz-page-title {{ font-size:1.34rem; }}
+  .rz-page-sub {{ font-size:.84rem; margin-bottom:.9rem; }}
+  .rz-login-shell h1 {{ font-size:1.82rem; }}
+  .rz-login-proof {{ flex-wrap:wrap; }}
+  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.58rem; }}
+  [data-testid="stMetric"] {{ min-height:82px; }}
 }}
 </style>
 """,
