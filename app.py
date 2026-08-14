@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-import calendar
 
 import pandas as pd
 import plotly.express as px
@@ -31,6 +30,7 @@ from backup_tools import backup_checksum, build_backup_zip, document_coverage
 from onboarding_tools import onboarding_progress, recommended_setup
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
+from ui_helpers import MONTH_NAMES_PT, filter_transactions, paginate_frame
 from login_security import login_attempt_guard
 from storage_service import download_document, remove_document, upload_document
 from auth_service import (
@@ -373,7 +373,7 @@ def monthly_rows(df: pd.DataFrame, year: int) -> list[dict]:
             has_doc = cur["document_number"].fillna("").astype(str).str.strip().ne("")
             with_doc = float(cur.loc[has_doc,"value"].sum())
             without_doc = total - with_doc
-        rows.append({"month":month,"month_name":calendar.month_name[month],"with_doc":with_doc,"without_doc":without_doc,"services":services,"sales":sales,"total":total})
+        rows.append({"month":month,"month_name":MONTH_NAMES_PT[month - 1],"with_doc":with_doc,"without_doc":without_doc,"services":services,"sales":sales,"total":total})
     return rows
 
 
@@ -393,7 +393,7 @@ def cashflow_monthly(df: pd.DataFrame, year: int) -> pd.DataFrame:
         cur = cur[cur["tx_date"].dt.month == month] if not cur.empty else cur
         entradas = float(cur[cur["tx_type"] == "Receita"]["value"].sum()) if not cur.empty else 0.0
         saidas = float(cur[cur["tx_type"] == "Despesa"]["value"].sum()) if not cur.empty else 0.0
-        rows.append({"Mês": calendar.month_name[month], "Entradas": entradas, "Saídas": saidas, "Resultado": entradas-saidas})
+        rows.append({"Mês": MONTH_NAMES_PT[month - 1], "Entradas": entradas, "Saídas": saidas, "Resultado": entradas-saidas})
     out = pd.DataFrame(rows)
     out["Saldo acumulado"] = out["Resultado"].cumsum()
     return out
@@ -468,16 +468,6 @@ year_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR)] if not
 year_revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if not year_tx.empty else 0.0
 year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
 limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
-
-# Pagination context for the transaction history. Keep it local to the in-memory snapshot.
-page_size = 50
-total_tx = len(transactions)
-current_tx_page = int(st.session_state.get("tx_history_page", 1))
-max_tx_page = max(1, (total_tx + page_size - 1) // page_size)
-current_tx_page = min(max(current_tx_page, 1), max_tx_page)
-if page == "Movimentações" and not transactions.empty:
-    offset = (current_tx_page - 1) * page_size
-    transactions = transactions.iloc[offset:offset + page_size].copy()
 
 with st.sidebar:
     st.image(BRAND_LOGO_PATH, width=58)
@@ -557,7 +547,7 @@ if page == "Dashboard":
         chart = pd.DataFrame(monthly_rows(transactions, CURRENT_YEAR))
         fig = px.area(chart, x="month_name", y="total", markers=True)
         apply_plot_theme(fig, UI_THEME, height=320)
-        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(37,99,235,.10)")
+        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(8,185,239,.12)")
         fig.update_xaxes(title="", showgrid=False)
         fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -635,25 +625,24 @@ elif page == "Movimentações":
     if transactions.empty:
         empty_state("Nenhuma movimentação registrada", "Quando você adicionar a primeira receita ou despesa, ela aparecerá aqui e alimentará automaticamente o Dashboard e os relatórios.", "↕")
     else:
-        view = transactions.copy()
         f1, f2, f3 = st.columns([1, 1, 2])
         type_filter = f1.selectbox("Filtrar por tipo", ["Todos", "Receita", "Despesa"])
-        category_options = ["Todas"] + sorted(str(x) for x in view["category"].dropna().unique())
+        category_options = ["Todas"] + sorted(str(x) for x in transactions["category"].dropna().unique())
         category_filter = f2.selectbox("Filtrar por categoria", category_options)
         search_filter = f3.text_input("Buscar no histórico", placeholder="Descrição, cliente ou documento")
-        if type_filter != "Todos":
-            view = view[view["tx_type"] == type_filter]
-        if category_filter != "Todas":
-            view = view[view["category"] == category_filter]
-        if search_filter.strip():
-            term = search_filter.strip().lower()
-            searchable = (
-                view["description"].fillna("").astype(str) + " "
-                + view["counterparty"].fillna("").astype(str) + " "
-                + view["document_number"].fillna("").astype(str)
-            ).str.lower()
-            view = view[searchable.str.contains(term, regex=False)]
-        st.caption(f"{len(view)} lançamento(s) encontrado(s) nesta página.")
+        filtered_view = filter_transactions(
+            transactions,
+            tx_type=type_filter,
+            category=category_filter,
+            search=search_filter,
+        )
+        view, total_tx, current_tx_page, max_tx_page = paginate_frame(
+            filtered_view,
+            st.session_state.get("tx_history_page", 1),
+            page_size=50,
+        )
+        page_size = 50
+        st.caption(f"{total_tx} lançamento(s) encontrado(s) no histórico completo.")
         view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
         st.dataframe(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], use_container_width=True, hide_index=True, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
         if total_tx > page_size:
@@ -797,7 +786,8 @@ elif page == "Fluxo de Caixa":
     c1,c2,c3 = st.columns(3)
     c1.metric("Entradas",brl(float(cf["Entradas"].sum()))); c2.metric("Saídas",brl(float(cf["Saídas"].sum()))); c3.metric("Resultado",brl(float(cf["Resultado"].sum())))
     fig = px.bar(cf,x="Mês",y=["Entradas","Saídas"],barmode="group",template=PLOT_TEMPLATE)
-    themed_plotly_chart(fig,use_container_width=True)
+    apply_plot_theme(fig, UI_THEME)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.dataframe(cf,use_container_width=True,hide_index=True,column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
 
 elif page == "Análise Financeira":
@@ -809,13 +799,16 @@ elif page == "Análise Financeira":
     monthly = analysis["monthly"]
     if not monthly.empty:
         fig = px.line(monthly,x="Mês",y=["Receitas","Despesas","Resultado"],markers=True,template=PLOT_TEMPLATE)
-        themed_plotly_chart(fig,use_container_width=True)
+        apply_plot_theme(fig, UI_THEME)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.dataframe(monthly,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
     st.subheader("Despesas por categoria")
     bycat = analysis["expense_by_category"]
     if bycat.empty: st.info("Sem despesas registradas neste ano.")
     else:
-        fig2=px.bar(bycat,x="Categoria",y="Valor",template=PLOT_TEMPLATE); themed_plotly_chart(fig2,use_container_width=True)
+        fig2 = px.bar(bycat, x="Categoria", y="Valor", template=PLOT_TEMPLATE)
+        apply_plot_theme(fig2, UI_THEME)
+        st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
     checks = consistency_checks(transactions,invoices,das_rows)
     st.subheader("Revisões recomendadas")
     if checks:
@@ -863,7 +856,7 @@ elif page == "Fechamento Mensal":
     header("Fechamento Mensal","Confira documentos, notas, movimentações e DAS antes de considerar o mês organizado.")
     c1,c2=st.columns(2)
     close_year=c1.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="close_year")
-    close_month=c2.selectbox("Mês",list(range(1,13)),index=date.today().month-1,format_func=lambda m:calendar.month_name[m],key="close_month")
+    close_month=c2.selectbox("Mês",list(range(1,13)),index=date.today().month-1,format_func=lambda m:MONTH_NAMES_PT[m - 1],key="close_month")
     closing=monthly_closing(transactions,invoices,docs,das_rows,close_year,close_month)
     a,b,c,d=st.columns(4)
     a.metric("Receitas",brl(closing["revenue"])); b.metric("Despesas",brl(closing["expense"])); c.metric("Resultado",brl(closing["result"])); d.metric("Organização",f"{closing['score']}%")
@@ -881,7 +874,7 @@ elif page == "Relatório Mensal":
     dfm=pd.DataFrame([{ "Mês":r["month_name"],"Com documento":r["with_doc"],"Sem documento":r["without_doc"],"Serviços":r["services"],"Vendas/Comércio":r["sales"],"Total":r["total"]} for r in rows])
     st.dataframe(dfm,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]})
     st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
-    month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:calendar.month_name[m],key="pdfmonth")
+    month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:MONTH_NAMES_PT[m - 1],key="pdfmonth")
     r=rows[month-1]
     pdf=monthly_report_pdf(profile,month,year,r["with_doc"],r["without_doc"],r["services"],r["sales"])
     st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
