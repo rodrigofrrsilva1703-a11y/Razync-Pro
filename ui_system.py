@@ -242,9 +242,11 @@ hr {{ border-color:var(--rz-border); }}
 .rz-auth-heading span {{ color:var(--rz-muted); font-size:.79rem; }}
 .stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.65rem 0 0; box-shadow:none!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {{ font-size:.76rem; font-weight:720; color:var(--rz-text)!important; }}
-.stApp:has(.rz-login-shell) input {{ min-height:2.75rem; border-radius:10px; }}
-.stApp:has(.rz-login-shell) input:focus {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(14,174,219,.12)!important; }}
+.stApp:has(.rz-login-shell) [data-baseweb="input"] {{ background:var(--rz-soft)!important; border:1px solid var(--rz-border)!important; border-radius:10px!important; overflow:hidden; }}
+.stApp:has(.rz-login-shell) input {{ min-height:2.75rem; border-radius:10px; background:transparent!important; padding-left:.78rem!important; }}
+.stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(14,174,219,.12)!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(14,174,219,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:white!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(14,174,219,.30)!important; }}
 .rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
