@@ -16,7 +16,7 @@ from database import (
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
     add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
-    materialize_due_recurring, set_recurring_transaction_active,
+    materialize_due_recurring, set_recurring_transaction_active, list_audit_logs,
 )
 from database import database_runtime_info
 from fiscal_rules import (
@@ -1394,6 +1394,25 @@ elif page == "Segurança da Conta":
     st.write("✓ Ao sair, a sessão local e o token persistente são removidos.")
     st.write("✓ Os dados de cada conta são isolados pelo usuário autenticado.")
     st.info("Em dispositivo compartilhado, use sempre o botão Sair ao terminar.")
+
+elif page == "Histórico de Atividades":
+    header("Histórico de Atividades","Consulte alterações registradas automaticamente nos seus dados do Razync.")
+    audit_rows=list_audit_logs(uid,250)
+    if not audit_rows:
+        empty_state("Nenhuma atividade registrada", "As próximas inclusões, alterações e exclusões aparecerão aqui.", "◷")
+    else:
+        action_labels={"INSERT":"Criado","UPDATE":"Alterado","DELETE":"Excluído"}
+        module_labels={"transactions":"Movimentações","das_items":"DAS","documents":"Documentos","invoices":"Notas fiscais","contacts":"Contatos","employees":"Empregado","obligations":"Obrigações","recurring_transactions":"Recorrências","mei_profiles":"Meu MEI"}
+        audit_view=pd.DataFrame([{
+            "Data":row.get("created_at"),
+            "Módulo":module_labels.get(row.get("table_name"),row.get("table_name")),
+            "Ação":action_labels.get(row.get("action"),row.get("action")),
+            "Registro":row.get("record_id") or "—",
+        } for row in audit_rows])
+        filter_module=st.selectbox("Filtrar módulo",["Todos"]+sorted(audit_view["Módulo"].dropna().unique().tolist()))
+        if filter_module!="Todos": audit_view=audit_view[audit_view["Módulo"]==filter_module]
+        st.dataframe(audit_view,width="stretch",hide_index=True,column_config={"Data":st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm")})
+        st.caption("Por segurança, senhas e conteúdo binário de documentos nunca são incluídos no histórico.")
 
 elif page == "Status do Sistema":
     header("Status do Sistema","Veja se o Razync está usando uma infraestrutura adequada para produção.")
