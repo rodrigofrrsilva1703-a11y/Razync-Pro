@@ -14,6 +14,18 @@ class FeatureContractTests(unittest.TestCase):
         self.assertIn("expense_categories", analysis)
         self.assertTrue(analysis["expense_categories"].empty)
 
+    def test_financial_analysis_with_data_matches_the_ui_contract(self):
+        transactions = pd.DataFrame([
+            {"tx_date": pd.Timestamp("2026-08-01"), "tx_type": "Receita", "value": 1000.0, "category": "Serviços"},
+            {"tx_date": pd.Timestamp("2026-08-02"), "tx_type": "Despesa", "value": 250.0, "category": "Materiais"},
+        ])
+        analysis = financial_analysis(transactions, 2026)
+        self.assertEqual(analysis["revenue"], 1000.0)
+        self.assertEqual(analysis["expense"], 250.0)
+        self.assertEqual(analysis["result"], 750.0)
+        self.assertIn("expense_categories", analysis)
+        self.assertFalse(analysis["monthly"].empty)
+
     def test_monthly_closing_exposes_guided_checklist(self):
         closing = monthly_closing(pd.DataFrame(), pd.DataFrame(), [], [], 2026, 8)
         self.assertIn("checklist", closing)
