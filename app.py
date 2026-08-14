@@ -47,6 +47,7 @@ from session_persistence import (
     persistent_session_controller, read_refresh_token,
 )
 from brand_assets import brand_logo_data_uri, ensure_brand_assets
+from document_intelligence import CATEGORIES as DOCUMENT_CATEGORIES, analyze_document
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -1171,24 +1172,71 @@ elif page == "Empregado":
             if st.button("Excluir empregado selecionado",use_container_width=True): delete_employee(uid,int(eid)); st.rerun()
 
 elif page == "Documentos":
-    header("Documentos","Guarde comprovantes, notas e arquivos por competência para encontrar tudo com facilidade no fechamento.")
+    header("Documentos","Guarde comprovantes, notas e arquivos por competência. O Razync lê PDFs com texto e sugere a organização para você confirmar.")
     with st.container(border=True):
         st.caption("ADICIONAR DOCUMENTO")
-        up=st.file_uploader("Escolha um arquivo",key="docup")
-        a,b=st.columns(2); category=a.selectbox("Tipo de documento",["Nota Fiscal","Comprovante","Extrato Bancário","DAS","Contrato","Outro"]); reference=b.text_input("Competência",placeholder="AAAA-MM")
-        if st.button("Salvar documento",type="primary",use_container_width=True,disabled=up is None):
+        up=st.file_uploader(
+            "Escolha um arquivo",
+            type=["pdf","png","jpg","jpeg"],
+            key="docup",
+            help="A análise acontece no próprio aplicativo. Nenhum arquivo é enviado a serviços externos.",
+        )
+        suggestion = None
+        if up is not None:
+            suggestion = analyze_document(up.getvalue(), up.type or "", up.name)
+            st.markdown("**Sugestões encontradas**")
+            s1,s2,s3=st.columns(3)
+            s1.metric("Tipo", suggestion["category"])
+            s2.metric("Competência", suggestion["reference_month"] or "Não encontrada")
+            s3.metric("Confiança", suggestion["confidence"])
+            details = []
+            if suggestion["value"] is not None:
+                details.append(f"valor provável: {brl(suggestion['value'])}")
+            if suggestion["document_number"]:
+                details.append(f"identificador: {suggestion['document_number']}")
+            if details:
+                st.caption(" • ".join(details))
+            if suggestion["warning"]:
+                st.info(suggestion["warning"])
+            if suggestion["text_preview"]:
+                with st.expander("Ver trecho reconhecido"):
+                    st.text(suggestion["text_preview"])
+            st.caption("Revise as sugestões antes de salvar; o Razync não altera seus lançamentos automaticamente.")
+
+        suggested_category = suggestion["category"] if suggestion else "Nota Fiscal"
+        suggested_reference = suggestion["reference_month"] if suggestion else ""
+        a,b=st.columns(2)
+        category=a.selectbox(
+            "Tipo de documento",
+            DOCUMENT_CATEGORIES,
+            index=DOCUMENT_CATEGORIES.index(suggested_category),
+            key=f"doc_category_{up.name if up else 'empty'}",
+        )
+        reference=b.text_input(
+            "Competência",
+            value=suggested_reference,
+            placeholder="AAAA-MM",
+            key=f"doc_reference_{up.name if up else 'empty'}",
+        )
+        valid_reference = not reference.strip() or bool(__import__("re").fullmatch(r"20\\d{2}-(0[1-9]|1[0-2])", reference.strip()))
+        if not valid_reference:
+            st.warning("Use o formato AAAA-MM para a competência, por exemplo 2026-08.")
+        if st.button("Salvar documento",type="primary",use_container_width=True,disabled=up is None or not valid_reference):
             if up:
                 try:
                     save_uploaded_document(user, up, category, reference.strip())
                 except Exception:
                     st.error("Não foi possível armazenar o documento agora.")
                 else:
+                    st.success("Documento salvo com segurança.")
                     st.rerun()
     section("Arquivos salvos")
     if not docs:
         empty_state("Nenhum documento salvo", "Adicione comprovantes, notas e extratos. Eles ficam organizados por tipo e competência para facilitar os fechamentos.", "▱")
     else:
-        ddf=pd.DataFrame(docs); st.dataframe(ddf,use_container_width=True,hide_index=True)
+        ddf=pd.DataFrame(docs)
+        visible_columns=[column for column in ["filename","category","reference_month","created_at"] if column in ddf.columns]
+        st.dataframe(ddf[visible_columns],use_container_width=True,hide_index=True)
         did=st.selectbox("Abrir documento",[d["id"] for d in docs],format_func=lambda x:next(d["filename"] for d in docs if d["id"]==x))
         selected=get_document(uid,int(did))
         if selected:
@@ -1200,6 +1248,7 @@ elif page == "Documentos":
                 st.download_button(
                     "Baixar arquivo", content, file_name=selected["filename"],
                     mime=selected["mime_type"] or "application/octet-stream",
+                    use_container_width=True,
                 )
         with st.expander("Excluir documento"):
             st.caption("A exclusão remove o arquivo armazenado no Razync.")
