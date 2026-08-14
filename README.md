@@ -2,6 +2,10 @@
 
 Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individuais (MEI), dentro do ecossistema Razync. O objetivo é centralizar organização financeira, fiscal e documental em uma interface simples e moderna.
 
+## Acessar o Razync Pro
+
+[🌐 Abrir o Razync Pro](https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/)
+
 ## Funcionalidades
 
 - Login, cadastro, confirmação de e-mail e recuperação de senha com Supabase Auth
