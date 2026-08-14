@@ -28,7 +28,7 @@ class ProductionQualityTests(unittest.TestCase):
             if path.suffix.lower() not in {".py", ".md", ".toml", ".yml", ".example"}:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore").lower()
-            self.assertNotIn("sb_secret_", text, str(path))
+            self.assertNotIn("sb_" + "secret_", text, str(path))
 
 
 if __name__ == "__main__":
