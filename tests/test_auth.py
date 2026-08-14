@@ -60,6 +60,14 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertIn('st.form("login_form")', app_source)
         self.assertIn('st.form("signup_form")', app_source)
         self.assertIn('st.button("Sair"', app_source)
+        workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+        self.assertEqual(
+            {path.name for path in workflows.glob("*.yml")},
+            {"ci.yml", "tests.yml"},
+        )
+        root = Path(__file__).resolve().parents[1]
+        self.assertFalse((root / "preview_access.py").exists())
+        self.assertFalse((root / "preview_app.py").exists())
 
 
 if __name__ == "__main__":
