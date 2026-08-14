@@ -21,12 +21,18 @@ p.write_text(s, encoding='utf-8')
 
 bp = Path('business_tools.py')
 bs = bp.read_text(encoding='utf-8')
+marker = '''def financial_analysis(transactions: pd.DataFrame, year: int) -> dict:\n'''
+pos = bs.find(marker)
+if pos < 0:
+    raise SystemExit('financial_analysis not found')
+head, tail = bs[:pos], bs[pos:]
 old3 = '''        "expenses": expenses,\n        "result": result,\n'''
-new3 = '''        "expense": expenses,\n        "result": result,\n'''
-if old3 in bs:
-    bs = bs.replace(old3, new3, 1)
-elif '"expense": expenses' not in bs:
-    raise SystemExit('financial analysis contract block not found')
+new3 = '''        "expense": expenses,\n        "expenses": expenses,\n        "result": result,\n'''
+if old3 in tail:
+    tail = tail.replace(old3, new3, 1)
+elif '"expense": expenses' not in tail:
+    raise SystemExit('financial analysis return block not found')
+bs = head + tail
 bp.write_text(bs, encoding='utf-8')
 
 print('Functional repair patch applied')
