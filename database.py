@@ -12,6 +12,8 @@ from pathlib import Path
 from datetime import datetime, date
 from typing import Any
 
+from automation_tools import next_recurrence_date
+
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, Numeric, Uuid,
     MetaData, String, Table, Text, create_engine, delete, insert, select, update, func, case, extract, text
@@ -144,6 +146,22 @@ profiles = Table(
     Column("has_employee", Boolean, nullable=False, default=False),
 )
 
+recurring_transactions = Table(
+    "recurring_transactions", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("tx_type", String(20), nullable=False),
+    Column("description", String(255), nullable=False),
+    Column("category", String(100), nullable=False, default="Outros"),
+    Column("value", Numeric(14, 2), nullable=False),
+    Column("payment_method", String(80), nullable=False, default="Outro"),
+    Column("frequency", String(20), nullable=False),
+    Column("next_date", Date, nullable=False),
+    Column("end_date", Date, nullable=True),
+    Column("active", Boolean, nullable=False, default=True),
+    Column("created_at", DateTime, nullable=False, default=datetime.utcnow),
+)
+
 transactions = Table(
     "transactions", metadata,
     Column("id", Integer, primary_key=True),
@@ -156,6 +174,7 @@ transactions = Table(
     Column("document_number", String(100), default=""),
     Column("counterparty", String(180), default=""),
     Column("payment_method", String(80), default=""),
+    Column("recurring_transaction_id", Integer, ForeignKey("recurring_transactions.id", ondelete="SET NULL"), nullable=True),
     Column("created_at", DateTime, nullable=False, default=datetime.utcnow),
 )
 
@@ -448,6 +467,124 @@ def save_profile(user_id: int, **data: Any) -> None:
         else:
             conn.execute(insert(profiles).values(user_id=user_id, **payload))
     _cache_invalidate("profile", user_id)
+
+
+def add_recurring_transaction(user_id: int, **data: Any) -> None:
+    allowed = {
+        "tx_type", "description", "category", "value", "payment_method",
+        "frequency", "next_date", "end_date", "active",
+    }
+    payload = {key: value for key, value in data.items() if key in allowed}
+    with engine.begin() as conn:
+        conn.execute(insert(recurring_transactions).values(user_id=user_id, **payload))
+    _cache_invalidate("recurring_transactions", user_id)
+
+
+def list_recurring_transactions(user_id: int) -> list[dict[str, Any]]:
+    cached = _cache_get("recurring_transactions", user_id)
+    if cached is not None:
+        return cached
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(recurring_transactions)
+            .where(recurring_transactions.c.user_id == user_id)
+            .order_by(recurring_transactions.c.active.desc(), recurring_transactions.c.next_date.asc())
+        ).mappings().all()
+    return _cache_set("recurring_transactions", user_id, [dict(row) for row in rows])
+
+
+def set_recurring_transaction_active(user_id: int, item_id: int, active: bool) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(recurring_transactions)
+            .where(
+                recurring_transactions.c.user_id == user_id,
+                recurring_transactions.c.id == item_id,
+            )
+            .values(active=bool(active))
+        )
+    _cache_invalidate("recurring_transactions", user_id)
+    return bool(result.rowcount)
+
+
+def delete_recurring_transaction(user_id: int, item_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            delete(recurring_transactions).where(
+                recurring_transactions.c.user_id == user_id,
+                recurring_transactions.c.id == item_id,
+            )
+        )
+    _cache_invalidate("recurring_transactions", user_id)
+
+
+def materialize_due_recurring(
+    user_id: int,
+    today: date | None = None,
+    max_occurrences: int = 36,
+) -> int:
+    """Create due transactions once and advance each schedule safely."""
+    today = today or date.today()
+    generated = 0
+    with engine.begin() as conn:
+        rows = conn.execute(
+            select(recurring_transactions)
+            .where(
+                recurring_transactions.c.user_id == user_id,
+                recurring_transactions.c.active.is_(True),
+                recurring_transactions.c.next_date <= today,
+            )
+            .order_by(recurring_transactions.c.next_date.asc())
+        ).mappings().all()
+
+        for row in rows:
+            occurrence = row["next_date"]
+            end_date = row.get("end_date")
+            while occurrence <= today and generated < max_occurrences:
+                if end_date and occurrence > end_date:
+                    break
+                exists = conn.execute(
+                    select(transactions.c.id).where(
+                        transactions.c.recurring_transaction_id == row["id"],
+                        transactions.c.tx_date == occurrence,
+                    )
+                ).first()
+                if not exists:
+                    conn.execute(
+                        insert(transactions).values(
+                            user_id=user_id,
+                            tx_date=occurrence,
+                            tx_type=row["tx_type"],
+                            description=row["description"],
+                            category=row["category"],
+                            value=row["value"],
+                            document_number="",
+                            counterparty="",
+                            payment_method=row["payment_method"],
+                            recurring_transaction_id=row["id"],
+                        )
+                    )
+                    generated += 1
+                occurrence = next_recurrence_date(occurrence, row["frequency"])
+
+            still_active = not end_date or occurrence <= end_date
+            conn.execute(
+                update(recurring_transactions)
+                .where(
+                    recurring_transactions.c.user_id == user_id,
+                    recurring_transactions.c.id == row["id"],
+                )
+                .values(next_date=occurrence, active=still_active)
+            )
+
+    if rows:
+        _cache_invalidate("recurring_transactions", user_id)
+    if generated:
+        _cache_invalidate("transactions", user_id)
+        _cache_invalidate("tx_docs", user_id)
+        for key in [key for key in list(_READ_CACHE) if key[0] == "dashboard"]:
+            _READ_CACHE.pop(key, None)
+    return generated
 
 
 def add_transaction(user_id: int, **data: Any) -> None:
