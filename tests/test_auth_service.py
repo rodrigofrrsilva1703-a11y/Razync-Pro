@@ -121,6 +121,26 @@ class DeveloperGithubAuthTests(unittest.TestCase):
                 ):
                     auth_service.github_sign_in("expired-code", state)
 
+    def test_repeated_callback_reuses_verified_identity_without_reusing_code(self):
+        responses = [
+            {"access_token": "token"},
+            {
+                "id": 789,
+                "login": "rodrigofrrsilva1703-a11y",
+                "name": "Rodrigo",
+                "email": "dev@example.com",
+            },
+        ]
+        with patch.dict("os.environ", self.secrets, clear=True):
+            state = auth_service._github_state()
+            with patch(
+                "auth_service._github_json_request", side_effect=responses
+            ) as request:
+                first = auth_service.github_sign_in("single-use-code", state)
+                second = auth_service.github_sign_in("single-use-code", state)
+        self.assertEqual(first, second)
+        self.assertEqual(request.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
