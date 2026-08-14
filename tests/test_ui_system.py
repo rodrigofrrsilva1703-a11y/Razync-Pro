@@ -11,3 +11,6 @@ def test_login_design_system_renders_without_template_errors():
     assert ".rz-login-shell" in css
     assert ":has(.rz-login-shell)" in css
     assert "display:none" in css
+    assert ".rz-auth-heading" in css
+    assert ".rz-login-security" in css
+    assert "backdrop-filter:blur(18px)" in css
