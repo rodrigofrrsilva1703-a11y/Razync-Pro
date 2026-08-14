@@ -202,42 +202,42 @@ hr {{ border-color:var(--rz-border); }}
 .rz-dev {{ background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:9px; padding:9px 10px; font-size:.72rem; color:var(--rz-muted); margin-top:.65rem; }}
 
 /* Experiência pública de autenticação. O :has limita os estilos às telas sem sessão. */
-.stApp:has(.rz-login-shell) [data-testid="stSidebar"] { display:none; }
-.stApp:has(.rz-login-shell) [data-testid="stHeader"] { background:transparent!important; border-bottom:0!important; }
-.stApp:has(.rz-login-shell) [data-testid="stMain"] {
+.stApp:has(.rz-login-shell) [data-testid="stSidebar"] {{ display:none; }}
+.stApp:has(.rz-login-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stMain"] {{
   background:
     radial-gradient(circle at 15% 5%, rgba(14,174,219,.13), transparent 34rem),
     radial-gradient(circle at 88% 92%, rgba(19,185,232,.09), transparent 30rem),
     var(--rz-bg)!important;
-}
-.stApp:has(.rz-login-shell) .block-container { max-width:1120px; padding-top:clamp(2rem,6vh,5.5rem); }
-.rz-login-shell { max-width:760px; margin:0 auto 2rem; text-align:center; }
-.rz-login-brand { display:flex; align-items:center; justify-content:center; gap:.7rem; margin-bottom:2.1rem; }
-.rz-login-brand strong { font-size:1.35rem; letter-spacing:-.045em; font-weight:900; }
-.rz-login-brand span { color:var(--rz-primary); font-size:.62rem; font-weight:850; letter-spacing:.13em; margin-left:.3rem; vertical-align:.22rem; }
-.rz-login-mark { width:36px; height:36px; border-radius:11px; border:1px solid rgba(19,185,232,.42);
+}}
+.stApp:has(.rz-login-shell) .block-container {{ max-width:1120px; padding-top:clamp(2rem,6vh,5.5rem); }}
+.rz-login-shell {{ max-width:760px; margin:0 auto 2rem; text-align:center; }}
+.rz-login-brand {{ display:flex; align-items:center; justify-content:center; gap:.7rem; margin-bottom:2.1rem; }}
+.rz-login-brand strong {{ font-size:1.35rem; letter-spacing:-.045em; font-weight:900; }}
+.rz-login-brand span {{ color:var(--rz-primary); font-size:.62rem; font-weight:850; letter-spacing:.13em; margin-left:.3rem; vertical-align:.22rem; }}
+.rz-login-mark {{ width:36px; height:36px; border-radius:11px; border:1px solid rgba(19,185,232,.42);
   background:
     linear-gradient(30deg, transparent 44%, var(--rz-primary) 45% 51%, transparent 52%),
     linear-gradient(150deg, transparent 44%, var(--rz-primary) 45% 51%, transparent 52%),
     radial-gradient(circle, var(--rz-primary) 0 3px, transparent 4px),
     linear-gradient(145deg, rgba(19,185,232,.20), rgba(19,185,232,.04));
   box-shadow:0 10px 30px rgba(14,174,219,.14);
-}
-.rz-login-kicker { color:var(--rz-primary); font-size:.72rem; font-weight:820; letter-spacing:.13em; text-transform:uppercase; margin-bottom:.75rem; }
-.rz-login-shell h1 { font-size:clamp(2.15rem,5vw,3.75rem); line-height:1.04; letter-spacing:-.055em; margin:0; font-weight:880; }
-.rz-login-shell h1 em { color:var(--rz-primary); font-style:normal; }
-.rz-login-lead { max-width:640px; margin:1.15rem auto 1rem; color:var(--rz-muted)!important; font-size:1rem; line-height:1.65; }
-.rz-login-benefits { display:flex; justify-content:center; flex-wrap:wrap; gap:.55rem; }
-.rz-login-benefits span { color:var(--rz-muted); background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:999px; padding:.42rem .72rem; font-size:.75rem; box-shadow:var(--rz-shadow-soft); }
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] { max-width:560px; margin:0 auto; background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:18px; padding:1rem 1.15rem 1.2rem; box-shadow:0 22px 65px rgba(29,42,51,.10); }
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] { gap:.25rem; background:var(--rz-soft); border-radius:11px; padding:.25rem; }
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] { flex:1; justify-content:center; border-radius:8px; min-height:2.45rem; }
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] { background:var(--rz-surface); box-shadow:var(--rz-shadow-soft); }
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] { border:0!important; padding:.85rem 0 0; box-shadow:none!important; }
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button { min-height:2.85rem; font-weight:780; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(14,174,219,.20)!important; }
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover { transform:translateY(-1px); box-shadow:0 13px 28px rgba(14,174,219,.28)!important; }
-.stApp:has(.rz-login-shell) input { min-height:2.7rem; }
-.stApp:has(.rz-login-shell) footer { display:none; }
+}}
+.rz-login-kicker {{ color:var(--rz-primary); font-size:.72rem; font-weight:820; letter-spacing:.13em; text-transform:uppercase; margin-bottom:.75rem; }}
+.rz-login-shell h1 {{ font-size:clamp(2.15rem,5vw,3.75rem); line-height:1.04; letter-spacing:-.055em; margin:0; font-weight:880; }}
+.rz-login-shell h1 em {{ color:var(--rz-primary); font-style:normal; }}
+.rz-login-lead {{ max-width:640px; margin:1.15rem auto 1rem; color:var(--rz-muted)!important; font-size:1rem; line-height:1.65; }}
+.rz-login-benefits {{ display:flex; justify-content:center; flex-wrap:wrap; gap:.55rem; }}
+.rz-login-benefits span {{ color:var(--rz-muted); background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:999px; padding:.42rem .72rem; font-size:.75rem; box-shadow:var(--rz-shadow-soft); }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ max-width:560px; margin:0 auto; background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:18px; padding:1rem 1.15rem 1.2rem; box-shadow:0 22px 65px rgba(29,42,51,.10); }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {{ gap:.25rem; background:var(--rz-soft); border-radius:11px; padding:.25rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {{ flex:1; justify-content:center; border-radius:8px; min-height:2.45rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{ background:var(--rz-surface); box-shadow:var(--rz-shadow-soft); }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.85rem 0 0; box-shadow:none!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; font-weight:780; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(14,174,219,.20)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 13px 28px rgba(14,174,219,.28)!important; }}
+.stApp:has(.rz-login-shell) input {{ min-height:2.7rem; }}
+.stApp:has(.rz-login-shell) footer {{ display:none; }}
 
 {native}
 @media (max-width:1000px) {{ .block-container {{ padding-left:1rem; padding-right:1rem; }} [data-testid="stMetric"] {{ min-height:96px; }} }}
