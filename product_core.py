@@ -150,7 +150,7 @@ def assistant_answer(
         return f"Em {year}, o Razync Pro tem {money(revenue)} de receita registrada. O limite monitorado é {money(annual_limit)} e restam {money(remaining)}."
     if "lucro" in q or "resultado" in q or "sobrou" in q:
         return f"O resultado estimado de {year} é {money(result)}: {money(revenue)} de receitas menos {money(expense)} de despesas registradas."
-    if "despesa" in q or "gasto" in q:
+    if ("despesa" in q or "gasto" in q) and "maior despesa" not in q:
         if year_tx.empty:
             return f"Ainda não há despesas registradas em {year}."
         d = year_tx[year_tx["tx_type"] == "Despesa"]
