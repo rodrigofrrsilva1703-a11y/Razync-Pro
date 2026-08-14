@@ -11,7 +11,7 @@ BUCKET = "documents"
 
 
 def _safe_filename(filename: str) -> str:
-    name = PurePath(filename).name
+    name = PurePath(filename.replace("\\\\", "/")).name
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
     return name[:180] or "documento"
 
