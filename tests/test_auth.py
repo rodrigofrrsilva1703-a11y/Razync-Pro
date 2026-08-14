@@ -84,6 +84,8 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertIn('st.form("signup_form")', app_source)
         self.assertIn('st.form("password_recovery_form")', app_source)
         self.assertIn("supabase_sign_in", app_source)
+        self.assertIn("github_sign_in", app_source)
+        self.assertIn("Entrar como desenvolvedor com GitHub", app_source)
         self.assertIn('st.button("Sair"', app_source)
         workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
         self.assertEqual(
