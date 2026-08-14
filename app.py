@@ -15,7 +15,7 @@ from database import (
     list_obligations, list_transactions, save_document, save_profile,
     update_obligation_status, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
-    load_user_snapshot, data_version, DatabaseConnectionError,
+    load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
 )
 from database import database_runtime_info
 from fiscal_rules import (
@@ -32,6 +32,11 @@ from onboarding_tools import onboarding_progress, recommended_setup
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
 from login_security import login_attempt_guard
+from auth_service import (
+    AuthServiceError, is_supabase_auth_configured, reset_password,
+    sign_in as supabase_sign_in, sign_out as supabase_sign_out,
+    sign_up as supabase_sign_up,
+)
 
 CURRENT_YEAR = date.today().year
 
@@ -68,11 +73,18 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 def ensure_login() -> dict:
     """Require an authenticated session before loading any business data."""
+    auth_enabled = is_supabase_auth_configured()
+
     if "user" in st.session_state:
         user = st.session_state["user"]
         with st.sidebar:
             st.caption(f"Conectado como {user['name']}")
             if st.button("Sair", use_container_width=True):
+                if auth_enabled:
+                    supabase_sign_out(
+                        st.session_state.get("access_token", ""),
+                        st.session_state.get("refresh_token", ""),
+                    )
                 for key in list(st.session_state):
                     del st.session_state[key]
                 st.rerun()
@@ -80,7 +92,15 @@ def ensure_login() -> dict:
 
     st.title("Razync Pro")
     st.caption("Gestão financeira e fiscal para MEI")
-    login_tab, signup_tab = st.tabs(["Entrar", "Criar conta"])
+    if not auth_enabled:
+        st.warning(
+            "Supabase Auth ainda não está configurado neste ambiente. "
+            "O acesso temporário de migração está ativo."
+        )
+
+    login_tab, signup_tab, recovery_tab = st.tabs(
+        ["Entrar", "Criar conta", "Recuperar senha"]
+    )
 
     with login_tab:
         with st.form("login_form"):
@@ -95,16 +115,26 @@ def ensure_login() -> dict:
                 retry_after = login_attempt_guard.retry_after(email)
                 if retry_after:
                     minutes = max(1, (retry_after + 59) // 60)
-                    st.error(
-                        f"Muitas tentativas. Tente novamente em {minutes} minuto(s)."
-                    )
+                    st.error(f"Muitas tentativas. Tente novamente em {minutes} minuto(s).")
                 else:
                     try:
-                        user = authenticate(email, password)
-                    except DatabaseConnectionError as exc:
-                        st.error("Não foi possível acessar sua conta agora.")
-                        st.warning(str(exc))
-                        st.stop()
+                        if auth_enabled:
+                            identity = supabase_sign_in(email, password)
+                            user = resolve_supabase_user(
+                                identity["auth_user_id"],
+                                identity["email"],
+                                identity.get("name", ""),
+                            )
+                            st.session_state["access_token"] = identity["access_token"]
+                            st.session_state["refresh_token"] = identity["refresh_token"]
+                        else:
+                            user = authenticate(email, password)
+                    except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
+                        user = None
+                        if isinstance(exc, DatabaseConnectionError):
+                            st.error("Não foi possível acessar sua conta agora.")
+                            st.warning(str(exc))
+
                     if user:
                         login_attempt_guard.record_success(email)
                         st.session_state["user"] = user
@@ -113,49 +143,77 @@ def ensure_login() -> dict:
                     retry_after = login_attempt_guard.record_failure(email)
                     if retry_after:
                         minutes = max(1, (retry_after + 59) // 60)
-                        st.error(
-                            f"Muitas tentativas. Tente novamente em {minutes} minuto(s)."
-                        )
+                        st.error(f"Muitas tentativas. Tente novamente em {minutes} minuto(s).")
                     else:
-                        st.error("E-mail ou senha inválidos.")
+                        st.error("E-mail ou senha inválidos, ou e-mail ainda não confirmado.")
 
     with signup_tab:
         with st.form("signup_form"):
             name = st.text_input("Nome", key="signup_name").strip()
             email = st.text_input("E-mail", key="signup_email").strip()
             password = st.text_input(
-                "Senha",
-                type="password",
-                key="signup_password",
+                "Senha", type="password", key="signup_password",
                 help="Use pelo menos 8 caracteres.",
             )
-            password_confirmation = st.text_input(
-                "Confirmar senha",
-                type="password",
+            confirmation = st.text_input(
+                "Confirmar senha", type="password",
                 key="signup_password_confirmation",
             )
             submitted = st.form_submit_button("Criar conta", use_container_width=True)
 
         if submitted:
-            if password != password_confirmation:
+            if password != confirmation:
                 st.error("As senhas não coincidem.")
+            elif auth_enabled:
+                try:
+                    identity = supabase_sign_up(name, email, password)
+                    if identity["confirmed"]:
+                        user = resolve_supabase_user(
+                            identity["auth_user_id"], identity["email"], identity["name"]
+                        )
+                        st.session_state["access_token"] = identity["access_token"]
+                        st.session_state["refresh_token"] = identity["refresh_token"]
+                        st.session_state["user"] = user
+                        st.rerun()
+                    st.success("Conta criada. Confirme o e-mail antes de entrar.")
+                except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
+                    st.error(str(exc))
             else:
                 try:
                     created, message = create_user(name, email, password)
                 except DatabaseConnectionError as exc:
                     st.error("Não foi possível criar sua conta agora.")
                     st.warning(str(exc))
-                    st.stop()
-                if created:
-                    user = authenticate(email, password)
-                    if user:
-                        st.session_state["user"] = user
-                        st.success(message)
-                        st.rerun()
                 else:
-                    st.error(message)
+                    if created:
+                        user = authenticate(email, password)
+                        if user:
+                            st.session_state["user"] = user
+                            st.success(message)
+                            st.rerun()
+                    else:
+                        st.error(message)
+
+    with recovery_tab:
+        if auth_enabled:
+            with st.form("password_recovery_form"):
+                email = st.text_input("E-mail", key="recovery_email").strip()
+                submitted = st.form_submit_button(
+                    "Enviar recuperação", use_container_width=True
+                )
+            if submitted:
+                try:
+                    reset_password(email)
+                    st.success(
+                        "Se existir uma conta com este e-mail, enviaremos as instruções."
+                    )
+                except AuthServiceError as exc:
+                    st.error(str(exc))
+        else:
+            st.info("A recuperação estará disponível após configurar o Supabase Auth.")
 
     st.stop()
+
 
 def tx_df(uid: int) -> pd.DataFrame:
     df = pd.DataFrame(list_transactions(uid))
