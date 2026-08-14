@@ -27,6 +27,12 @@ a = app.read_text(encoding='utf-8')
 a = a.replace('st.session_state["_navigate_to"] = "Central Fiscal"', 'st.session_state["_navigate_to"] = "DAS"')
 a = a.replace('st.session_state["_navigate_to"]="Central Fiscal"', 'st.session_state["_navigate_to"]="DAS"')
 
+old_sidebar = '''    if page == "Dashboard":\n        st.info("⌂ Início")\n    elif st.button("⌂ Início", key="nav_home", width="stretch"):\n        st.session_state["_navigate_to"] = "Dashboard"\n        st.rerun()\n    groups = {\n        "Financeiro": NAV_GROUPS["Financeiro"],\n        "Fiscal MEI": NAV_GROUPS["Fiscal MEI"],\n        "Gestão": NAV_GROUPS["Gestão"],\n        "Relatórios": NAV_GROUPS["Relatórios"],\n        "Configurações": NAV_GROUPS["Configurações"],\n    }\n'''
+new_sidebar = '''    if page == "Dashboard":\n        st.info("⌂ Início")\n    elif st.button("⌂ Início", key="nav_home", width="stretch"):\n        st.session_state["_navigate_to"] = "Dashboard"\n        st.rerun()\n    if page == "Assistente Razync":\n        st.info("Assistente Razync")\n    elif st.button("Assistente Razync", key="nav_assistant", width="stretch"):\n        st.session_state["_navigate_to"] = "Assistente Razync"\n        st.rerun()\n    groups = {\n        "Financeiro": NAV_GROUPS["Financeiro"],\n        "Fiscal MEI": NAV_GROUPS["Fiscal MEI"],\n        "Gestão": NAV_GROUPS["Gestão"],\n        "Configurações": NAV_GROUPS["Configurações"],\n    }\n'''
+if old_sidebar not in a:
+    raise SystemExit('sidebar navigation block not found')
+a = a.replace(old_sidebar, new_sidebar, 1)
+
 def remove_block(source: str, start: str, end: str) -> str:
     start_idx = source.find(start)
     if start_idx < 0:
