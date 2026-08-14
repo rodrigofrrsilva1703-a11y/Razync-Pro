@@ -53,10 +53,16 @@ a = a.replace(
     'monthly_report_pdf(profile,month,year,r["with_doc"],r["without_doc"],r["services"],r["sales"])',
     'monthly_report_pdf(profile, year, [r])',
 )
+a = a.replace(
+    'das_due_date(year,month)',
+    'das_due_date(competence)',
+)
 if 'financial_summary_pdf(profile, analysis_year, analysis, checks)' in a:
     raise SystemExit('financial PDF call was not repaired')
 if 'monthly_report_pdf(profile,month,year,r["with_doc"]' in a:
     raise SystemExit('monthly PDF call was not repaired')
+if 'das_due_date(year,month)' in a:
+    raise SystemExit('DAS due-date call was not repaired')
 ap.write_text(a, encoding='utf-8')
 
 print('Functional repair patch applied')
