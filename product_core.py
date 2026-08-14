@@ -12,7 +12,7 @@ NAV_GROUPS = {
     "Financeiro": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
     "Fiscal MEI": ["DAS", "DASN-SIMEI", "Obrigações", "Notas Fiscais", "Relatório Mensal", "Fechamento Mensal"],
     "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos"],
-    "Configurações": ["Primeiros Passos", "Meu MEI", "Segurança da Conta", "Status do Sistema", "Backup"],
+    "Configurações": ["Primeiros Passos", "Meu MEI", "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
 }
 
 

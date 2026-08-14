@@ -254,6 +254,19 @@ obligations = Table(
 )
 
 
+audit_logs = Table(
+    "audit_logs", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("table_name", String(80), nullable=False),
+    Column("record_id", String(80)),
+    Column("action", String(10), nullable=False),
+    Column("old_data", Text),
+    Column("new_data", Text),
+    Column("created_at", DateTime, default=datetime.utcnow, nullable=False),
+)
+
+
 _USER_VERSION: dict[int, int] = {}
 _READ_CACHE: dict[tuple[str, int], tuple[float, Any]] = {}
 _READ_CACHE_TTL = 30.0
@@ -865,3 +878,23 @@ def delete_obligation(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(obligations).where(obligations.c.user_id == user_id, obligations.c.id == item_id))
     _cache_invalidate("obligations", user_id)
+
+
+def list_audit_logs(user_id: int, limit: int = 200) -> list[dict[str, Any]]:
+    safe_limit = max(1, min(int(limit), 500))
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(
+                audit_logs.c.id,
+                audit_logs.c.table_name,
+                audit_logs.c.record_id,
+                audit_logs.c.action,
+                audit_logs.c.old_data,
+                audit_logs.c.new_data,
+                audit_logs.c.created_at,
+            )
+            .where(audit_logs.c.user_id == user_id)
+            .order_by(audit_logs.c.created_at.desc(), audit_logs.c.id.desc())
+            .limit(safe_limit)
+        ).mappings().all()
+    return [dict(row) for row in rows]
