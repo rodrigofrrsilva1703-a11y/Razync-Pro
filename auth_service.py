@@ -147,12 +147,26 @@ def github_sign_in(code: str, state: str) -> dict[str, Any]:
             "client_id": _secret("GITHUB_CLIENT_ID"),
             "client_secret": _secret("GITHUB_CLIENT_SECRET"),
             "code": code,
-            "redirect_uri": _app_url(),
         },
     )
     access_token = str(token_data.get("access_token") or "")
     if not access_token:
-        raise AuthServiceError("O GitHub não autorizou este acesso.")
+        error_code = str(token_data.get("error") or "")
+        safe_messages = {
+            "bad_verification_code": (
+                "O código retornado pelo GitHub expirou ou já foi usado. "
+                "Volte à tela inicial e tente entrar novamente."
+            ),
+            "incorrect_client_credentials": (
+                "O Client ID ou Client Secret do GitHub não corresponde ao OAuth App."
+            ),
+            "redirect_uri_mismatch": (
+                "A URL de retorno do GitHub não corresponde à URL cadastrada no OAuth App."
+            ),
+        }
+        raise AuthServiceError(
+            safe_messages.get(error_code, "O GitHub não autorizou este acesso.")
+        )
 
     profile = _github_json_request(f"{GITHUB_API_URL}/user", token=access_token)
     login = str(profile.get("login") or "")
