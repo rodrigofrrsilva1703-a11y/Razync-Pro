@@ -48,6 +48,8 @@ from session_persistence import (
 )
 from brand_assets import brand_logo_data_uri, ensure_brand_assets
 from document_intelligence import CATEGORIES as DOCUMENT_CATEGORIES, analyze_document
+from demo_mode import render_demo
+from legal_content import PRIVACY_NOTICE, PRIVACY_VERSION, TERMS_OF_USE
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -173,6 +175,10 @@ def ensure_login() -> dict:
                 st.rerun()
         return user
 
+    if st.session_state.get("_demo_mode"):
+        render_demo()
+        st.stop()
+
     st.markdown(
         f"""
         <div class="rz-login-shell">
@@ -200,6 +206,11 @@ def ensure_login() -> dict:
             "Supabase Auth ainda não está configurado neste ambiente. "
             "O acesso temporário de migração está ativo."
         )
+
+    if st.button("Explorar demonstração sem criar conta", width="stretch"):
+        st.session_state["_demo_mode"] = True
+        st.rerun()
+    st.caption("A demonstração usa somente dados fictícios e não grava informações.")
 
     login_tab, signup_tab, recovery_tab = st.tabs(
         ["Entrar", "Criar conta", "Recuperar senha"]
@@ -279,10 +290,16 @@ def ensure_login() -> dict:
                 "Confirmar senha", type="password",
                 key="signup_password_confirmation",
             )
+            consent = st.checkbox(
+                f"Li e aceito os Termos de Uso e a Política de Privacidade (versão {PRIVACY_VERSION}).",
+                key="signup_legal_consent",
+            )
             submitted = st.form_submit_button("Criar conta", width="stretch")
 
         if submitted:
-            if password != confirmation:
+            if not consent:
+                st.error("Aceite os Termos de Uso e a Política de Privacidade para criar a conta.")
+            elif password != confirmation:
                 st.error("As senhas não coincidem.")
             elif auth_enabled:
                 try:
@@ -333,6 +350,10 @@ def ensure_login() -> dict:
         else:
             st.info("A recuperação estará disponível após configurar o Supabase Auth.")
 
+    with st.expander("Privacidade e Termos de Uso"):
+        st.markdown(PRIVACY_NOTICE)
+        st.markdown(TERMS_OF_USE)
+        st.caption(f"Versão vigente: {PRIVACY_VERSION}")
     st.markdown('<div class="rz-login-security">🔒 Conexão segura · seus dados permanecem privados</div>', unsafe_allow_html=True)
     st.stop()
 
