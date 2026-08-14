@@ -1,9 +1,8 @@
 from pathlib import Path
-import re
 
-# Streamlit 1.61+: replace deprecated width argument everywhere in Python sources.
+# Streamlit 1.61+: replace deprecated width argument in production Python sources.
 for path in Path('.').rglob('*.py'):
-    if any(part in {'.git', '.venv', 'venv'} for part in path.parts):
+    if any(part in {'.git', '.venv', 'venv', 'scripts'} for part in path.parts):
         continue
     text = path.read_text(encoding='utf-8')
     updated = text.replace('use_container_width=True', 'width="stretch"')
@@ -22,7 +21,7 @@ text = text.replace(old, new, 1)
 text = text.replace('"page": "Central Fiscal"', '"page": "Análise Financeira"')
 pc.write_text(text, encoding='utf-8')
 
-# Remove the two intermediary-only page blocks and point the dashboard fiscal shortcut directly to DAS.
+# Remove intermediary-only pages and point fiscal shortcut directly to DAS.
 app = Path('app.py')
 a = app.read_text(encoding='utf-8')
 a = a.replace('st.session_state["_navigate_to"] = "Central Fiscal"', 'st.session_state["_navigate_to"] = "DAS"')
@@ -41,9 +40,10 @@ a = remove_block(a, 'elif page == "Central Fiscal":', 'elif page == "Fechamento 
 a = remove_block(a, 'elif page == "Central de Relatórios":', 'elif page == "Assistente Razync":')
 app.write_text(a, encoding='utf-8')
 
-# Ensure no deprecated Streamlit width argument remains in production Python files.
 remaining = []
 for path in Path('.').rglob('*.py'):
+    if any(part in {'.git', '.venv', 'venv', 'scripts'} for part in path.parts):
+        continue
     if 'use_container_width=' in path.read_text(encoding='utf-8'):
         remaining.append(str(path))
 if remaining:
