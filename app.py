@@ -32,6 +32,7 @@ from onboarding_tools import onboarding_progress, recommended_setup
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
 from login_security import login_attempt_guard
+from storage_service import download_document, remove_document, upload_document
 from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
     sign_in as supabase_sign_in, sign_out as supabase_sign_out,
@@ -69,6 +70,49 @@ def header(title: str, subtitle: str) -> None:
 
 def alert_box(level: str, title: str, text: str) -> None:
     alert_card(level, title, text)
+
+
+def document_bytes(document: dict) -> bytes:
+    if document.get("storage_path"):
+        return download_document(
+            st.session_state.get("access_token", ""),
+            st.session_state.get("refresh_token", ""),
+            document["storage_path"],
+        )
+    return document.get("content") or b""
+
+
+def save_uploaded_document(
+    user: dict, uploaded, category: str, reference_month: str
+) -> None:
+    if user.get("auth_user_id") and st.session_state.get("access_token"):
+        storage_path = upload_document(
+            user["auth_user_id"],
+            st.session_state["access_token"],
+            st.session_state["refresh_token"],
+            uploaded.name,
+            uploaded.getvalue(),
+            uploaded.type,
+        )
+        save_document(
+            int(user["id"]), uploaded.name, uploaded.type, None,
+            category, reference_month, storage_path=storage_path,
+        )
+    else:
+        save_document(
+            int(user["id"]), uploaded.name, uploaded.type, uploaded.getvalue(),
+            category, reference_month,
+        )
+
+
+def remove_saved_document(user_id: int, document: dict) -> None:
+    if document.get("storage_path"):
+        remove_document(
+            st.session_state.get("access_token", ""),
+            st.session_state.get("refresh_token", ""),
+            document["storage_path"],
+        )
+    delete_document(user_id, int(document["id"]))
 
 
 def ensure_login() -> dict:
@@ -857,7 +901,13 @@ elif page == "Documentos":
         up=st.file_uploader("Escolha um arquivo",key="docup")
         a,b=st.columns(2); category=a.selectbox("Tipo de documento",["Nota Fiscal","Comprovante","Extrato Bancário","DAS","Contrato","Outro"]); reference=b.text_input("Competência",placeholder="AAAA-MM")
         if st.button("Salvar documento",type="primary",use_container_width=True,disabled=up is None):
-            if up: save_document(uid,up.name,up.type,up.getvalue(),category,reference.strip()); st.rerun()
+            if up:
+                try:
+                    save_uploaded_document(user, up, category, reference.strip())
+                except Exception:
+                    st.error("Não foi possível armazenar o documento agora.")
+                else:
+                    st.rerun()
     section("Arquivos salvos")
     if not docs:
         empty_state("Nenhum documento salvo", "Adicione comprovantes, notas e extratos. Eles ficam organizados por tipo e competência para facilitar os fechamentos.", "▱")
@@ -865,10 +915,25 @@ elif page == "Documentos":
         ddf=pd.DataFrame(docs); st.dataframe(ddf,use_container_width=True,hide_index=True)
         did=st.selectbox("Abrir documento",[d["id"] for d in docs],format_func=lambda x:next(d["filename"] for d in docs if d["id"]==x))
         selected=get_document(uid,int(did))
-        if selected: st.download_button("Baixar arquivo",selected["content"],file_name=selected["filename"],mime=selected["mime_type"] or "application/octet-stream")
+        if selected:
+            try:
+                content = document_bytes(selected)
+            except Exception:
+                st.error("Não foi possível baixar o documento agora.")
+            else:
+                st.download_button(
+                    "Baixar arquivo", content, file_name=selected["filename"],
+                    mime=selected["mime_type"] or "application/octet-stream",
+                )
         with st.expander("Excluir documento"):
             st.caption("A exclusão remove o arquivo armazenado no Razync.")
-            if st.button("Excluir documento selecionado",use_container_width=True): delete_document(uid,int(did)); st.rerun()
+            if st.button("Excluir documento selecionado",use_container_width=True):
+                try:
+                    remove_saved_document(uid, selected)
+                except Exception:
+                    st.error("Não foi possível excluir o documento agora.")
+                else:
+                    st.rerun()
         st.subheader("Cobertura documental")
         coverage=document_coverage(docs,CURRENT_YEAR); st.dataframe(coverage,use_container_width=True,hide_index=True)
 
@@ -955,11 +1020,11 @@ elif page == "Status do Sistema":
     st.write("• PostgreSQL/Supabase:","configurado" if runtime["persistent"] else "pendente")
     st.write("• NFS-e Nacional: preparação funcional; credenciais/API externa pendentes")
     st.write("• Integrações bancárias diretas: pendentes; importação de arquivo já disponível")
-    st.write("• Armazenamento externo de documentos: pendente; documentos ainda ficam no banco da aplicação")
+    st.write("• Documentos: Supabase Storage privado quando a conta usa Supabase Auth; fallback legado durante a migração")
 
 elif page == "Backup":
     header("Backup","Baixe um pacote dos dados para manter uma cópia independente.")
-    backup=build_backup_zip(profile,transactions,invoices,das_rows,obligations,contacts,employees,docs,lambda doc_id:get_document(uid,doc_id))
+    backup=build_backup_zip(profile,transactions,invoices,das_rows,obligations,contacts,employees,docs,lambda doc_id:(lambda d: {**d, "content": document_bytes(d)} if d else None)(get_document(uid,doc_id)))
     st.download_button("Baixar backup completo (.zip)",backup,file_name=f"backup_razync_{date.today().isoformat()}.zip",mime="application/zip",use_container_width=True)
     st.caption("O pacote inclui dados em CSV/JSON e os documentos salvos no Razync Pro.")
 

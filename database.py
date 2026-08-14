@@ -549,9 +549,29 @@ def list_das(user_id: int) -> list[dict[str, Any]]:
     return _cache_set("das", user_id, [dict(r) for r in rows])
 
 
-def save_document(user_id: int, filename: str, mime_type: str, content: bytes, category: str, reference_month: str = "") -> None:
+def save_document(
+    user_id: int,
+    filename: str,
+    mime_type: str,
+    content: bytes | None,
+    category: str,
+    reference_month: str = "",
+    storage_path: str | None = None,
+) -> None:
+    if content is None and not storage_path:
+        raise ValueError("Documento sem conteúdo ou caminho de armazenamento.")
     with engine.begin() as conn:
-        conn.execute(insert(documents).values(user_id=user_id, filename=filename, mime_type=mime_type, content=content, category=category, reference_month=reference_month))
+        conn.execute(
+            insert(documents).values(
+                user_id=user_id,
+                filename=filename,
+                mime_type=mime_type,
+                content=content,
+                storage_path=storage_path,
+                category=category,
+                reference_month=reference_month,
+            )
+        )
     _cache_invalidate("documents", user_id)
 
 
