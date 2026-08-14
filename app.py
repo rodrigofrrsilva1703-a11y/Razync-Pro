@@ -15,6 +15,8 @@ from database import (
     update_obligation_status, update_transaction, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
+    add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
+    materialize_due_recurring, set_recurring_transaction_active,
 )
 from database import database_runtime_info
 from fiscal_rules import (
@@ -29,6 +31,7 @@ from product_core import NAV_GROUPS, group_for_page, action_items, reconciliatio
 from backup_tools import backup_checksum, build_backup_zip, document_coverage
 from onboarding_tools import onboarding_progress, recommended_setup
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
+from automation_tools import financial_projection, upcoming_deadlines
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
 from ui_helpers import MONTH_NAMES_PT, filter_transactions, paginate_frame
 from login_security import login_attempt_guard
@@ -418,6 +421,9 @@ def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list
 
 user = ensure_login()
 uid = int(user["id"])
+generated_recurring = materialize_due_recurring(uid)
+if generated_recurring:
+    st.toast(f"{generated_recurring} lançamento(s) recorrente(s) gerado(s).", icon="✓")
 
 pending_page = st.session_state.pop("_navigate_to", None)
 if pending_page:
@@ -517,6 +523,18 @@ if page == "Dashboard":
     k3.metric("Resultado do mês", brl(month_result))
     k4.metric("Faturamento no ano", brl(year_revenue))
 
+    projection = financial_projection(transactions, limit, CURRENT_YEAR, today)
+    if projection["limit_risk"]:
+        st.warning(
+            f"Projeção anual: {brl(projection['projected_revenue'])} "
+            f"({projection['projected_limit_pct']:.1f}% do limite). Revise o ritmo de faturamento."
+        )
+    else:
+        st.caption(
+            f"Projeção no ritmo atual: {brl(projection['projected_revenue'])} de faturamento "
+            f"e {brl(projection['projected_result'])} de resultado no ano."
+        )
+
     action_col, quick_col = st.columns([1.72, 1], gap="large")
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
     with action_col:
@@ -564,6 +582,19 @@ if page == "Dashboard":
         st.progress(health_score/100)
         if health_notes:
             for note in health_notes[:2]: st.caption(f"• {note}")
+
+    deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
+    section("Próximos 30 dias", "Vencimentos que merecem atenção antes de virarem pendência.")
+    if deadlines:
+        for idx, item in enumerate(deadlines[:5]):
+            due_col, title_col, action_col = st.columns([1.1, 4, 1])
+            due_col.caption(item["date"].strftime("%d/%m"))
+            title_col.write(f"**{item['title']}** · {item['status']}")
+            if action_col.button("Abrir", key=f"deadline_{idx}", use_container_width=True):
+                st.session_state["_navigate_to"] = item["page"]
+                st.rerun()
+    else:
+        st.success("Nenhum vencimento cadastrado para os próximos 30 dias.")
 
     section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
     if transactions.empty:
@@ -679,6 +710,109 @@ elif page == "Movimentações":
             item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
             st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
             if st.button("Excluir lançamento selecionado", use_container_width=True): delete_transaction(uid,int(item)); st.rerun()
+
+elif page == "Recorrências":
+    header(
+        "Lançamentos recorrentes",
+        "Cadastre receitas e despesas que se repetem. O Razync gera cada ocorrência na data correta.",
+    )
+    with st.container(border=True):
+        st.caption("NOVA RECORRÊNCIA")
+        with st.form("recurring_form", clear_on_submit=True):
+            recurring_type = st.segmented_control(
+                "Tipo", ["Receita", "Despesa"], default="Despesa", selection_mode="single"
+            ) or "Despesa"
+            r1, r2 = st.columns(2)
+            recurring_description = r1.text_input("Descrição", placeholder="Ex.: aluguel, internet, mensalidade")
+            recurring_value = r2.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+            r1, r2, r3 = st.columns(3)
+            recurring_category = r1.selectbox(
+                "Categoria",
+                ["Serviços", "Vendas", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"],
+            )
+            recurring_frequency = r2.selectbox("Frequência", ["Mensal", "Semanal", "Anual"])
+            recurring_payment = r3.selectbox(
+                "Forma de pagamento", ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"]
+            )
+            r1, r2 = st.columns(2)
+            recurring_start = r1.date_input("Primeira ocorrência", value=date.today())
+            has_end = r2.checkbox("Definir data final")
+            recurring_end = r2.date_input(
+                "Data final",
+                value=date.today(),
+                disabled=not has_end,
+            )
+            save_recurring = st.form_submit_button(
+                "Salvar recorrência", type="primary", use_container_width=True
+            )
+        if save_recurring:
+            if not recurring_description.strip():
+                st.error("Informe uma descrição.")
+            elif recurring_value <= 0:
+                st.error("Informe um valor maior que zero.")
+            elif has_end and recurring_end < recurring_start:
+                st.error("A data final não pode ser anterior à primeira ocorrência.")
+            else:
+                add_recurring_transaction(
+                    uid,
+                    tx_type=recurring_type,
+                    description=recurring_description.strip(),
+                    category=recurring_category,
+                    value=recurring_value,
+                    payment_method=recurring_payment,
+                    frequency=recurring_frequency,
+                    next_date=recurring_start,
+                    end_date=recurring_end if has_end else None,
+                    active=True,
+                )
+                materialize_due_recurring(uid)
+                st.success("Recorrência criada.")
+                st.rerun()
+
+    recurring_items = list_recurring_transactions(uid)
+    section("Recorrências cadastradas")
+    if not recurring_items:
+        empty_state(
+            "Nenhuma recorrência cadastrada",
+            "Cadastre um pagamento ou recebimento frequente para reduzir lançamentos manuais.",
+            "↻",
+        )
+    else:
+        recurring_df = pd.DataFrame(recurring_items)
+        recurring_df["Situação"] = recurring_df["active"].map({True: "Ativa", False: "Pausada"})
+        st.dataframe(
+            recurring_df[["id", "description", "tx_type", "value", "frequency", "next_date", "Situação"]],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id": None,
+                "description": "Descrição",
+                "tx_type": "Tipo",
+                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                "frequency": "Frequência",
+                "next_date": st.column_config.DateColumn("Próxima ocorrência", format="DD/MM/YYYY"),
+            },
+        )
+        labels = {
+            int(item["id"]): f"#{item['id']} · {item['description']} · {brl(float(item['value']))}"
+            for item in recurring_items
+        }
+        selected_recurring = st.selectbox(
+            "Gerenciar recorrência",
+            list(labels),
+            format_func=lambda item_id: labels[item_id],
+        )
+        selected_item = next(
+            item for item in recurring_items if int(item["id"]) == int(selected_recurring)
+        )
+        manage1, manage2 = st.columns(2)
+        toggle_label = "Pausar recorrência" if selected_item["active"] else "Reativar recorrência"
+        if manage1.button(toggle_label, use_container_width=True):
+            set_recurring_transaction_active(uid, int(selected_recurring), not selected_item["active"])
+            st.rerun()
+        if manage2.button("Excluir recorrência", use_container_width=True):
+            delete_recurring_transaction(uid, int(selected_recurring))
+            st.rerun()
 
 elif page == "Importar Extrato":
     header("Importar Extrato","Envie CSV ou Excel. O Razync transforma o extrato em lançamentos para conciliação e relatórios.")
@@ -1075,12 +1209,12 @@ elif page == "Central de Relatórios":
 
 elif page == "Assistente Razync":
     header("Assistente Razync","Faça perguntas simples sobre os dados que já estão no sistema.")
-    prompts=["Quanto ainda posso faturar?","Qual é o meu resultado?","Quanto gastei?","Tenho DAS atrasado?","Como estão minhas notas?"]
+    prompts=["Quanto ainda posso faturar?","Compare este mês com o anterior","Qual foi minha maior despesa?","Quanto faturei no trimestre?","Tenho documentos faltando?","Qual é o próximo vencimento?","Tenho DAS atrasado?","Como estão minhas notas?"]
     q=st.text_input("Pergunte sobre seu MEI",placeholder="Ex.: Quanto ainda posso faturar neste ano?")
     choice=st.selectbox("Ou escolha uma pergunta",["Escolha..."]+prompts)
     if choice!="Escolha...": q=choice
     if q:
-        st.success(assistant_answer(q,transactions,invoices,das_rows,limit,CURRENT_YEAR))
+        st.success(assistant_answer(q, transactions, invoices, das_rows, limit, CURRENT_YEAR, obligations=obligations, documents=docs))
     st.caption("As respostas usam os registros do Razync Pro e não substituem análise profissional ou consulta aos portais oficiais.")
 
 elif page == "Primeiros Passos":
