@@ -937,7 +937,7 @@ elif page == "Análise Financeira":
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.dataframe(monthly,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
     st.subheader("Despesas por categoria")
-    bycat = analysis["expense_by_category"]
+    bycat = analysis["expense_categories"]
     if bycat.empty: st.info("Sem despesas registradas neste ano.")
     else:
         fig2 = px.bar(bycat, x="Categoria", y="Valor", template=PLOT_TEMPLATE)
@@ -995,9 +995,32 @@ elif page == "Fechamento Mensal":
     a,b,c,d=st.columns(4)
     a.metric("Receitas",brl(closing["revenue"])); b.metric("Despesas",brl(closing["expense"])); c.metric("Resultado",brl(closing["result"])); d.metric("Organização",f"{closing['score']}%")
     st.progress(closing["score"]/100)
-    for item in closing["checks"]:
-        if item["ok"]: st.success(item["text"])
-        else: st.warning(item["text"])
+    section("Etapas do fechamento", "Resolva as pendências na ordem sugerida e volte para conferir o progresso.")
+    closing_routes = {
+        "Movimentações do mês revisadas": "Movimentações",
+        "Receitas registradas": "Movimentações",
+        "DAS da competência criado": "DAS",
+        "Documentos da competência armazenados": "Documentos",
+        "Lançamentos com documento informado": "Movimentações",
+        "Notas fiscais conferidas": "Notas Fiscais",
+    }
+    for index, item in enumerate(closing["checklist"], start=1):
+        status_col, detail_col, action_col = st.columns([.7, 4.8, 1.2])
+        status_col.markdown("### ✓" if item["OK"] else f"### {index}")
+        detail_col.write(f"**{item['Item']}**")
+        detail_col.caption(item["Detalhe"])
+        if not item["OK"]:
+            route = closing_routes[item["Item"]]
+            if action_col.button("Resolver", key=f"closing_step_{index}", use_container_width=True):
+                st.session_state["_navigate_to"] = route
+                st.rerun()
+
+    if closing["score"] == 100:
+        st.success("Fechamento pronto: todas as etapas foram concluídas.")
+    else:
+        pending_count = sum(1 for item in closing["checklist"] if not item["OK"])
+        st.info(f"Faltam {pending_count} etapa(s) para concluir este fechamento.")
+
     closing_pdf = closing_summary_pdf(profile, close_year, close_month, closing)
     st.download_button("Baixar fechamento em PDF",closing_pdf,file_name=f"fechamento_{close_year}_{close_month:02d}.pdf",mime="application/pdf",use_container_width=True)
 

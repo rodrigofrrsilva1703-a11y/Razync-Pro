@@ -68,7 +68,7 @@ def monthly_closing(transactions: pd.DataFrame, invoices: pd.DataFrame, document
 def financial_analysis(transactions: pd.DataFrame, year: int) -> dict:
     if transactions.empty:
         empty = pd.DataFrame(columns=["Categoria", "Valor"])
-        return {"revenue": 0.0, "expenses": 0.0, "result": 0.0, "margin": 0.0, "expense_categories": empty, "monthly": pd.DataFrame()}
+        return {"revenue": 0.0, "expense": 0.0, "result": 0.0, "margin": 0.0, "expense_categories": empty, "monthly": pd.DataFrame()}
 
     cur = transactions[transactions["tx_date"].dt.year == year].copy()
     revenue = float(cur[cur["tx_type"] == "Receita"]["value"].sum())
