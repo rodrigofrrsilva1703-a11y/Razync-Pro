@@ -1,0 +1,3 @@
+[deployment]
+production_url = "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/"
+platform = "Streamlit Community Cloud"
