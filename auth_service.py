@@ -6,6 +6,11 @@ from typing import Any
 from supabase import Client, create_client
 
 
+DEFAULT_SUPABASE_URL = "https://etimfgenlludorrftapb.supabase.co"
+# Publishable keys are designed for public clients; authorization is enforced by RLS.
+DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_NYDzyw9J-lH9dMDuVOnLsg_m7B1H3mF"
+
+
 class AuthConfigurationError(RuntimeError):
     pass
 
@@ -26,12 +31,15 @@ def _secret(name: str) -> str:
 
 
 def is_supabase_auth_configured() -> bool:
-    return bool(_secret("SUPABASE_URL") and _secret("SUPABASE_PUBLISHABLE_KEY"))
+    return bool(
+        (_secret("SUPABASE_URL") or DEFAULT_SUPABASE_URL)
+        and (_secret("SUPABASE_PUBLISHABLE_KEY") or DEFAULT_SUPABASE_PUBLISHABLE_KEY)
+    )
 
 
 def _client() -> Client:
-    url = _secret("SUPABASE_URL")
-    key = _secret("SUPABASE_PUBLISHABLE_KEY")
+    url = _secret("SUPABASE_URL") or DEFAULT_SUPABASE_URL
+    key = _secret("SUPABASE_PUBLISHABLE_KEY") or DEFAULT_SUPABASE_PUBLISHABLE_KEY
     if not url or not key:
         raise AuthConfigurationError(
             "SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY não estão configurados."
