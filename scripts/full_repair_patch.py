@@ -16,23 +16,34 @@ if old2 in s:
     s = s.replace(old2, new2, 1)
 elif 'if generated < max_occurrences:' not in s:
     raise SystemExit('recurring cap block not found')
-
 p.write_text(s, encoding='utf-8')
 
 bp = Path('business_tools.py')
 bs = bp.read_text(encoding='utf-8')
-marker = '''def financial_analysis(transactions: pd.DataFrame, year: int) -> dict:\n'''
-pos = bs.find(marker)
-if pos < 0:
-    raise SystemExit('financial_analysis not found')
-head, tail = bs[:pos], bs[pos:]
-old3 = '''        "expenses": expenses,\n        "result": result,\n'''
-new3 = '''        "expense": expenses,\n        "expenses": expenses,\n        "result": result,\n'''
-if old3 in tail:
-    tail = tail.replace(old3, new3, 1)
-elif '"expense": expenses' not in tail:
-    raise SystemExit('financial analysis return block not found')
-bs = head + tail
-bp.write_text(bs, encoding='utf-8')
 
+# Keep the monthly closing contract compatible with every UI consumer.
+closing_marker = '''def monthly_closing(transactions: pd.DataFrame, invoices: pd.DataFrame, documents: list[dict], das_rows: list[dict], year: int, month: int) -> dict:\n'''
+financial_marker = '''def financial_analysis(transactions: pd.DataFrame, year: int) -> dict:\n'''
+closing_pos = bs.find(closing_marker)
+financial_pos = bs.find(financial_marker)
+if closing_pos < 0 or financial_pos < 0:
+    raise SystemExit('business tool functions not found')
+closing_head = bs[:closing_pos]
+closing_body = bs[closing_pos:financial_pos]
+financial_body = bs[financial_pos:]
+closing_old = '''        "expenses": expenses,\n        "result": result,\n'''
+closing_new = '''        "expense": expenses,\n        "expenses": expenses,\n        "result": result,\n'''
+if closing_old in closing_body:
+    closing_body = closing_body.replace(closing_old, closing_new, 1)
+elif '"expense": expenses' not in closing_body:
+    raise SystemExit('monthly closing return block not found')
+
+financial_old = '''        "expenses": expenses,\n        "result": result,\n'''
+financial_new = '''        "expense": expenses,\n        "expenses": expenses,\n        "result": result,\n'''
+if financial_old in financial_body:
+    financial_body = financial_body.replace(financial_old, financial_new, 1)
+elif '"expense": expenses' not in financial_body:
+    raise SystemExit('financial analysis return block not found')
+
+bp.write_text(closing_head + closing_body + financial_body, encoding='utf-8')
 print('Functional repair patch applied')
