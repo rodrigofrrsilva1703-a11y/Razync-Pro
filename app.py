@@ -16,7 +16,7 @@ from database import (
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
     add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
-    materialize_due_recurring, set_recurring_transaction_active, list_audit_logs,
+    materialize_due_recurring, set_recurring_transaction_active, list_audit_logs, add_transactions_bulk,
 )
 from database import database_runtime_info
 from fiscal_rules import (
@@ -872,13 +872,24 @@ elif page == "Importar Extrato":
                     rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
                     st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
                     if st.button("Confirmar importação", type="primary", width="stretch"):
-                        count=0
-                        for _,r in rows_to_import.iterrows():
-                            add_transaction(uid, tx_date=r["tx_date"], tx_type=r["tx_type"], description=r["description"], category=r["Categoria sugerida"], value=float(r["value"]), document_number="", counterparty="", payment_method="Banco")
-                            count+=1
-                        st.success(f"{count} lançamento(s) importados.")
-                        st.session_state["_navigate_to"] = "Movimentações"
-                        st.rerun()
+                        import_rows=[{
+                            "tx_date":r["tx_date"],
+                            "tx_type":r["tx_type"],
+                            "description":r["description"],
+                            "category":r["Categoria sugerida"],
+                            "value":float(r["value"]),
+                            "document_number":"",
+                            "counterparty":"",
+                            "payment_method":"Banco",
+                        } for _,r in rows_to_import.iterrows()]
+                        try:
+                            count=add_transactions_bulk(uid,import_rows)
+                        except Exception:
+                            st.error("A importação foi cancelada e nenhum lançamento foi salvo. Revise o arquivo e tente novamente.")
+                        else:
+                            st.success(f"{count} lançamento(s) importados em uma única operação.")
+                            st.session_state["_navigate_to"] = "Movimentações"
+                            st.rerun()
         except Exception as exc:
             st.error(f"Não foi possível ler o arquivo: {exc}")
 
