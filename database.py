@@ -898,3 +898,26 @@ def list_audit_logs(user_id: int, limit: int = 200) -> list[dict[str, Any]]:
             .limit(safe_limit)
         ).mappings().all()
     return [dict(row) for row in rows]
+
+
+def add_transactions_bulk(user_id: int, rows: list[dict[str, Any]]) -> int:
+    """Insert a statement import in one transaction; any failure rolls back every row."""
+    prepared = []
+    for row in rows:
+        prepared.append({
+            "user_id": user_id,
+            "tx_date": row["tx_date"],
+            "tx_type": row["tx_type"],
+            "description": str(row["description"]).strip(),
+            "category": str(row.get("category") or "Outros"),
+            "value": row["value"],
+            "document_number": str(row.get("document_number") or ""),
+            "counterparty": str(row.get("counterparty") or ""),
+            "payment_method": str(row.get("payment_method") or "Banco"),
+        })
+    if not prepared:
+        return 0
+    with engine.begin() as conn:
+        conn.execute(insert(transactions), prepared)
+    _cache_invalidate("transactions", user_id)
+    return len(prepared)
