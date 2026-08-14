@@ -8,11 +8,10 @@ import pandas as pd
 from fiscal_rules import das_status
 
 NAV_GROUPS = {
-    "Visão Geral": ["Dashboard"],
+    "Visão Geral": ["Dashboard", "Assistente Razync"],
     "Financeiro": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
-    "Fiscal MEI": ["Central Fiscal", "Fechamento Mensal", "Relatório Mensal", "Notas Fiscais", "DAS", "DASN-SIMEI", "Obrigações"],
+    "Fiscal MEI": ["DAS", "DASN-SIMEI", "Obrigações", "Notas Fiscais", "Relatório Mensal", "Fechamento Mensal"],
     "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos"],
-    "Relatórios": ["Central de Relatórios", "Assistente Razync"],
     "Configurações": ["Primeiros Passos", "Meu MEI", "Segurança da Conta", "Status do Sistema", "Backup"],
 }
 
@@ -48,7 +47,7 @@ def action_items(
 
     if annual_limit and annual_revenue / annual_limit >= 0.80:
         pct = annual_revenue / annual_limit * 100
-        items.append({"priority": 1 if pct >= 90 else 2, "title": "Atenção ao limite do MEI", "detail": f"O faturamento registrado já representa {pct:.1f}% do limite monitorado.", "page": "Central Fiscal"})
+        items.append({"priority": 1 if pct >= 90 else 2, "title": "Atenção ao limite do MEI", "detail": f"O faturamento registrado já representa {pct:.1f}% do limite monitorado.", "page": "Análise Financeira"})
 
     if not invoices.empty:
         documented = set(transactions.get("document_number", pd.Series(dtype=str)).fillna("").astype(str)) if not transactions.empty else set()
