@@ -206,37 +206,47 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stMain"] {{
   background:
-    radial-gradient(circle at 15% 5%, rgba(14,174,219,.13), transparent 34rem),
-    radial-gradient(circle at 88% 92%, rgba(19,185,232,.09), transparent 30rem),
-    var(--rz-bg)!important;
+    radial-gradient(circle at 8% 8%, rgba(14,174,219,.16), transparent 27rem),
+    radial-gradient(circle at 92% 86%, rgba(8,127,167,.11), transparent 30rem),
+    linear-gradient(160deg, var(--rz-bg) 0%, var(--rz-soft) 100%)!important;
 }}
-.stApp:has(.rz-login-shell) .block-container {{ max-width:1120px; padding-top:clamp(2rem,6vh,5.5rem); }}
-.rz-login-shell {{ max-width:760px; margin:0 auto 2rem; text-align:center; }}
-.rz-login-brand {{ display:flex; align-items:center; justify-content:center; gap:.7rem; margin-bottom:2.1rem; }}
-.rz-login-brand strong {{ font-size:1.35rem; letter-spacing:-.045em; font-weight:900; }}
-.rz-login-brand span {{ color:var(--rz-primary); font-size:.62rem; font-weight:850; letter-spacing:.13em; margin-left:.3rem; vertical-align:.22rem; }}
-.rz-login-mark {{ width:36px; height:36px; border-radius:11px; border:1px solid rgba(19,185,232,.42);
-  background:
-    linear-gradient(30deg, transparent 44%, var(--rz-primary) 45% 51%, transparent 52%),
-    linear-gradient(150deg, transparent 44%, var(--rz-primary) 45% 51%, transparent 52%),
-    radial-gradient(circle, var(--rz-primary) 0 3px, transparent 4px),
-    linear-gradient(145deg, rgba(19,185,232,.20), rgba(19,185,232,.04));
-  box-shadow:0 10px 30px rgba(14,174,219,.14);
+.stApp:has(.rz-login-shell) [data-testid="stMain"]::before {{
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:.28;
+  background-image:linear-gradient(var(--rz-border) 1px,transparent 1px),linear-gradient(90deg,var(--rz-border) 1px,transparent 1px);
+  background-size:54px 54px; mask-image:linear-gradient(to bottom,black,transparent 72%);
 }}
-.rz-login-kicker {{ color:var(--rz-primary); font-size:.72rem; font-weight:820; letter-spacing:.13em; text-transform:uppercase; margin-bottom:.75rem; }}
-.rz-login-shell h1 {{ font-size:clamp(2.15rem,5vw,3.75rem); line-height:1.04; letter-spacing:-.055em; margin:0; font-weight:880; }}
+.stApp:has(.rz-login-shell) .block-container {{ position:relative; z-index:1; max-width:1040px; padding-top:clamp(1.5rem,4.5vh,3.5rem); padding-bottom:2.5rem; }}
+.rz-login-shell {{ max-width:780px; margin:0 auto 1.35rem; text-align:center; }}
+.rz-login-brand {{ display:inline-flex; align-items:center; justify-content:center; gap:.68rem; margin-bottom:1.35rem; padding:.42rem .72rem .42rem .48rem; border:1px solid var(--rz-border); border-radius:999px; background:color-mix(in srgb,var(--rz-surface) 88%,transparent); box-shadow:var(--rz-shadow-soft); backdrop-filter:blur(12px); }}
+.rz-login-brand strong {{ font-size:1.08rem; letter-spacing:-.045em; font-weight:900; }}
+.rz-login-brand span {{ color:var(--rz-primary); font-size:.57rem; font-weight:850; letter-spacing:.13em; margin-left:.25rem; vertical-align:.17rem; }}
+.rz-login-mark {{ width:29px; height:29px; border-radius:9px; border:1px solid rgba(19,185,232,.45);
+  background:linear-gradient(30deg,transparent 44%,var(--rz-primary) 45% 51%,transparent 52%),linear-gradient(150deg,transparent 44%,var(--rz-primary) 45% 51%,transparent 52%),radial-gradient(circle,var(--rz-primary) 0 2.5px,transparent 3.5px),linear-gradient(145deg,rgba(19,185,232,.22),rgba(19,185,232,.04));
+  box-shadow:0 8px 24px rgba(14,174,219,.16);
+}}
+.rz-login-kicker {{ color:var(--rz-primary); font-size:.68rem; font-weight:850; letter-spacing:.14em; text-transform:uppercase; margin-bottom:.65rem; }}
+.rz-login-shell h1 {{ font-size:clamp(2rem,4.5vw,3.35rem); line-height:1.02; letter-spacing:-.055em; margin:0; font-weight:900; }}
 .rz-login-shell h1 em {{ color:var(--rz-primary); font-style:normal; }}
-.rz-login-lead {{ max-width:640px; margin:1.15rem auto 1rem; color:var(--rz-muted)!important; font-size:1rem; line-height:1.65; }}
-.rz-login-benefits {{ display:flex; justify-content:center; flex-wrap:wrap; gap:.55rem; }}
-.rz-login-benefits span {{ color:var(--rz-muted); background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:999px; padding:.42rem .72rem; font-size:.75rem; box-shadow:var(--rz-shadow-soft); }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ max-width:560px; margin:0 auto; background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:18px; padding:1rem 1.15rem 1.2rem; box-shadow:0 22px 65px rgba(29,42,51,.10); }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {{ gap:.25rem; background:var(--rz-soft); border-radius:11px; padding:.25rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {{ flex:1; justify-content:center; border-radius:8px; min-height:2.45rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{ background:var(--rz-surface); box-shadow:var(--rz-shadow-soft); }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.85rem 0 0; box-shadow:none!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; font-weight:780; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(14,174,219,.20)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 13px 28px rgba(14,174,219,.28)!important; }}
-.stApp:has(.rz-login-shell) input {{ min-height:2.7rem; }}
+.rz-login-lead {{ max-width:610px; margin:.9rem auto .9rem; color:var(--rz-muted)!important; font-size:.96rem; line-height:1.6; }}
+.rz-login-benefits {{ display:flex; justify-content:center; flex-wrap:wrap; gap:.48rem; }}
+.rz-login-benefits span {{ color:var(--rz-text); background:color-mix(in srgb,var(--rz-surface) 91%,transparent); border:1px solid var(--rz-border); border-radius:999px; padding:.42rem .68rem; font-size:.72rem; font-weight:650; box-shadow:var(--rz-shadow-soft); }}
+.rz-login-benefits b {{ color:var(--rz-primary); font-size:.61rem; letter-spacing:.06em; margin-right:.25rem; }}
+.rz-login-proof {{ display:flex; align-items:center; justify-content:center; gap:.62rem; color:var(--rz-muted); font-size:.68rem; margin-top:.72rem; }}
+.rz-login-proof i {{ width:3px; height:3px; border-radius:50%; background:var(--rz-primary); }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ max-width:520px; margin:0 auto; background:color-mix(in srgb,var(--rz-surface) 96%,transparent); border:1px solid var(--rz-border); border-radius:20px; padding:.82rem 1.15rem 1.05rem; box-shadow:0 24px 75px rgba(29,42,51,.13),0 2px 8px rgba(29,42,51,.05); backdrop-filter:blur(18px); }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {{ gap:.2rem; background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:11px; padding:.22rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {{ flex:1; justify-content:center; border-radius:8px; min-height:2.35rem; font-weight:680; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{ color:var(--rz-primary)!important; background:var(--rz-surface); box-shadow:0 2px 7px rgba(29,42,51,.09); }}
+.rz-auth-heading {{ text-align:left; padding:.85rem 0 .05rem; }}
+.rz-auth-heading strong {{ display:block; color:var(--rz-text); font-size:1.18rem; letter-spacing:-.025em; margin-bottom:.18rem; }}
+.rz-auth-heading span {{ color:var(--rz-muted); font-size:.79rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.65rem 0 0; box-shadow:none!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {{ font-size:.76rem; font-weight:720; color:var(--rz-text)!important; }}
+.stApp:has(.rz-login-shell) input {{ min-height:2.75rem; border-radius:10px; }}
+.stApp:has(.rz-login-shell) input:focus {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(14,174,219,.12)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(14,174,219,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(14,174,219,.30)!important; }}
+.rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
 
 {native}
