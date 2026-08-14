@@ -257,6 +257,7 @@ obligations = Table(
 _USER_VERSION: dict[int, int] = {}
 _READ_CACHE: dict[tuple[str, int], tuple[float, Any]] = {}
 _READ_CACHE_TTL = 30.0
+_RECURRING_MATERIALIZE_CHECK: dict[int, date] = {}
 
 def _cache_get(domain: str, user_id: int):
     key = (domain, int(user_id))
@@ -478,6 +479,7 @@ def add_recurring_transaction(user_id: int, **data: Any) -> None:
     with engine.begin() as conn:
         conn.execute(insert(recurring_transactions).values(user_id=user_id, **payload))
     _cache_invalidate("recurring_transactions", user_id)
+    _RECURRING_MATERIALIZE_CHECK.pop(int(user_id), None)
 
 
 def list_recurring_transactions(user_id: int) -> list[dict[str, Any]]:
@@ -504,6 +506,7 @@ def set_recurring_transaction_active(user_id: int, item_id: int, active: bool) -
             .values(active=bool(active))
         )
     _cache_invalidate("recurring_transactions", user_id)
+    _RECURRING_MATERIALIZE_CHECK.pop(int(user_id), None)
     return bool(result.rowcount)
 
 
@@ -516,6 +519,7 @@ def delete_recurring_transaction(user_id: int, item_id: int) -> None:
             )
         )
     _cache_invalidate("recurring_transactions", user_id)
+    _RECURRING_MATERIALIZE_CHECK.pop(int(user_id), None)
 
 
 def materialize_due_recurring(
@@ -525,6 +529,9 @@ def materialize_due_recurring(
 ) -> int:
     """Create due transactions once and advance each schedule safely."""
     today = today or date.today()
+    uid = int(user_id)
+    if _RECURRING_MATERIALIZE_CHECK.get(uid) == today:
+        return 0
     generated = 0
     with engine.begin() as conn:
         rows = conn.execute(
@@ -584,6 +591,7 @@ def materialize_due_recurring(
         _cache_invalidate("tx_docs", user_id)
         for key in [key for key in list(_READ_CACHE) if key[0] == "dashboard"]:
             _READ_CACHE.pop(key, None)
+    _RECURRING_MATERIALIZE_CHECK[uid] = today
     return generated
 
 
