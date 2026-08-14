@@ -4,7 +4,7 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 
 ## Funcionalidades
 
-- Login e criação de conta
+- Login, cadastro, confirmação de e-mail e recuperação de senha com Supabase Auth
 - Dados isolados por usuário
 - Dashboard com receita, despesas, resultado, uso do limite e alertas
 - Movimentações financeiras completas
@@ -15,7 +15,7 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 - Agenda de obrigações
 - Cadastro de clientes e fornecedores
 - Controle básico de empregado
-- Cofre de documentos
+- Cofre de documentos em Supabase Storage privado
 - Assistente Razync com leitura dos dados cadastrados
 - Cadastro completo do MEI
 - Backup e exportação CSV
@@ -39,6 +39,18 @@ Sem `DATABASE_URL`, o sistema usa SQLite local para desenvolvimento:
 sqlite:///razync_pro.db
 ```
 
+## Segurança e arquitetura
+
+- Supabase Auth para identidades e sessões
+- RLS por proprietário em todas as tabelas de negócio
+- RPC de snapshot sem privilégio `SECURITY DEFINER`
+- bucket privado com pasta exclusiva por usuário
+- valores monetários armazenados como `Numeric(14,2)`
+- migrações versionadas em `supabase/migrations`
+- CI e testes obrigatórios antes de cada atualização
+
+Contas criadas antes do Supabase Auth são vinculadas com segurança no primeiro acesso confirmado usando o mesmo e-mail.
+
 ## Produção
 
 A aplicação já suporta PostgreSQL para produção por meio da variável de ambiente `DATABASE_URL`.
@@ -49,7 +61,7 @@ Exemplo com PostgreSQL + psycopg:
 DATABASE_URL=postgresql+psycopg://USUARIO:SENHA@HOST:5432/BANCO
 ```
 
-Para Streamlit Community Cloud, configure `DATABASE_URL` nos Secrets do aplicativo. Não coloque credenciais no repositório.
+Para Streamlit Community Cloud, configure `DATABASE_URL`, `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` nos Secrets do aplicativo. Não coloque a senha do banco nem chaves secretas no repositório. Consulte `PRODUCTION_SETUP.md`.
 
 ## Banco de dados
 
@@ -69,7 +81,7 @@ As tabelas incluem:
 
 ## Segurança
 
-- Senhas com PBKDF2-HMAC-SHA256 e salt individual
+- Supabase Auth para novas identidades; hashes PBKDF2 legados mantidos apenas durante a migração
 - Credenciais de banco fora do repositório
 - Separação dos dados por `user_id`
 - Banco de produção configurável por variável de ambiente
