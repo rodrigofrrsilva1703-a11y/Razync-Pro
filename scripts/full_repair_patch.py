@@ -20,8 +20,6 @@ p.write_text(s, encoding='utf-8')
 
 bp = Path('business_tools.py')
 bs = bp.read_text(encoding='utf-8')
-
-# Keep the monthly closing contract compatible with every UI consumer.
 closing_marker = '''def monthly_closing(transactions: pd.DataFrame, invoices: pd.DataFrame, documents: list[dict], das_rows: list[dict], year: int, month: int) -> dict:\n'''
 financial_marker = '''def financial_analysis(transactions: pd.DataFrame, year: int) -> dict:\n'''
 closing_pos = bs.find(closing_marker)
@@ -37,13 +35,28 @@ if closing_old in closing_body:
     closing_body = closing_body.replace(closing_old, closing_new, 1)
 elif '"expense": expenses' not in closing_body:
     raise SystemExit('monthly closing return block not found')
-
 financial_old = '''        "expenses": expenses,\n        "result": result,\n'''
 financial_new = '''        "expense": expenses,\n        "expenses": expenses,\n        "result": result,\n'''
 if financial_old in financial_body:
     financial_body = financial_body.replace(financial_old, financial_new, 1)
 elif '"expense": expenses' not in financial_body:
     raise SystemExit('financial analysis return block not found')
-
 bp.write_text(closing_head + closing_body + financial_body, encoding='utf-8')
+
+ap = Path('app.py')
+a = ap.read_text(encoding='utf-8')
+a = a.replace(
+    'financial_summary_pdf(profile, analysis_year, analysis, checks)',
+    'financial_summary_pdf(profile, analysis_year, analysis)',
+)
+a = a.replace(
+    'monthly_report_pdf(profile,month,year,r["with_doc"],r["without_doc"],r["services"],r["sales"])',
+    'monthly_report_pdf(profile, year, [r])',
+)
+if 'financial_summary_pdf(profile, analysis_year, analysis, checks)' in a:
+    raise SystemExit('financial PDF call was not repaired')
+if 'monthly_report_pdf(profile,month,year,r["with_doc"]' in a:
+    raise SystemExit('monthly PDF call was not repaired')
+ap.write_text(a, encoding='utf-8')
+
 print('Functional repair patch applied')
