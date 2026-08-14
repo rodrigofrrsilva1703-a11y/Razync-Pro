@@ -1,0 +1,11 @@
+project_id = "etimfgenlludorrftapb"
+
+[api]
+enabled = true
+schemas = ["public", "storage"]
+
+[auth]
+enabled = true
+
+[storage]
+enabled = true
