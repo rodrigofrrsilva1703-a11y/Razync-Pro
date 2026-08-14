@@ -33,6 +33,20 @@ class FeatureContractTests(unittest.TestCase):
         for item in closing["checklist"]:
             self.assertEqual(set(item), {"Item", "OK", "Detalhe"})
 
+    def test_monthly_closing_with_data_matches_the_ui_contract(self):
+        transactions = pd.DataFrame([
+            {"tx_date": pd.Timestamp("2026-08-01"), "tx_type": "Receita", "value": 500.0, "document_number": "NF1"},
+            {"tx_date": pd.Timestamp("2026-08-02"), "tx_type": "Despesa", "value": 100.0, "document_number": "C1"},
+        ])
+        invoices = pd.DataFrame([
+            {"issue_date": pd.Timestamp("2026-08-01"), "status": "Emitida", "amount": 500.0},
+        ])
+        closing = monthly_closing(transactions, invoices, [], [], 2026, 8)
+        self.assertEqual(closing["revenue"], 500.0)
+        self.assertEqual(closing["expense"], 100.0)
+        self.assertEqual(closing["result"], 400.0)
+        self.assertIn("checklist", closing)
+
     def test_automatic_obligations_support_all_consuming_screens(self):
         rows = automatic_obligations(2026, today=date(2026, 1, 1))
         self.assertTrue(rows)
