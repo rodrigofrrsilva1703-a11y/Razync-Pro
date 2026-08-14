@@ -12,3 +12,8 @@ def ensure_brand_assets() -> str:
     if not logo.exists():
         logo.write_bytes(base64.b64decode(RZ_LOGO_B64))
     return str(logo)
+
+
+def brand_logo_data_uri() -> str:
+    """Return the official monogram as an embeddable browser image."""
+    return f"data:image/jpeg;base64,{RZ_LOGO_B64}"

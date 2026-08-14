@@ -43,10 +43,13 @@ from session_persistence import (
     clear_persisted_session, persist_refresh_token,
     persistent_session_controller, read_refresh_token,
 )
+from brand_assets import brand_logo_data_uri, ensure_brand_assets
 
 CURRENT_YEAR = date.today().year
+BRAND_LOGO_PATH = ensure_brand_assets()
+BRAND_LOGO_DATA_URI = brand_logo_data_uri()
 
-st.set_page_config(page_title="Razync Pro", page_icon="🔷", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="wide", initial_sidebar_state="expanded")
 try:
     init_db()
 except DatabaseConnectionError as exc:
@@ -167,10 +170,10 @@ def ensure_login() -> dict:
         return user
 
     st.markdown(
-        """
+        f"""
         <div class="rz-login-shell">
           <div class="rz-login-brand">
-            <div class="rz-login-mark" aria-hidden="true"></div>
+            <img class="rz-login-mark" src="{BRAND_LOGO_DATA_URI}" alt="Logo Razync Pro">
             <div><strong>Razync</strong><span>PRO</span></div>
           </div>
           <div class="rz-login-kicker">Gestão inteligente para MEI</div>
@@ -477,6 +480,7 @@ if page == "Movimentações" and not transactions.empty:
     transactions = transactions.iloc[offset:offset + page_size].copy()
 
 with st.sidebar:
+    st.image(BRAND_LOGO_PATH, width=58)
     st.markdown("### RAZYNC PRO")
     st.caption("Contabilidade simples para MEI")
     st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
