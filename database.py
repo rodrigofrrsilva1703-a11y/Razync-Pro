@@ -306,6 +306,17 @@ def _snapshot_date(value):
 
 
 def load_user_snapshot(user_id: int) -> dict[str, Any]:
+    if str(DATABASE_URL).startswith("sqlite"):
+        return {
+            "profile": get_profile(user_id),
+            "transactions": list_transactions(user_id),
+            "invoices": list_invoices(user_id),
+            "das": list_das(user_id),
+            "documents": list_documents(user_id),
+            "contacts": list_contacts(user_id),
+            "employees": list_employees(user_id),
+            "obligations": list_obligations(user_id),
+        }
     try:
         with engine.connect() as conn:
             raw = conn.execute(
@@ -591,7 +602,10 @@ def materialize_due_recurring(
         _cache_invalidate("tx_docs", user_id)
         for key in [key for key in list(_READ_CACHE) if key[0] == "dashboard"]:
             _READ_CACHE.pop(key, None)
-    _RECURRING_MATERIALIZE_CHECK[uid] = today
+    if generated < max_occurrences:
+        _RECURRING_MATERIALIZE_CHECK[uid] = today
+    else:
+        _RECURRING_MATERIALIZE_CHECK.pop(uid, None)
     return generated
 
 

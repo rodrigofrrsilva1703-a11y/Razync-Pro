@@ -51,6 +51,7 @@ def monthly_closing(transactions: pd.DataFrame, invoices: pd.DataFrame, document
 
     return {
         "revenue": revenue,
+        "expense": expenses,
         "expenses": expenses,
         "result": result,
         "invoice_total": invoice_total,
@@ -88,6 +89,7 @@ def financial_analysis(transactions: pd.DataFrame, year: int) -> dict:
 
     return {
         "revenue": revenue,
+        "expense": expenses,
         "expenses": expenses,
         "result": result,
         "margin": margin,

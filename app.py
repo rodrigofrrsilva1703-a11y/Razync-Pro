@@ -949,7 +949,7 @@ elif page == "Análise Financeira":
     if checks:
         for item in checks: st.warning(item)
     else: st.success("Nenhuma inconsistência relevante encontrada.")
-    analysis_pdf = financial_summary_pdf(profile, analysis_year, analysis, checks)
+    analysis_pdf = financial_summary_pdf(profile, analysis_year, analysis)
     st.download_button("Baixar análise financeira em PDF",analysis_pdf,file_name=f"analise_financeira_{analysis_year}.pdf",mime="application/pdf",use_container_width=True)
 
 elif page == "Central Fiscal":
@@ -1034,7 +1034,7 @@ elif page == "Relatório Mensal":
     st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
     month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:MONTH_NAMES_PT[m - 1],key="pdfmonth")
     r=rows[month-1]
-    pdf=monthly_report_pdf(profile,month,year,r["with_doc"],r["without_doc"],r["services"],r["sales"])
+    pdf=monthly_report_pdf(profile, year, [r])
     st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
 
 elif page == "Notas Fiscais":
@@ -1096,7 +1096,7 @@ elif page == "DAS":
     st.caption("Por segurança, o Razync nunca pede nem armazena sua senha gov.br. Confira no pagamento o favorecido oficial e os dados do CNPJ.")
 
     with st.expander("Registrar a guia emitida", expanded=not bool(das_rows)):
-        due=st.date_input("Vencimento da guia",value=das_due_date(year,month),key="das_due")
+        due=st.date_input("Vencimento da guia",value=das_due_date(competence),key="das_due")
         amount=st.number_input("Valor do DAS",min_value=0.0,step=1.0,format="%.2f",key="das_amount")
         status=st.selectbox("Status",["Pendente","Pago"],key="das_status")
         payment_date=None
