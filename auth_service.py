@@ -130,6 +130,20 @@ def reset_password(email: str) -> None:
         ) from exc
 
 
+def update_password(access_token: str, refresh_token: str, new_password: str) -> None:
+    """Change the password only after restoring the authenticated session."""
+    if len(new_password) < 8:
+        raise AuthServiceError("A nova senha deve ter pelo menos 8 caracteres.")
+    client = _client()
+    try:
+        client.auth.set_session(access_token, refresh_token)
+        response = client.auth.update_user({"password": new_password})
+    except Exception as exc:
+        raise AuthServiceError("Não foi possível alterar a senha agora.") from exc
+    if response.user is None:
+        raise AuthServiceError("Não foi possível validar a alteração da senha.")
+
+
 def sign_out(access_token: str, refresh_token: str) -> None:
     if not access_token or not refresh_token:
         return

@@ -241,7 +241,22 @@ hr {{ border-color:var(--rz-border); }}
 
 {native}
 @media (max-width:1000px) {{ .block-container {{ padding-left:1rem; padding-right:1rem; }} [data-testid="stMetric"] {{ min-height:96px; }} }}
-@media (max-width:720px) {{ .rz-page-title {{ font-size:1.5rem; }} .block-container {{ padding-top:.7rem; }} .stApp:has(.rz-login-shell) .block-container {{ padding:.8rem .8rem 2rem; }} .rz-login-shell {{ margin-bottom:1.2rem; }} .rz-login-brand {{ margin-bottom:1.35rem; }} .rz-login-lead {{ font-size:.91rem; }} .rz-login-benefits {{ gap:.35rem; }} .rz-login-benefits span {{ font-size:.68rem; padding:.35rem .55rem; }} .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.7rem .75rem 1rem; border-radius:14px; }} .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.78rem; }} }}
+@media (max-width:720px) {{
+  .rz-page-title {{ font-size:1.5rem; }}
+  .block-container {{ padding:.7rem .72rem 4.5rem; }}
+  [data-testid="stHorizontalBlock"] {{ gap:.55rem; }}
+  [data-testid="column"] {{ min-width:100%!important; flex:1 1 100%!important; }}
+  [data-testid="stMetric"] {{ min-height:88px; padding:12px 13px; }}
+  [data-testid="stMetricValue"] {{ font-size:1.25rem; }}
+  [data-testid="stDataFrame"] {{ max-width:calc(100vw - 1.44rem); overflow-x:auto; }}
+  .stButton button, [data-testid="stFormSubmitButton"] button, [data-testid="stDownloadButton"] button {{ min-height:44px; }}
+  .stApp:has(.rz-login-shell) .block-container {{ padding:.8rem .8rem 2rem; }}
+  .rz-login-shell {{ margin-bottom:1.2rem; }} .rz-login-brand {{ margin-bottom:1.35rem; }}
+  .rz-login-lead {{ font-size:.91rem; }} .rz-login-benefits {{ gap:.35rem; }}
+  .rz-login-benefits span {{ font-size:.68rem; padding:.35rem .55rem; }}
+  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.7rem .75rem 1rem; border-radius:14px; }}
+  .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.78rem; }}
+}}
 </style>
 """,
         unsafe_allow_html=True,

@@ -13,7 +13,7 @@ NAV_GROUPS = {
     "Fiscal MEI": ["Central Fiscal", "Fechamento Mensal", "Relatório Mensal", "Notas Fiscais", "DAS", "DASN-SIMEI", "Obrigações"],
     "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos"],
     "Relatórios": ["Central de Relatórios", "Assistente Razync"],
-    "Configurações": ["Primeiros Passos", "Meu MEI", "Status do Sistema", "Backup"],
+    "Configurações": ["Primeiros Passos", "Meu MEI", "Segurança da Conta", "Status do Sistema", "Backup"],
 }
 
 

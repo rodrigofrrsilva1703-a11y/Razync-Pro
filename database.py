@@ -458,6 +458,28 @@ def add_transaction(user_id: int, **data: Any) -> None:
     _cache_invalidate("tx_docs", user_id)
 
 
+def update_transaction(user_id: int, item_id: int, **data: Any) -> bool:
+    """Update an owned transaction and invalidate every derived cache."""
+    allowed = {
+        "tx_date", "tx_type", "description", "category", "value",
+        "document_number", "counterparty", "payment_method",
+    }
+    payload = {key: value for key, value in data.items() if key in allowed}
+    if not payload:
+        return False
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(transactions)
+            .where(transactions.c.user_id == user_id, transactions.c.id == item_id)
+            .values(**payload)
+        )
+    _cache_invalidate("transactions", user_id)
+    for key in [key for key in list(_READ_CACHE) if key[0] == "dashboard"]:
+        _READ_CACHE.pop(key, None)
+    _cache_invalidate("tx_docs", user_id)
+    return bool(result.rowcount)
+
+
 def list_transactions(user_id: int) -> list[dict[str, Any]]:
     cached = _cache_get("transactions", user_id)
     if cached is not None:

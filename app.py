@@ -13,7 +13,7 @@ from database import (
     delete_invoice, delete_obligation, delete_transaction, get_document, get_profile,
     init_db, list_contacts, list_das, list_documents, list_employees, list_invoices,
     list_obligations, list_transactions, save_document, save_profile,
-    update_obligation_status, upsert_das, link_transaction_document,
+    update_obligation_status, update_transaction, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
 )
@@ -27,7 +27,7 @@ from bank_import import read_statement, prepare_statement, is_probable_duplicate
 from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
-from backup_tools import build_backup_zip, document_coverage
+from backup_tools import backup_checksum, build_backup_zip, document_coverage
 from onboarding_tools import onboarding_progress, recommended_setup
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
@@ -37,7 +37,7 @@ from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
     restore_session as supabase_restore_session,
     sign_in as supabase_sign_in, sign_out as supabase_sign_out,
-    sign_up as supabase_sign_up,
+    sign_up as supabase_sign_up, update_password as supabase_update_password,
 )
 from session_persistence import (
     clear_persisted_session, persist_refresh_token,
@@ -625,6 +625,24 @@ elif page == "Movimentações":
         empty_state("Nenhuma movimentação registrada", "Quando você adicionar a primeira receita ou despesa, ela aparecerá aqui e alimentará automaticamente o Dashboard e os relatórios.", "↕")
     else:
         view = transactions.copy()
+        f1, f2, f3 = st.columns([1, 1, 2])
+        type_filter = f1.selectbox("Filtrar por tipo", ["Todos", "Receita", "Despesa"])
+        category_options = ["Todas"] + sorted(str(x) for x in view["category"].dropna().unique())
+        category_filter = f2.selectbox("Filtrar por categoria", category_options)
+        search_filter = f3.text_input("Buscar no histórico", placeholder="Descrição, cliente ou documento")
+        if type_filter != "Todos":
+            view = view[view["tx_type"] == type_filter]
+        if category_filter != "Todas":
+            view = view[view["category"] == category_filter]
+        if search_filter.strip():
+            term = search_filter.strip().lower()
+            searchable = (
+                view["description"].fillna("").astype(str) + " "
+                + view["counterparty"].fillna("").astype(str) + " "
+                + view["document_number"].fillna("").astype(str)
+            ).str.lower()
+            view = view[searchable.str.contains(term, regex=False)]
+        st.caption(f"{len(view)} lançamento(s) encontrado(s) nesta página.")
         view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
         st.dataframe(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], use_container_width=True, hide_index=True, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
         if total_tx > page_size:
@@ -634,6 +652,29 @@ elif page == "Movimentações":
             pinfo.caption(f"Página {current_tx_page} de {max_tx_page} • {total_tx} lançamentos")
             if pnext.button("Próxima →", disabled=current_tx_page >= max_tx_page, use_container_width=True):
                 st.session_state["tx_history_page"] = current_tx_page + 1; st.rerun()
+        with st.expander("Editar um lançamento"):
+            edit_id = st.selectbox("Lançamento", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}", key="edit_tx_id")
+            edit_row = transactions.loc[transactions["id"] == edit_id].iloc[0]
+            with st.form("edit_tx_form"):
+                e1, e2 = st.columns(2)
+                edit_type = e1.selectbox("Tipo", ["Receita", "Despesa"], index=0 if edit_row["tx_type"] == "Receita" else 1)
+                edit_date = e2.date_input("Data", value=edit_row["tx_date"].date())
+                edit_description = st.text_input("Descrição", value=str(edit_row["description"] or ""))
+                e1, e2 = st.columns(2)
+                edit_category = e1.text_input("Categoria", value=str(edit_row["category"] or ""))
+                edit_value = e2.number_input("Valor", min_value=0.01, value=float(edit_row["value"]), step=10.0)
+                e1, e2 = st.columns(2)
+                edit_counterparty = e1.text_input("Cliente ou fornecedor", value=str(edit_row["counterparty"] or ""))
+                edit_document = e2.text_input("Nota ou documento", value=str(edit_row["document_number"] or ""))
+                edit_payment = st.text_input("Forma de pagamento", value=str(edit_row["payment_method"] or ""))
+                save_edit = st.form_submit_button("Salvar alterações", type="primary", use_container_width=True)
+            if save_edit:
+                if not edit_description.strip():
+                    st.error("Informe uma descrição.")
+                else:
+                    update_transaction(uid, int(edit_id), tx_date=edit_date, tx_type=edit_type, description=edit_description.strip(), category=edit_category.strip() or "Outros", value=edit_value, document_number=edit_document.strip(), counterparty=edit_counterparty.strip(), payment_method=edit_payment.strip())
+                    st.success("Lançamento atualizado.")
+                    st.rerun()
         with st.expander("Excluir um lançamento"):
             item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
             st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
@@ -796,6 +837,16 @@ elif page == "Central Fiscal":
     if q2.button("Relatório Mensal",use_container_width=True): st.session_state["_navigate_to"]="Relatório Mensal"; st.rerun()
     if q3.button("Preparar DASN",use_container_width=True): st.session_state["_navigate_to"]="DASN-SIMEI"; st.rerun()
     if q4.button("Ver Obrigações",use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
+    section("Próximos vencimentos", "Agenda consolidada para não perder prazos do MEI.")
+    fiscal_events = [{"Data": row["due_date"], "Obrigação": row["title"], "Competência": row["competence"], "Status": row["status"]} for row in automatic_obligations(CURRENT_YEAR, opening)]
+    fiscal_events.extend({"Data": row["due_date"], "Obrigação": row["title"], "Competência": "Personalizada", "Status": row["status"]} for row in obligations)
+    fiscal_calendar = pd.DataFrame(fiscal_events)
+    if fiscal_calendar.empty:
+        st.info("Nenhum vencimento encontrado.")
+    else:
+        fiscal_calendar = fiscal_calendar.sort_values("Data")
+        st.dataframe(fiscal_calendar, use_container_width=True, hide_index=True, column_config={"Data": st.column_config.DateColumn(format="DD/MM/YYYY")})
+        st.download_button("Exportar agenda fiscal (.csv)", fiscal_calendar.to_csv(index=False).encode("utf-8-sig"), file_name=f"agenda-fiscal-{CURRENT_YEAR}.csv", mime="text/csv", use_container_width=True)
 
 elif page == "Fechamento Mensal":
     header("Fechamento Mensal","Confira documentos, notas, movimentações e DAS antes de considerar o mês organizado.")
@@ -1073,6 +1124,34 @@ elif page == "Meu MEI":
         cnpj=st.text_input("CNPJ",value=str(profile.get("cnpj") or "")); business=st.text_input("Razão social",value=str(profile.get("business_name") or "")); trade=st.text_input("Nome fantasia",value=str(profile.get("trade_name") or "")); activity=st.text_input("Atividade principal",value=str(profile.get("main_activity") or "")); activity_type=st.selectbox("Tipo de atividade",["Serviços","Comércio","Indústria","Misto"],index=["Serviços","Comércio","Indústria","Misto"].index(profile.get("activity_type") if profile.get("activity_type") in ["Serviços","Comércio","Indústria","Misto"] else "Serviços")); opening_date=st.date_input("Data de abertura",value=opening or date.today()); annual_limit=st.number_input("Limite anual personalizado (opcional)",min_value=0.0,value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),step=1000.0); city=st.text_input("Município",value=str(profile.get("city") or "")); state=st.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); phone=st.text_input("Telefone",value=str(profile.get("phone") or "")); municipal=st.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_reg=st.text_input("Inscrição estadual",value=str(profile.get("state_registration") or "")); has_employee=st.checkbox("Possui empregado",value=bool(profile.get("has_employee",False)))
         if st.form_submit_button("Salvar dados",use_container_width=True): save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee); st.success("Dados salvos."); st.rerun()
 
+elif page == "Segurança da Conta":
+    header("Segurança da Conta", "Atualize sua senha e confira como sua sessão é protegida.")
+    with st.container(border=True):
+        st.subheader("Alterar senha")
+        with st.form("change_password_form", clear_on_submit=True):
+            new_password = st.text_input("Nova senha", type="password", help="Use pelo menos 8 caracteres.")
+            password_confirmation = st.text_input("Confirmar nova senha", type="password")
+            change_password = st.form_submit_button("Alterar senha", type="primary", use_container_width=True)
+        if change_password:
+            if new_password != password_confirmation:
+                st.error("As senhas não coincidem.")
+            elif len(new_password) < 8:
+                st.error("A nova senha deve ter pelo menos 8 caracteres.")
+            elif not is_supabase_auth_configured():
+                st.error("A alteração de senha requer o Supabase Auth.")
+            else:
+                try:
+                    supabase_update_password(st.session_state.get("access_token", ""), st.session_state.get("refresh_token", ""), new_password)
+                except AuthServiceError as exc:
+                    st.error(str(exc))
+                else:
+                    st.success("Senha alterada com sucesso.")
+    section("Sessão e privacidade")
+    st.write("✓ A opção **Manter conectado** armazena somente um token de renovação criptografado.")
+    st.write("✓ Ao sair, a sessão local e o token persistente são removidos.")
+    st.write("✓ Os dados de cada conta são isolados pelo usuário autenticado.")
+    st.info("Em dispositivo compartilhado, use sempre o botão Sair ao terminar.")
+
 elif page == "Status do Sistema":
     header("Status do Sistema","Veja se o Razync está usando uma infraestrutura adequada para produção.")
     runtime=database_runtime_info()
@@ -1090,7 +1169,9 @@ elif page == "Backup":
     header("Backup","Baixe um pacote dos dados para manter uma cópia independente.")
     backup=build_backup_zip(profile,transactions,invoices,das_rows,obligations,contacts,employees,docs,lambda doc_id:(lambda d: {**d, "content": document_bytes(d)} if d else None)(get_document(uid,doc_id)))
     st.download_button("Baixar backup completo (.zip)",backup,file_name=f"backup_razync_{date.today().isoformat()}.zip",mime="application/zip",use_container_width=True)
-    st.caption("O pacote inclui dados em CSV/JSON e os documentos salvos no Razync Pro.")
+    st.caption("O pacote inclui dados em CSV/JSON, manifesto e os documentos disponíveis no Razync Pro.")
+    st.code(backup_checksum(backup), language=None)
+    st.caption("Guarde este código de integridade junto do arquivo para conferir se o backup não foi alterado.")
 
 st.divider()
 st.caption("Razync Pro • Ecossistema Razync • ferramenta de organização contábil e financeira para MEI")
