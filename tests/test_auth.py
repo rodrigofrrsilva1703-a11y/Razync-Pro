@@ -38,6 +38,29 @@ class AuthenticationTests(unittest.TestCase):
             self.database.authenticate("usuario@example.com", "senha-incorreta")
         )
 
+    def test_links_confirmed_supabase_identity_to_existing_account(self):
+        created, message = self.database.create_user(
+            "Conta Legada", "legacy@example.com", "senha-segura"
+        )
+        self.assertTrue(created, message)
+
+        linked = self.database.resolve_supabase_user(
+            "12345678-1234-5678-1234-567812345678",
+            "LEGACY@example.com",
+            "Nome do Auth",
+        )
+        self.assertEqual(linked["email"], "legacy@example.com")
+        self.assertEqual(
+            linked["auth_user_id"],
+            "12345678-1234-5678-1234-567812345678",
+        )
+
+        same = self.database.resolve_supabase_user(
+            "12345678-1234-5678-1234-567812345678",
+            "legacy@example.com",
+        )
+        self.assertEqual(same["id"], linked["id"])
+
     def test_rejects_invalid_registration_data(self):
         cases = [
             ("", "usuario@example.com", "senha-segura"),
@@ -59,6 +82,8 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertNotIn('password = "dev"', app_source)
         self.assertIn('st.form("login_form")', app_source)
         self.assertIn('st.form("signup_form")', app_source)
+        self.assertIn('st.form("password_recovery_form")', app_source)
+        self.assertIn("supabase_sign_in", app_source)
         self.assertIn('st.button("Sair"', app_source)
         workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
         self.assertEqual(

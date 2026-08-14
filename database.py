@@ -13,7 +13,7 @@ from datetime import datetime, date
 from typing import Any
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, LargeBinary,
+    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, Numeric, Uuid,
     MetaData, String, Table, Text, create_engine, delete, insert, select, update, func, case, extract, text
 )
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -121,6 +121,7 @@ users = Table(
     Column("id", Integer, primary_key=True),
     Column("name", String(120), nullable=False),
     Column("email", String(255), nullable=False, unique=True, index=True),
+    Column("auth_user_id", Uuid(as_uuid=False), nullable=True, unique=True, index=True),
     Column("password_hash", String(255), nullable=False),
     Column("created_at", DateTime, nullable=False, default=datetime.utcnow),
 )
@@ -134,7 +135,7 @@ profiles = Table(
     Column("main_activity", String(255), default=""),
     Column("activity_type", String(40), default="Serviços"),
     Column("opening_date", Date, nullable=True),
-    Column("annual_limit", Float, nullable=False, default=81000.0),
+    Column("annual_limit", Numeric(14, 2), nullable=False, default=81000.0),
     Column("phone", String(40), default=""),
     Column("city", String(120), default=""),
     Column("state", String(2), default=""),
@@ -151,7 +152,7 @@ transactions = Table(
     Column("tx_type", String(20), nullable=False),
     Column("description", String(255), nullable=False),
     Column("category", String(100), nullable=False),
-    Column("value", Float, nullable=False),
+    Column("value", Numeric(14, 2), nullable=False),
     Column("document_number", String(100), default=""),
     Column("counterparty", String(180), default=""),
     Column("payment_method", String(80), default=""),
@@ -164,7 +165,7 @@ das_items = Table(
     Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("competence", String(7), nullable=False),
     Column("due_date", Date, nullable=True),
-    Column("amount", Float, nullable=False, default=0),
+    Column("amount", Numeric(14, 2), nullable=False, default=0),
     Column("status", String(30), nullable=False, default="Pendente"),
     Column("payment_date", Date, nullable=True),
     Column("notes", Text, default=""),
@@ -176,7 +177,8 @@ documents = Table(
     Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("filename", String(255), nullable=False),
     Column("mime_type", String(120), default=""),
-    Column("content", LargeBinary, nullable=False),
+    Column("content", LargeBinary, nullable=True),
+    Column("storage_path", Text, nullable=True),
     Column("category", String(100), default="Outros"),
     Column("reference_month", String(7), default=""),
     Column("created_at", DateTime, nullable=False, default=datetime.utcnow),
@@ -192,7 +194,7 @@ invoices = Table(
     Column("customer", String(180), default=""),
     Column("customer_document", String(30), default=""),
     Column("description", String(255), default=""),
-    Column("amount", Float, nullable=False, default=0),
+    Column("amount", Numeric(14, 2), nullable=False, default=0),
     Column("status", String(30), default="Emitida"),
     Column("created_at", DateTime, nullable=False, default=datetime.utcnow),
 )
@@ -216,7 +218,7 @@ employees = Table(
     Column("name", String(180), nullable=False),
     Column("cpf", String(30), default=""),
     Column("admission_date", Date, nullable=True),
-    Column("salary", Float, nullable=False, default=0),
+    Column("salary", Numeric(14, 2), nullable=False, default=0),
     Column("status", String(30), default="Ativo"),
     Column("notes", Text, default=""),
 )
@@ -381,6 +383,50 @@ def authenticate(email: str, password: str) -> dict[str, Any] | None:
     if not row or not _verify_password(password, row["password_hash"]):
         return None
     return {"id": row["id"], "name": row["name"], "email": row["email"]}
+
+
+def resolve_supabase_user(auth_user_id: str, email: str, name: str = "") -> dict[str, Any]:
+    """Resolve or safely link a confirmed Supabase identity to a legacy account."""
+    normalized_email = email.strip().lower()
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                select(users).where(users.c.auth_user_id == auth_user_id)
+            ).mappings().first()
+            if row is None:
+                row = conn.execute(
+                    select(users).where(users.c.email == normalized_email)
+                ).mappings().first()
+                if row is not None:
+                    if row.get("auth_user_id") not in (None, auth_user_id):
+                        raise ValueError("Esta conta já está vinculada a outra identidade.")
+                    conn.execute(
+                        update(users)
+                        .where(users.c.id == row["id"])
+                        .values(auth_user_id=auth_user_id)
+                    )
+                    row = dict(row)
+                    row["auth_user_id"] = auth_user_id
+                else:
+                    result = conn.execute(
+                        insert(users).values(
+                            name=name.strip() or normalized_email.split("@", 1)[0],
+                            email=normalized_email,
+                            auth_user_id=auth_user_id,
+                            password_hash=_hash_password(os.urandom(32).hex()),
+                        )
+                    )
+                    uid = int(result.inserted_primary_key[0])
+                    conn.execute(insert(profiles).values(user_id=uid))
+                    row = conn.execute(
+                        select(users).where(users.c.id == uid)
+                    ).mappings().one()
+    except (IntegrityError, OperationalError) as exc:
+        if isinstance(exc, OperationalError):
+            raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+        raise ValueError("Não foi possível vincular esta identidade.") from None
+
+    return {"id": row["id"], "name": row["name"], "email": row["email"], "auth_user_id": auth_user_id}
 
 
 def get_profile(user_id: int) -> dict[str, Any]:
