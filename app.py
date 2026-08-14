@@ -1065,23 +1065,69 @@ elif page == "Notas Fiscais":
             if st.button("Excluir nota selecionada",use_container_width=True): delete_invoice(uid,int(iid)); st.rerun()
 
 elif page == "DAS":
-    header("DAS","Controle as competências mensais e registre pagamentos do Documento de Arrecadação do Simples Nacional.")
+    header("DAS","Gere a guia no PGMEI oficial e mantenha competência, vencimento, valor, pagamento e PDF organizados no Razync.")
     year=st.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="dasyear")
-    st.caption("O vencimento padrão é calculado para o dia 20 do mês seguinte, com ajuste básico para fim de semana. Consulte sempre o documento oficial antes do pagamento.")
-    with st.expander("Registrar ou atualizar uma competência", expanded=not bool(das_rows)):
-        month=st.selectbox("Competência",list(range(1,13)),format_func=lambda m:f"{m:02d}/{year}")
-        competence=f"{year}-{month:02d}"
-        due=st.date_input("Vencimento",value=das_due_date(year,month))
-        amount=st.number_input("Valor do DAS",min_value=0.0,step=1.0,format="%.2f")
-        status=st.selectbox("Status",["Pendente","Pago"])
+    month=st.selectbox("Competência",list(range(1,13)),format_func=lambda m:f"{m:02d}/{year}",key="dasmonth")
+    competence=f"{year}-{month:02d}"
+    official_pgmei_url="https://www8.receita.fazenda.gov.br/simplesnacional/aplicacoes/atspo/pgmei.app/identificacao"
+
+    section("Emitir guia oficial", "A emissão e o pagamento acontecem no ambiente da Receita Federal; o Razync organiza o processo e guarda a guia.")
+    step1,step2,step3=st.columns(3)
+    step1.markdown("**1. Abra o PGMEI**")
+    step1.caption("Use somente o endereço oficial da Receita Federal.")
+    step2.markdown("**2. Gere o DAS**")
+    step2.caption(f"Informe o CNPJ e selecione a competência {month:02d}/{year}.")
+    step3.markdown("**3. Volte ao Razync**")
+    step3.caption("Registre o valor e anexe o PDF emitido.")
+
+    cnpj=str(profile.get("cnpj") or "").strip()
+    if cnpj:
+        st.code(cnpj,language=None)
+        st.caption("CNPJ cadastrado em Meu MEI — copie para informar no portal oficial.")
+    else:
+        st.warning("Cadastre o CNPJ em Meu MEI antes de emitir a guia para reduzir o risco de usar dados incorretos.")
+    st.link_button(
+        "Gerar DAS no site oficial",
+        official_pgmei_url,
+        type="primary",
+        use_container_width=True,
+        help="Abre o PGMEI no domínio receita.fazenda.gov.br.",
+    )
+    st.caption("Por segurança, o Razync nunca pede nem armazena sua senha gov.br. Confira no pagamento o favorecido oficial e os dados do CNPJ.")
+
+    with st.expander("Registrar a guia emitida", expanded=not bool(das_rows)):
+        due=st.date_input("Vencimento da guia",value=das_due_date(year,month),key="das_due")
+        amount=st.number_input("Valor do DAS",min_value=0.0,step=1.0,format="%.2f",key="das_amount")
+        status=st.selectbox("Status",["Pendente","Pago"],key="das_status")
         payment_date=None
-        if status=="Pago": payment_date=st.date_input("Data de pagamento",value=date.today())
-        notes=st.text_area("Observações")
-        if st.button("Salvar DAS",type="primary",use_container_width=True): upsert_das(uid,competence,due,amount,status,payment_date,notes); st.rerun()
+        if status=="Pago":
+            payment_date=st.date_input("Data de pagamento",value=date.today(),key="das_payment_date")
+        guide=st.file_uploader(
+            "Anexar guia oficial (PDF)",
+            type=["pdf"],
+            key="das_guide_upload",
+            help="Opcional. O arquivo ficará armazenado junto aos demais documentos do Razync.",
+        )
+        notes=st.text_area("Observações",key="das_notes")
+        if st.button("Salvar controle do DAS",type="primary",use_container_width=True):
+            if amount <= 0:
+                st.warning("Informe o valor exibido na guia oficial.")
+            else:
+                try:
+                    upsert_das(uid,competence,due,amount,status,payment_date,notes)
+                    if guide is not None:
+                        save_uploaded_document(user,guide,"DAS",competence)
+                except Exception:
+                    st.error("Não foi possível salvar o controle do DAS agora.")
+                else:
+                    st.success("DAS registrado no Razync.")
+                    st.rerun()
+
+    st.info("O vencimento sugerido considera o dia 20 do mês seguinte com ajuste básico para fim de semana. Sempre prevalecem a data e o valor impressos na guia oficial.")
     current=[d for d in das_rows if str(d["competence"]).startswith(str(year))]
     section("Competências do ano")
     if not current:
-        empty_state("Nenhum DAS controlado neste ano", "Adicione uma competência para acompanhar vencimento e pagamento do DAS dentro do Razync.", "▣")
+        empty_state("Nenhum DAS controlado neste ano", "Gere a guia no PGMEI e registre a competência para acompanhar vencimento e pagamento.", "▣")
     else:
         das_view=[]
         for d in current:
