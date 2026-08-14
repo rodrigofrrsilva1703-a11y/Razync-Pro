@@ -168,16 +168,15 @@ def ensure_login() -> dict:
         and oauth_code
         and oauth_state.startswith("rzgh.")
     ):
+        st.query_params.clear()
         try:
             identity = github_sign_in(oauth_code, oauth_state)
             user = resolve_supabase_user(
                 identity["auth_user_id"], identity["email"], identity["name"]
             )
         except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
-            st.query_params.clear()
             st.error(str(exc))
         else:
-            st.query_params.clear()
             st.session_state["auth_provider"] = "github"
             st.session_state["github_login"] = identity["github_login"]
             st.session_state["user"] = user
