@@ -23,7 +23,7 @@ class ProductionQualityTests(unittest.TestCase):
 
     def test_no_secret_key_is_committed(self):
         for path in self.root.rglob("*"):
-            if not path.is_file() or ".git" in path.parts:
+            if not path.is_file() or {".git", ".venv", "__pycache__"}.intersection(path.parts):
                 continue
             if path.suffix.lower() not in {".py", ".md", ".toml", ".yml", ".example"}:
                 continue
