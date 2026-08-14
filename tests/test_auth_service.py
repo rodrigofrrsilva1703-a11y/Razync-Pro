@@ -109,6 +109,18 @@ class DeveloperGithubAuthTests(unittest.TestCase):
                     auth_service.github_sign_in("valid-code", "rzgh.1.nonce.invalid")
         request.assert_not_called()
 
+    def test_expired_github_code_returns_actionable_message(self):
+        with patch.dict("os.environ", self.secrets, clear=True):
+            state = auth_service._github_state()
+            with patch(
+                "auth_service._github_json_request",
+                return_value={"error": "bad_verification_code"},
+            ):
+                with self.assertRaisesRegex(
+                    auth_service.AuthServiceError, "expirou ou já foi usado"
+                ):
+                    auth_service.github_sign_in("expired-code", state)
+
 
 if __name__ == "__main__":
     unittest.main()
