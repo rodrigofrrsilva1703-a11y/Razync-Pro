@@ -8,7 +8,7 @@ RZ_LOGO_B64 = """/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoGBgUFBgw
 def ensure_brand_assets() -> str:
     asset_dir = Path(__file__).resolve().parent / ".brand_cache"
     asset_dir.mkdir(exist_ok=True)
-    logo = asset_dir / "razync-rz.jpg"
+    logo = asset_dir / "razync-rz-v2.jpg"
     if not logo.exists():
         logo.write_bytes(base64.b64decode(RZ_LOGO_B64))
     return str(logo)
