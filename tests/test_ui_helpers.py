@@ -1,7 +1,7 @@
 from pathlib import Path
+import unittest
 
 import pandas as pd
-import pytest
 
 from ui_helpers import MONTH_NAMES_PT, filter_transactions, paginate_frame
 
@@ -37,7 +37,7 @@ def test_pagination_clamps_invalid_pages_after_filtering():
 
 
 def test_pagination_rejects_invalid_page_size():
-    with pytest.raises(ValueError):
+    with unittest.TestCase().assertRaises(ValueError):
         paginate_frame(pd.DataFrame(), page=1, page_size=0)
 
 
