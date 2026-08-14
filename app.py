@@ -455,7 +455,471 @@ obligations = list(_snapshot.get("obligations") or [])
 opening = opening_date_from(profile)
 limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))
 year_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR)] if not transactions.empty else transactions
-year_revenue = float(y…8699 tokens truncated…AS controlado neste ano", "Adicione uma competência para acompanhar vencimento e pagamento do DAS dentro do Razync.", "▣")
+year_revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if not year_tx.empty else 0.0
+year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
+limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
+
+# Pagination context for the transaction history. Keep it local to the in-memory snapshot.
+page_size = 50
+total_tx = len(transactions)
+current_tx_page = int(st.session_state.get("tx_history_page", 1))
+max_tx_page = max(1, (total_tx + page_size - 1) // page_size)
+current_tx_page = min(max(current_tx_page, 1), max_tx_page)
+if page == "Movimentações" and not transactions.empty:
+    offset = (current_tx_page - 1) * page_size
+    transactions = transactions.iloc[offset:offset + page_size].copy()
+
+with st.sidebar:
+    st.markdown("### RAZYNC PRO")
+    st.caption("Contabilidade simples para MEI")
+    st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
+    st.markdown("**Navegação**")
+    if page == "Dashboard":
+        st.info("⌂ Início")
+    elif st.button("⌂ Início", key="nav_home", use_container_width=True):
+        st.session_state["_navigate_to"] = "Dashboard"
+        st.rerun()
+    groups = {
+        "Financeiro": NAV_GROUPS["Financeiro"],
+        "Fiscal MEI": NAV_GROUPS["Fiscal MEI"],
+        "Gestão": NAV_GROUPS["Gestão"],
+        "Relatórios": NAV_GROUPS["Relatórios"],
+        "Configurações": NAV_GROUPS["Configurações"],
+    }
+    for group, pages in groups.items():
+        with st.expander(group, expanded=(group_for_page(page) == group)):
+            for nav_page in pages:
+                if nav_page == page:
+                    st.info(nav_page)
+                elif st.button(nav_page, key=f"nav_{group}_{nav_page}", use_container_width=True):
+                    st.session_state["_navigate_to"] = nav_page
+                    st.rerun()
+
+# Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
+_dashboard_stats = None
+if page == "Dashboard":
+    business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
+    cnpj_label = str(profile.get("cnpj") or "").strip() or None
+    page_header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
+    business_card(business_label, CURRENT_YEAR, cnpj_label)
+
+    today = date.today()
+    month_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR) & (transactions["tx_date"].dt.month == today.month)] if not transactions.empty else transactions
+    month_in = float(month_tx[month_tx["tx_type"] == "Receita"]["value"].sum()) if not month_tx.empty else 0.0
+    month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
+    month_result = month_in - month_out
+
+    section("Resumo financeiro", "Valores do mês atual e faturamento acumulado no ano.")
+    k1,k2,k3,k4 = st.columns(4)
+    k1.metric("Entradas no mês", brl(month_in))
+    k2.metric("Saídas no mês", brl(month_out))
+    k3.metric("Resultado do mês", brl(month_result))
+    k4.metric("Faturamento no ano", brl(year_revenue))
+
+    action_col, quick_col = st.columns([1.72, 1], gap="large")
+    priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
+    with action_col:
+        section("Centro de ação", "Pendências priorizadas pelo Razync Pro.")
+        for idx, item in enumerate(priorities[:3]):
+            row, btn = st.columns([4.8,1.15])
+            with row:
+                level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
+                alert_card(level, item["title"], item["detail"])
+            with btn:
+                if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", use_container_width=True):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
+    with quick_col:
+        section("Acesso rápido", "As ações mais usadas no dia a dia.")
+        if st.button("＋ Nova movimentação", key="dash_new_tx", use_container_width=True):
+            st.session_state["_navigate_to"] = "Movimentações"; st.rerun()
+        if st.button("↥ Importar extrato", key="dash_import", use_container_width=True):
+            st.session_state["_navigate_to"] = "Importar Extrato"; st.rerun()
+        if st.button("▣ Impostos e DAS", key="dash_fiscal", use_container_width=True):
+            st.session_state["_navigate_to"] = "Central Fiscal"; st.rerun()
+        if st.button("✓ Obrigações", key="dash_oblig", use_container_width=True):
+            st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
+
+    chart_col, status_col = st.columns([1.65,1], gap="large")
+    with chart_col:
+        section("Evolução do faturamento", "Receitas registradas mês a mês no ano atual.")
+        chart = pd.DataFrame(monthly_rows(transactions, CURRENT_YEAR))
+        fig = px.area(chart, x="month_name", y="total", markers=True)
+        apply_plot_theme(fig, UI_THEME, height=320)
+        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(37,99,235,.10)")
+        fig.update_xaxes(title="", showgrid=False)
+        fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    with status_col:
+        section("Situação do MEI", "Limite, DAS e nível de organização.")
+        health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
+        s1,s2 = st.columns(2)
+        s1.metric("Limite usado", f"{limit_pct:.1f}%")
+        overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
+        s2.metric("DAS atrasado", overdue_das)
+        st.caption(f"Limite monitorado: {brl(limit)} • restante: {brl(max(limit-year_revenue,0))}")
+        st.progress(min(max(limit_pct/100, 0), 1.0))
+        st.caption(f"Índice de organização: {health_score}/100")
+        st.progress(health_score/100)
+        if health_notes:
+            for note in health_notes[:2]: st.caption(f"• {note}")
+
+    section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
+    if transactions.empty:
+        st.info("Ainda não há movimentações. Use “Nova movimentação” ou importe um extrato para começar.")
+    else:
+        recent = transactions.sort_values("tx_date", ascending=False).head(8)
+        st.dataframe(
+            recent[["tx_date","tx_type","description","counterparty","value"]],
+            use_container_width=True, hide_index=True,
+            column_config={
+                "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
+                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+            },
+        )
+
+    with st.expander("Configuração inicial do MEI", expanded=not bool(profile.get("cnpj"))):
+        checklist = [
+            ("CNPJ cadastrado", bool(profile.get("cnpj"))),
+            ("Atividade principal informada", bool(profile.get("main_activity"))),
+            ("Data de abertura cadastrada", bool(profile.get("opening_date"))),
+            ("Primeira movimentação registrada", not transactions.empty),
+            ("Calendário do DAS criado", bool(das_rows)),
+            ("Documento armazenado", bool(docs)),
+        ]
+        done_count = sum(1 for _, done in checklist if done)
+        st.caption(f"{done_count} de {len(checklist)} etapas concluídas")
+        st.progress(done_count/len(checklist))
+        for label, done in checklist:
+            st.write(("✓ " if done else "○ ") + label)
+
+elif page == "Movimentações":
+    header("Movimentações","Registre o que entrou e saiu do MEI. Comece pelo essencial; os detalhes ficam opcionais.")
+    with st.container(border=True):
+        st.caption("NOVO LANÇAMENTO")
+        with st.form("tx_form", clear_on_submit=True):
+            tx_type = st.segmented_control("Tipo", ["Receita","Despesa"], default="Receita", selection_mode="single") or "Receita"
+            a,b = st.columns(2)
+            value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+            tx_date = b.date_input("Data", value=date.today())
+            desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente, compra de material...")
+            with st.expander("Mais detalhes (opcional)"):
+                a,b = st.columns(2)
+                category = a.selectbox("Categoria", ["Serviços","Vendas","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
+                counterparty = b.text_input("Cliente ou fornecedor")
+                a,b = st.columns(2)
+                payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
+                doc = b.text_input("Nota ou documento")
+            submitted = st.form_submit_button("Salvar movimentação", type="primary", use_container_width=True)
+            if submitted:
+                if value <= 0:
+                    st.error("Informe um valor maior que zero.")
+                elif not desc.strip():
+                    st.error("Informe uma descrição para identificar o lançamento.")
+                else:
+                    add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=value, document_number=doc.strip(), counterparty=counterparty.strip(), payment_method=payment)
+                    st.rerun()
+    section("Histórico")
+    if transactions.empty:
+        empty_state("Nenhuma movimentação registrada", "Quando você adicionar a primeira receita ou despesa, ela aparecerá aqui e alimentará automaticamente o Dashboard e os relatórios.", "↕")
+    else:
+        view = transactions.copy()
+        f1, f2, f3 = st.columns([1, 1, 2])
+        type_filter = f1.selectbox("Filtrar por tipo", ["Todos", "Receita", "Despesa"])
+        category_options = ["Todas"] + sorted(str(x) for x in view["category"].dropna().unique())
+        category_filter = f2.selectbox("Filtrar por categoria", category_options)
+        search_filter = f3.text_input("Buscar no histórico", placeholder="Descrição, cliente ou documento")
+        if type_filter != "Todos":
+            view = view[view["tx_type"] == type_filter]
+        if category_filter != "Todas":
+            view = view[view["category"] == category_filter]
+        if search_filter.strip():
+            term = search_filter.strip().lower()
+            searchable = (
+                view["description"].fillna("").astype(str) + " "
+                + view["counterparty"].fillna("").astype(str) + " "
+                + view["document_number"].fillna("").astype(str)
+            ).str.lower()
+            view = view[searchable.str.contains(term, regex=False)]
+        st.caption(f"{len(view)} lançamento(s) encontrado(s) nesta página.")
+        view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
+        st.dataframe(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], use_container_width=True, hide_index=True, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+        if total_tx > page_size:
+            pprev, pinfo, pnext = st.columns([1,2,1])
+            if pprev.button("← Anterior", disabled=current_tx_page <= 1, use_container_width=True):
+                st.session_state["tx_history_page"] = current_tx_page - 1; st.rerun()
+            pinfo.caption(f"Página {current_tx_page} de {max_tx_page} • {total_tx} lançamentos")
+            if pnext.button("Próxima →", disabled=current_tx_page >= max_tx_page, use_container_width=True):
+                st.session_state["tx_history_page"] = current_tx_page + 1; st.rerun()
+        with st.expander("Editar um lançamento"):
+            edit_id = st.selectbox("Lançamento", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}", key="edit_tx_id")
+            edit_row = transactions.loc[transactions["id"] == edit_id].iloc[0]
+            with st.form("edit_tx_form"):
+                e1, e2 = st.columns(2)
+                edit_type = e1.selectbox("Tipo", ["Receita", "Despesa"], index=0 if edit_row["tx_type"] == "Receita" else 1)
+                edit_date = e2.date_input("Data", value=edit_row["tx_date"].date())
+                edit_description = st.text_input("Descrição", value=str(edit_row["description"] or ""))
+                e1, e2 = st.columns(2)
+                edit_category = e1.text_input("Categoria", value=str(edit_row["category"] or ""))
+                edit_value = e2.number_input("Valor", min_value=0.01, value=float(edit_row["value"]), step=10.0)
+                e1, e2 = st.columns(2)
+                edit_counterparty = e1.text_input("Cliente ou fornecedor", value=str(edit_row["counterparty"] or ""))
+                edit_document = e2.text_input("Nota ou documento", value=str(edit_row["document_number"] or ""))
+                edit_payment = st.text_input("Forma de pagamento", value=str(edit_row["payment_method"] or ""))
+                save_edit = st.form_submit_button("Salvar alterações", type="primary", use_container_width=True)
+            if save_edit:
+                if not edit_description.strip():
+                    st.error("Informe uma descrição.")
+                else:
+                    update_transaction(uid, int(edit_id), tx_date=edit_date, tx_type=edit_type, description=edit_description.strip(), category=edit_category.strip() or "Outros", value=edit_value, document_number=edit_document.strip(), counterparty=edit_counterparty.strip(), payment_method=edit_payment.strip())
+                    st.success("Lançamento atualizado.")
+                    st.rerun()
+        with st.expander("Excluir um lançamento"):
+            item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
+            st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
+            if st.button("Excluir lançamento selecionado", use_container_width=True): delete_transaction(uid,int(item)); st.rerun()
+
+elif page == "Importar Extrato":
+    header("Importar Extrato","Envie CSV ou Excel. O Razync transforma o extrato em lançamentos para conciliação e relatórios.")
+    st.caption("Suporta CSV e XLSX. Na próxima etapa você escolhe quais colunas representam data, descrição e valor.")
+    upload = st.file_uploader("Arquivo do extrato", type=["csv","xlsx","xls"], key="statement_file")
+    if upload:
+        try:
+            raw = read_statement(upload, upload.name)
+            if raw.empty:
+                st.warning("O arquivo não possui linhas para importar.")
+            else:
+                st.subheader("1. Confira as colunas")
+                st.dataframe(raw.head(8), use_container_width=True, hide_index=True)
+                cols = list(raw.columns)
+                a,b,c = st.columns(3)
+                date_col = a.selectbox("Coluna de data", cols, index=0)
+                desc_col = b.selectbox("Coluna de descrição", cols, index=min(1,len(cols)-1))
+                value_col = c.selectbox("Coluna de valor", cols, index=min(2,len(cols)-1))
+                st.subheader("2. Prepare a importação")
+                prepared = prepare_statement(raw, date_col, desc_col, value_col)
+                prepared["Categoria sugerida"] = prepared["description"].apply(suggest_category)
+                if prepared.empty:
+                    st.warning("Nenhuma linha válida foi encontrada com esse mapeamento.")
+                else:
+                    existing_keys = set()
+                    if not transactions.empty:
+                        existing_keys = set((r.tx_date.date() if hasattr(r.tx_date,"date") else r.tx_date, r.description, float(r.value), r.tx_type) for r in transactions.itertuples())
+                    prepared["Duplicado"] = [is_probable_duplicate(existing_keys,row.tx_date,row.description,row.value,row.tx_type) for row in prepared.itertuples()]
+                    st.dataframe(prepared, use_container_width=True, hide_index=True, column_config={"value":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+                    only_new = st.checkbox("Ignorar possíveis duplicados", value=True)
+                    rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
+                    st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
+                    if st.button("Confirmar importação", type="primary", use_container_width=True):
+                        count=0
+                        for _,r in rows_to_import.iterrows():
+                            add_transaction(uid, tx_date=r["tx_date"], tx_type=r["tx_type"], description=r["description"], category=r["Categoria sugerida"], value=float(r["value"]), document_number="", counterparty="", payment_method="Banco")
+                            count+=1
+                        st.success(f"{count} lançamento(s) importados.")
+                        st.session_state["_navigate_to"] = "Movimentações"
+                        st.rerun()
+        except Exception as exc:
+            st.error(f"Não foi possível ler o arquivo: {exc}")
+
+elif page == "Conciliação":
+    header("Conciliação Inteligente", "O Razync compara notas e receitas usando número do documento, valor, data e cliente para sugerir correspondências.")
+    rec = reconciliation_summary(transactions, invoices)
+    matches = smart_invoice_matches(transactions, invoices)
+    duplicates = duplicate_groups(transactions)
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Notas emitidas", rec["total_invoices"])
+    c2.metric("Já conciliadas", rec["reconciled_invoices"])
+    c3.metric("Sugestões encontradas", len(matches))
+    c4.metric("Possíveis duplicidades", len(duplicates))
+
+    section("Sugestões automáticas", "Revise antes de confirmar. O Razync nunca vincula automaticamente sem sua decisão.")
+    if matches.empty:
+        empty_state("Nenhuma correspondência forte encontrada", "Você pode importar um extrato ou registrar receitas para o Razync encontrar possíveis vínculos com as notas.", "≈")
+    else:
+        show_matches = matches.rename(columns={"invoice_number":"Nota","customer":"Cliente","invoice_value":"Valor da nota","tx_date":"Data do lançamento","tx_description":"Lançamento","tx_value":"Valor lançado","score":"Pontuação","confidence":"Confiança","reasons":"Motivos"})
+        st.dataframe(show_matches[["Nota","Cliente","Valor da nota","Data do lançamento","Lançamento","Valor lançado","Confiança","Pontuação","Motivos"]], use_container_width=True, hide_index=True, column_config={"Valor da nota":st.column_config.NumberColumn("Valor da nota", format="R$ %.2f"), "Valor lançado":st.column_config.NumberColumn("Valor lançado", format="R$ %.2f"), "Data do lançamento":st.column_config.DateColumn("Data do lançamento", format="DD/MM/YYYY"), "Pontuação":st.column_config.ProgressColumn("Pontuação", min_value=0, max_value=100)})
+        option_labels = {int(r.tx_id): f"Nota {r.invoice_number or r.invoice_id} → {r.tx_description} • R$ {r.tx_value:,.2f} • confiança {r.confidence}" for r in matches.itertuples()}
+        selected_tx = st.selectbox("Sugestão para revisar", list(option_labels.keys()), format_func=lambda x: option_labels[x], key="smart_match")
+        selected = matches[matches["tx_id"] == selected_tx].iloc[0]
+        st.caption(f"Motivos: {selected['reasons']} • pontuação {int(selected['score'])}/100")
+        if st.button("Confirmar vínculo com este lançamento", type="primary", use_container_width=True):
+            link_transaction_document(uid, int(selected["tx_id"]), str(selected["invoice_number"] or ""), str(selected["customer"] or ""))
+            st.success("Nota vinculada ao lançamento existente sem criar receita duplicada.")
+            st.rerun()
+
+    section("Notas ainda sem vínculo")
+    pending_inv = rec["pending_invoices"]
+    if pending_inv.empty:
+        st.success("Todas as notas numeradas estão conciliadas com receitas cadastradas.")
+    else:
+        st.dataframe(pending_inv, use_container_width=True, hide_index=True, column_config={"Valor":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        with st.expander("Criar receita a partir de uma nota sem correspondência"):
+            selected_invoice = st.selectbox("Nota", pending_inv["ID"].tolist(), key="rec_invoice")
+            source = invoices[invoices["id"] == selected_invoice].iloc[0]
+            st.caption("Use somente quando não existir um recebimento correspondente entre as movimentações.")
+            if st.button("Criar nova receita desta nota", use_container_width=True):
+                issue = source["issue_date"]
+                tx_date_value = issue.date() if hasattr(issue, "date") else issue
+                add_transaction(uid, tx_date=tx_date_value, tx_type="Receita", description=source.get("description") or f"Nota {source.get('number') or ''}", category="Serviços" if source.get("invoice_type") == "Serviço" else "Vendas", value=float(source.get("amount") or 0), document_number=str(source.get("number") or ""), counterparty=str(source.get("customer") or ""), payment_method="Outro")
+                st.rerun()
+
+    section("Possíveis lançamentos duplicados")
+    if duplicates.empty:
+        st.success("Nenhuma duplicidade evidente foi encontrada nas movimentações.")
+    else:
+        st.dataframe(duplicates, use_container_width=True, hide_index=True, column_config={"tx_date":st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "value":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        with st.expander("Remover duplicidade"):
+            duplicate_id = st.selectbox("Lançamento a excluir", duplicates["id"].tolist(), key="duplicate_delete")
+            st.caption("Confira os registros antes de excluir. A exclusão é definitiva.")
+            if st.button("Excluir lançamento selecionado", use_container_width=True):
+                delete_transaction(uid, int(duplicate_id)); st.rerun()
+
+    if st.button("Importar novo extrato", use_container_width=True):
+        st.session_state["_navigate_to"] = "Importar Extrato"
+        st.rerun()
+
+elif page == "Fluxo de Caixa":
+    header("Fluxo de Caixa","Veja entradas, saídas, resultado e saldo acumulado por mês.")
+    year = st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3)
+    cf = cashflow_monthly(transactions,year)
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Entradas",brl(float(cf["Entradas"].sum()))); c2.metric("Saídas",brl(float(cf["Saídas"].sum()))); c3.metric("Resultado",brl(float(cf["Resultado"].sum())))
+    fig = px.bar(cf,x="Mês",y=["Entradas","Saídas"],barmode="group",template=PLOT_TEMPLATE)
+    themed_plotly_chart(fig,use_container_width=True)
+    st.dataframe(cf,use_container_width=True,hide_index=True,column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
+
+elif page == "Análise Financeira":
+    header("Análise Financeira","Veja evolução, rentabilidade e pontos que merecem revisão antes de tomar decisões.")
+    analysis_year = st.selectbox("Ano da análise", list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)), index=3, key="analysis_year")
+    analysis = financial_analysis(transactions, analysis_year)
+    ac1,ac2,ac3,ac4 = st.columns(4)
+    ac1.metric("Receitas",brl(analysis["revenue"])); ac2.metric("Despesas",brl(analysis["expense"])); ac3.metric("Resultado",brl(analysis["result"])); ac4.metric("Margem",f"{analysis['margin']:.1f}%")
+    monthly = analysis["monthly"]
+    if not monthly.empty:
+        fig = px.line(monthly,x="Mês",y=["Receitas","Despesas","Resultado"],markers=True,template=PLOT_TEMPLATE)
+        themed_plotly_chart(fig,use_container_width=True)
+        st.dataframe(monthly,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
+    st.subheader("Despesas por categoria")
+    bycat = analysis["expense_by_category"]
+    if bycat.empty: st.info("Sem despesas registradas neste ano.")
+    else:
+        fig2=px.bar(bycat,x="Categoria",y="Valor",template=PLOT_TEMPLATE); themed_plotly_chart(fig2,use_container_width=True)
+    checks = consistency_checks(transactions,invoices,das_rows)
+    st.subheader("Revisões recomendadas")
+    if checks:
+        for item in checks: st.warning(item)
+    else: st.success("Nenhuma inconsistência relevante encontrada.")
+    analysis_pdf = financial_summary_pdf(profile, analysis_year, analysis, checks)
+    st.download_button("Baixar análise financeira em PDF",analysis_pdf,file_name=f"analise_financeira_{analysis_year}.pdf",mime="application/pdf",use_container_width=True)
+
+elif page == "Central Fiscal":
+    header("Central Fiscal MEI","Acompanhe limite, DAS, relatório mensal e DASN em um único lugar.")
+    fiscal_year = st.selectbox("Ano fiscal",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="fiscal_year")
+    f_limit = annual_limit_for(opening,fiscal_year,profile.get("annual_limit"))
+    f_tx = transactions[(transactions["tx_date"].dt.year==fiscal_year)] if not transactions.empty else transactions
+    f_rev = float(f_tx[f_tx["tx_type"]=="Receita"]["value"].sum()) if not f_tx.empty else 0.0
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric("Faturamento",brl(f_rev)); c2.metric("Limite monitorado",brl(f_limit)); c3.metric("Disponível",brl(max(f_limit-f_rev,0))); c4.metric("Uso",f"{(f_rev/f_limit*100 if f_limit else 0):.1f}%")
+    overdue_das=[d for d in das_rows if das_status(d.get("status","Pendente"),d.get("due_date"))=="Atrasado"]
+    pending_das=[d for d in das_rows if das_status(d.get("status","Pendente"),d.get("due_date"))=="Pendente"]
+    if overdue_das: st.error(f"{len(overdue_das)} DAS registrado(s) como atrasado(s).")
+    elif pending_das: st.info(f"{len(pending_das)} DAS pendente(s) no controle.")
+    else: st.success("Nenhum DAS pendente identificado no controle.")
+    months=monthly_rows(transactions,fiscal_year)
+    year_total=sum(r["total"] for r in months)
+    c1,c2,c3=st.columns(3)
+    c1.metric("Relatório mensal",f"{sum(1 for r in months if r['total']>0)}/12 meses com movimento")
+    c2.metric("Base DASN",brl(year_total))
+    c3.metric("Documentos",len(docs))
+    q1,q2,q3,q4=st.columns(4)
+    if q1.button("Abrir DAS",use_container_width=True): st.session_state["_navigate_to"]="DAS"; st.rerun()
+    if q2.button("Relatório Mensal",use_container_width=True): st.session_state["_navigate_to"]="Relatório Mensal"; st.rerun()
+    if q3.button("Preparar DASN",use_container_width=True): st.session_state["_navigate_to"]="DASN-SIMEI"; st.rerun()
+    if q4.button("Ver Obrigações",use_container_width=True): st.session_state["_navigate_to"]="Obrigações"; st.rerun()
+    section("Próximos vencimentos", "Agenda consolidada para não perder prazos do MEI.")
+    fiscal_events = [{"Data": row["due_date"], "Obrigação": row["title"], "Competência": row["competence"], "Status": row["status"]} for row in automatic_obligations(CURRENT_YEAR, opening)]
+    fiscal_events.extend({"Data": row["due_date"], "Obrigação": row["title"], "Competência": "Personalizada", "Status": row["status"]} for row in obligations)
+    fiscal_calendar = pd.DataFrame(fiscal_events)
+    if fiscal_calendar.empty:
+        st.info("Nenhum vencimento encontrado.")
+    else:
+        fiscal_calendar = fiscal_calendar.sort_values("Data")
+        st.dataframe(fiscal_calendar, use_container_width=True, hide_index=True, column_config={"Data": st.column_config.DateColumn(format="DD/MM/YYYY")})
+        st.download_button("Exportar agenda fiscal (.csv)", fiscal_calendar.to_csv(index=False).encode("utf-8-sig"), file_name=f"agenda-fiscal-{CURRENT_YEAR}.csv", mime="text/csv", use_container_width=True)
+
+elif page == "Fechamento Mensal":
+    header("Fechamento Mensal","Confira documentos, notas, movimentações e DAS antes de considerar o mês organizado.")
+    c1,c2=st.columns(2)
+    close_year=c1.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="close_year")
+    close_month=c2.selectbox("Mês",list(range(1,13)),index=date.today().month-1,format_func=lambda m:calendar.month_name[m],key="close_month")
+    closing=monthly_closing(transactions,invoices,docs,das_rows,close_year,close_month)
+    a,b,c,d=st.columns(4)
+    a.metric("Receitas",brl(closing["revenue"])); b.metric("Despesas",brl(closing["expense"])); c.metric("Resultado",brl(closing["result"])); d.metric("Organização",f"{closing['score']}%")
+    st.progress(closing["score"]/100)
+    for item in closing["checks"]:
+        if item["ok"]: st.success(item["text"])
+        else: st.warning(item["text"])
+    closing_pdf = closing_summary_pdf(profile, close_year, close_month, closing)
+    st.download_button("Baixar fechamento em PDF",closing_pdf,file_name=f"fechamento_{close_year}_{close_month:02d}.pdf",mime="application/pdf",use_container_width=True)
+
+elif page == "Relatório Mensal":
+    header("Relatório Mensal de Receitas Brutas","Gere o relatório mensal a partir das receitas cadastradas.")
+    year=st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3,key="rmyear")
+    rows=monthly_rows(transactions,year)
+    dfm=pd.DataFrame([{ "Mês":r["month_name"],"Com documento":r["with_doc"],"Sem documento":r["without_doc"],"Serviços":r["services"],"Vendas/Comércio":r["sales"],"Total":r["total"]} for r in rows])
+    st.dataframe(dfm,use_container_width=True,hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]})
+    st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
+    month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:calendar.month_name[m],key="pdfmonth")
+    r=rows[month-1]
+    pdf=monthly_report_pdf(profile,month,year,r["with_doc"],r["without_doc"],r["services"],r["sales"])
+    st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
+
+elif page == "Notas Fiscais":
+    header("Notas Fiscais","Controle as notas emitidas e acompanhe se cada uma já foi conciliada com uma receita.")
+    with st.container(border=True):
+        st.caption("NOVA NOTA")
+        with st.form("invoice_form",clear_on_submit=True):
+            a,b,c=st.columns(3)
+            issue=a.date_input("Data de emissão",value=date.today()); inv_type=b.selectbox("Tipo",["Serviço","Venda/Comércio"]); amount=c.number_input("Valor",min_value=0.0,step=10.0,format="%.2f")
+            a,b=st.columns(2)
+            number=a.text_input("Número da nota"); customer=b.text_input("Cliente",placeholder="Nome do cliente")
+            desc=st.text_input("Descrição",placeholder="Ex.: serviço prestado, venda realizada...")
+            with st.expander("Mais detalhes (opcional)"):
+                custdoc=st.text_input("CPF/CNPJ do cliente")
+                status=st.selectbox("Situação",["Emitida","Cancelada"])
+            submit=st.form_submit_button("Salvar nota",type="primary",use_container_width=True)
+            if submit:
+                if amount <= 0: st.error("Informe um valor maior que zero.")
+                else:
+                    add_invoice(uid,issue_date=issue,invoice_type=inv_type,number=number.strip(),customer=customer.strip(),customer_document=custdoc.strip(),description=desc.strip(),amount=amount,status=status); st.rerun()
+    section("Notas cadastradas")
+    if invoices.empty:
+        empty_state("Nenhuma nota fiscal cadastrada", "Cadastre as notas emitidas para comparar faturamento, acompanhar clientes e facilitar a conciliação com os recebimentos.", "▤")
+    else:
+        st.dataframe(invoices,use_container_width=True,hide_index=True,column_config={"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"issue_date":st.column_config.DateColumn("Emissão",format="DD/MM/YYYY")})
+        with st.expander("Excluir uma nota"):
+            iid=st.selectbox("Selecione",invoices["id"].tolist(),key="delinv"); st.caption("Confira antes de excluir: esta ação é definitiva.")
+            if st.button("Excluir nota selecionada",use_container_width=True): delete_invoice(uid,int(iid)); st.rerun()
+
+elif page == "DAS":
+    header("DAS","Controle as competências mensais e registre pagamentos do Documento de Arrecadação do Simples Nacional.")
+    year=st.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="dasyear")
+    st.caption("O vencimento padrão é calculado para o dia 20 do mês seguinte, com ajuste básico para fim de semana. Consulte sempre o documento oficial antes do pagamento.")
+    with st.expander("Registrar ou atualizar uma competência", expanded=not bool(das_rows)):
+        month=st.selectbox("Competência",list(range(1,13)),format_func=lambda m:f"{m:02d}/{year}")
+        competence=f"{year}-{month:02d}"
+        due=st.date_input("Vencimento",value=das_due_date(year,month))
+        amount=st.number_input("Valor do DAS",min_value=0.0,step=1.0,format="%.2f")
+        status=st.selectbox("Status",["Pendente","Pago"])
+        payment_date=None
+        if status=="Pago": payment_date=st.date_input("Data de pagamento",value=date.today())
+        notes=st.text_area("Observações")
+        if st.button("Salvar DAS",type="primary",use_container_width=True): upsert_das(uid,competence,due,amount,status,payment_date,notes); st.rerun()
+    current=[d for d in das_rows if str(d["competence"]).startswith(str(year))]
+    section("Competências do ano")
+    if not current:
+        empty_state("Nenhum DAS controlado neste ano", "Adicione uma competência para acompanhar vencimento e pagamento do DAS dentro do Razync.", "▣")
     else:
         das_view=[]
         for d in current:
@@ -677,11 +1141,7 @@ elif page == "Segurança da Conta":
                 st.error("A alteração de senha requer o Supabase Auth.")
             else:
                 try:
-                    supabase_update_password(
-                        st.session_state.get("access_token", ""),
-                        st.session_state.get("refresh_token", ""),
-                        new_password,
-                    )
+                    supabase_update_password(st.session_state.get("access_token", ""), st.session_state.get("refresh_token", ""), new_password)
                 except AuthServiceError as exc:
                     st.error(str(exc))
                 else:
