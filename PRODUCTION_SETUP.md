@@ -31,9 +31,10 @@ DATABASE_URL = "postgresql://USUARIO:SENHA@HOST:5432/BANCO"
 ```toml
 SUPABASE_URL = "https://etimfgenlludorrftapb.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_..."
+SESSION_COOKIE_SECRET = "gere-um-valor-aleatorio-com-pelo-menos-32-caracteres"
 ```
 
-Use somente a chave publicável; nunca configure `service_role` no aplicativo.
+Use somente a chave publicável; nunca configure `service_role` no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”; use um valor aleatório exclusivo e nunca o publique.
 
 5. Salve e reinicie o aplicativo.
 

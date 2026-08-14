@@ -35,8 +35,13 @@ from login_security import login_attempt_guard
 from storage_service import download_document, remove_document, upload_document
 from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
+    restore_session as supabase_restore_session,
     sign_in as supabase_sign_in, sign_out as supabase_sign_out,
     sign_up as supabase_sign_up,
+)
+from session_persistence import (
+    clear_persisted_session, persist_refresh_token,
+    persistent_session_controller, read_refresh_token,
 )
 
 CURRENT_YEAR = date.today().year
@@ -118,12 +123,39 @@ def remove_saved_document(user_id: int, document: dict) -> None:
 def ensure_login() -> dict:
     """Require an authenticated session before loading any business data."""
     auth_enabled = is_supabase_auth_configured()
+    session_controller = persistent_session_controller() if auth_enabled else None
+
+    if (
+        auth_enabled
+        and session_controller is not None
+        and "user" not in st.session_state
+        and not st.session_state.get("_persistent_session_checked")
+    ):
+        st.session_state["_persistent_session_checked"] = True
+        saved_refresh_token = read_refresh_token(session_controller)
+        if saved_refresh_token:
+            try:
+                identity = supabase_restore_session(saved_refresh_token)
+                user = resolve_supabase_user(
+                    identity["auth_user_id"],
+                    identity["email"],
+                    identity.get("name", ""),
+                )
+            except (AuthServiceError, DatabaseConnectionError, ValueError):
+                clear_persisted_session(session_controller)
+            else:
+                st.session_state["access_token"] = identity["access_token"]
+                st.session_state["refresh_token"] = identity["refresh_token"]
+                st.session_state["user"] = user
+                persist_refresh_token(session_controller, identity["refresh_token"])
+                st.rerun()
 
     if "user" in st.session_state:
         user = st.session_state["user"]
         with st.sidebar:
             st.caption(f"Conectado como {user['name']}")
             if st.button("Sair", use_container_width=True):
+                clear_persisted_session(session_controller)
                 if auth_enabled:
                     supabase_sign_out(
                         st.session_state.get("access_token", ""),
@@ -167,6 +199,12 @@ def ensure_login() -> dict:
         with st.form("login_form"):
             email = st.text_input("E-mail", key="login_email").strip()
             password = st.text_input("Senha", type="password", key="login_password")
+            keep_connected = st.checkbox(
+                "Manter conectado neste dispositivo",
+                value=True,
+                disabled=session_controller is None,
+                help="Sua sessão é renovada pelo Supabase e removida ao sair.",
+            )
             submitted = st.form_submit_button("Entrar", use_container_width=True)
 
         if submitted:
@@ -199,6 +237,15 @@ def ensure_login() -> dict:
                     if user:
                         login_attempt_guard.record_success(email)
                         st.session_state["user"] = user
+                        if (
+                            auth_enabled
+                            and keep_connected
+                            and session_controller is not None
+                        ):
+                            persist_refresh_token(
+                                session_controller,
+                                st.session_state["refresh_token"],
+                            )
                         st.rerun()
 
                     retry_after = login_attempt_guard.record_failure(email)

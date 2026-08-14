@@ -68,6 +68,26 @@ def sign_in(email: str, password: str) -> dict[str, Any]:
     }
 
 
+
+def restore_session(refresh_token: str) -> dict[str, Any]:
+    """Exchange a persisted refresh token and validate the remote Auth user."""
+    client = _client()
+    try:
+        response = client.auth.refresh_session(refresh_token)
+    except Exception as exc:
+        raise AuthServiceError("A sessão salva expirou.") from exc
+
+    if response.user is None or response.session is None:
+        raise AuthServiceError("A sessão salva expirou.")
+
+    return {
+        "auth_user_id": str(response.user.id),
+        "email": response.user.email or "",
+        "name": (response.user.user_metadata or {}).get("name", ""),
+        "access_token": response.session.access_token,
+        "refresh_token": response.session.refresh_token,
+    }
+
 def sign_up(name: str, email: str, password: str) -> dict[str, Any]:
     client = _client()
     try:
