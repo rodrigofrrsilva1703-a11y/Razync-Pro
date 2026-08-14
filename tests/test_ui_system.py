@@ -14,3 +14,5 @@ def test_login_design_system_renders_without_template_errors():
     assert ".rz-auth-heading" in css
     assert ".rz-login-security" in css
     assert "backdrop-filter:blur(18px)" in css
+    assert '[data-baseweb="input"]' in css
+    assert "button p { color:white!important; }" in css
