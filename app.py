@@ -134,8 +134,25 @@ def ensure_login() -> dict:
                 st.rerun()
         return user
 
-    st.title("Razync Pro")
-    st.caption("Gestão financeira e fiscal para MEI")
+    st.markdown(
+        """
+        <div class="rz-login-shell">
+          <div class="rz-login-brand">
+            <div class="rz-login-mark" aria-hidden="true"></div>
+            <div><strong>Razync</strong><span>PRO</span></div>
+          </div>
+          <div class="rz-login-kicker">Gestão inteligente para MEI</div>
+          <h1>Seu negócio organizado.<br><em>Suas decisões mais simples.</em></h1>
+          <p class="rz-login-lead">Finanças, obrigações fiscais e documentos em um só lugar, com segurança e clareza para você focar no crescimento.</p>
+          <div class="rz-login-benefits">
+            <span>✓ Controle financeiro</span>
+            <span>✓ Rotina fiscal</span>
+            <span>✓ Documentos protegidos</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     if not auth_enabled:
         st.warning(
             "Supabase Auth ainda não está configurado neste ambiente. "
