@@ -54,4 +54,13 @@ def automatic_obligations(year: int, opening_date: date | None = None, today: da
         "Status automático": _status(deadline, today),
         "Descrição": "Transmitir a declaração anual referente ao ano-calendário anterior.",
     })
+    for row in rows:
+        row.update({
+            "title": row["Obrigação"],
+            "competence": row["Competência"],
+            "category": row["Categoria"],
+            "due_date": row["Vencimento"],
+            "status": row["Status automático"],
+            "details": row["Descrição"],
+        })
     return sorted(rows, key=lambda x: x["Vencimento"])
