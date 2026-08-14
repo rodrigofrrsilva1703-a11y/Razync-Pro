@@ -220,9 +220,8 @@ hr {{ border-color:var(--rz-border); }}
 .rz-login-brand {{ display:inline-flex; align-items:center; justify-content:center; gap:.68rem; margin-bottom:1.35rem; padding:.42rem .72rem .42rem .48rem; border:1px solid var(--rz-border); border-radius:999px; background:color-mix(in srgb,var(--rz-surface) 88%,transparent); box-shadow:var(--rz-shadow-soft); backdrop-filter:blur(12px); }}
 .rz-login-brand strong {{ font-size:1.08rem; letter-spacing:-.045em; font-weight:900; }}
 .rz-login-brand span {{ color:var(--rz-primary); font-size:.57rem; font-weight:850; letter-spacing:.13em; margin-left:.25rem; vertical-align:.17rem; }}
-.rz-login-mark {{ width:29px; height:29px; border-radius:9px; border:1px solid rgba(19,185,232,.45);
-  background:linear-gradient(30deg,transparent 44%,var(--rz-primary) 45% 51%,transparent 52%),linear-gradient(150deg,transparent 44%,var(--rz-primary) 45% 51%,transparent 52%),radial-gradient(circle,var(--rz-primary) 0 2.5px,transparent 3.5px),linear-gradient(145deg,rgba(19,185,232,.22),rgba(19,185,232,.04));
-  box-shadow:0 8px 24px rgba(14,174,219,.16);
+.rz-login-mark {{ width:32px; height:32px; display:block; object-fit:cover; border-radius:9px; border:1px solid rgba(19,185,232,.45);
+  box-shadow:0 8px 24px rgba(14,174,219,.18);
 }}
 .rz-login-kicker {{ color:var(--rz-primary); font-size:.68rem; font-weight:850; letter-spacing:.14em; text-transform:uppercase; margin-bottom:.65rem; }}
 .rz-login-shell h1 {{ font-size:clamp(2rem,4.5vw,3.35rem); line-height:1.02; letter-spacing:-.055em; margin:0; font-weight:900; }}
