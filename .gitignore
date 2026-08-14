@@ -8,3 +8,4 @@ venv/
 razync_pro.db
 *.sqlite
 *.sqlite3
+.brand_cache/
