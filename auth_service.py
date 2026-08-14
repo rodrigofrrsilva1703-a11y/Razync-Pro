@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import secrets
+from threading import Lock
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -22,6 +23,9 @@ DEFAULT_APP_URL = "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/"
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_API_URL = "https://api.github.com"
+GITHUB_CALLBACK_CACHE_SECONDS = 300
+_github_identity_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_github_identity_lock = Lock()
 
 
 class AuthConfigurationError(RuntimeError):
@@ -141,56 +145,83 @@ def github_sign_in(code: str, state: str) -> dict[str, Any]:
         raise AuthServiceError("O GitHub não retornou um código de acesso válido.")
     _validate_github_state(state)
 
-    token_data = _github_json_request(
-        GITHUB_TOKEN_URL,
-        data={
-            "client_id": _secret("GITHUB_CLIENT_ID"),
-            "client_secret": _secret("GITHUB_CLIENT_SECRET"),
-            "code": code,
-        },
-    )
-    access_token = str(token_data.get("access_token") or "")
-    if not access_token:
-        error_code = str(token_data.get("error") or "")
-        safe_messages = {
-            "bad_verification_code": (
-                "O código retornado pelo GitHub expirou ou já foi usado. "
-                "Volte à tela inicial e tente entrar novamente."
-            ),
-            "incorrect_client_credentials": (
-                "O Client ID ou Client Secret do GitHub não corresponde ao OAuth App."
-            ),
-            "redirect_uri_mismatch": (
-                "A URL de retorno do GitHub não corresponde à URL cadastrada no OAuth App."
-            ),
+    cache_key = hashlib.sha256(
+        (
+            _secret("GITHUB_CLIENT_ID")
+            + ":"
+            + _secret("DEVELOPER_GITHUB_USER").casefold()
+            + ":"
+            + code
+        ).encode("utf-8")
+    ).hexdigest()
+
+    # Streamlit can rerun a callback while the browser reconnects. GitHub OAuth
+    # codes are single-use, so serialize the exchange and briefly reuse only the
+    # already-verified identity (never the provider access token).
+    with _github_identity_lock:
+        current_time = time.monotonic()
+        for key, (expires_at, _) in list(_github_identity_cache.items()):
+            if expires_at <= current_time:
+                _github_identity_cache.pop(key, None)
+        cached = _github_identity_cache.get(cache_key)
+        if cached:
+            return dict(cached[1])
+
+        token_data = _github_json_request(
+            GITHUB_TOKEN_URL,
+            data={
+                "client_id": _secret("GITHUB_CLIENT_ID"),
+                "client_secret": _secret("GITHUB_CLIENT_SECRET"),
+                "code": code,
+            },
+        )
+        access_token = str(token_data.get("access_token") or "")
+        if not access_token:
+            error_code = str(token_data.get("error") or "")
+            safe_messages = {
+                "bad_verification_code": (
+                    "O código retornado pelo GitHub expirou ou já foi usado. "
+                    "Volte à tela inicial e tente entrar novamente."
+                ),
+                "incorrect_client_credentials": (
+                    "O Client ID ou Client Secret do GitHub não corresponde ao OAuth App."
+                ),
+                "redirect_uri_mismatch": (
+                    "A URL de retorno do GitHub não corresponde à URL cadastrada no OAuth App."
+                ),
+            }
+            raise AuthServiceError(
+                safe_messages.get(error_code, "O GitHub não autorizou este acesso.")
+            )
+
+        profile = _github_json_request(f"{GITHUB_API_URL}/user", token=access_token)
+        login = str(profile.get("login") or "")
+        allowed_login = _secret("DEVELOPER_GITHUB_USER")
+        if not login or not hmac.compare_digest(login.casefold(), allowed_login.casefold()):
+            raise AuthServiceError("Esta conta do GitHub não possui acesso de desenvolvedor.")
+
+        email = str(profile.get("email") or "")
+        if not email:
+            emails = _github_json_request(
+                f"{GITHUB_API_URL}/user/emails", token=access_token
+            )
+            verified = [item for item in emails if item.get("verified")]
+            primary = next((item for item in verified if item.get("primary")), None)
+            if primary or verified:
+                email = str((primary or verified[0]).get("email") or "")
+        github_id = str(profile.get("id") or login)
+        identity = {
+            "auth_user_id": str(uuid5(NAMESPACE_URL, f"https://github.com/id/{github_id}")),
+            "email": email or f"{github_id}+{login}@users.noreply.github.com",
+            "name": str(profile.get("name") or login),
+            "github_login": login,
+            "provider": "github",
         }
-        raise AuthServiceError(
-            safe_messages.get(error_code, "O GitHub não autorizou este acesso.")
+        _github_identity_cache[cache_key] = (
+            current_time + GITHUB_CALLBACK_CACHE_SECONDS,
+            identity,
         )
-
-    profile = _github_json_request(f"{GITHUB_API_URL}/user", token=access_token)
-    login = str(profile.get("login") or "")
-    allowed_login = _secret("DEVELOPER_GITHUB_USER")
-    if not login or not hmac.compare_digest(login.casefold(), allowed_login.casefold()):
-        raise AuthServiceError("Esta conta do GitHub não possui acesso de desenvolvedor.")
-
-    email = str(profile.get("email") or "")
-    if not email:
-        emails = _github_json_request(
-            f"{GITHUB_API_URL}/user/emails", token=access_token
-        )
-        verified = [item for item in emails if item.get("verified")]
-        primary = next((item for item in verified if item.get("primary")), None)
-        if primary or verified:
-            email = str((primary or verified[0]).get("email") or "")
-    github_id = str(profile.get("id") or login)
-    return {
-        "auth_user_id": str(uuid5(NAMESPACE_URL, f"https://github.com/id/{github_id}")),
-        "email": email or f"{github_id}+{login}@users.noreply.github.com",
-        "name": str(profile.get("name") or login),
-        "github_login": login,
-        "provider": "github",
-    }
+        return dict(identity)
 
 
 def _client() -> Client:
