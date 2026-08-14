@@ -86,6 +86,12 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertIn("supabase_sign_in", app_source)
         self.assertIn("github_sign_in", app_source)
         self.assertIn("Entrar como desenvolvedor com GitHub", app_source)
+        callback = app_source.index("identity = github_sign_in")
+        session_saved = app_source.index(
+            'st.session_state["user"] = user', callback
+        )
+        callback_cleared = app_source.index("st.query_params.clear()", callback)
+        self.assertLess(session_saved, callback_cleared)
         self.assertIn('st.button("Sair"', app_source)
         workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
         self.assertEqual(
