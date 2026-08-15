@@ -61,6 +61,25 @@ class AuthenticationTests(unittest.TestCase):
         )
         self.assertEqual(same["id"], linked["id"])
 
+    def test_trusted_developer_reuses_account_without_replacing_supabase_identity(self):
+        created, message = self.database.create_user(
+            "Conta do Desenvolvedor", "developer@example.com", "senha-segura"
+        )
+        self.assertTrue(created, message)
+        supabase_id = "22345678-1234-5678-1234-567812345678"
+        linked = self.database.resolve_supabase_user(
+            supabase_id, "developer@example.com"
+        )
+
+        developer = self.database.resolve_trusted_developer_user(
+            "32345678-1234-5678-1234-567812345678",
+            "DEVELOPER@example.com",
+            "Rodrigo",
+        )
+
+        self.assertEqual(developer["id"], linked["id"])
+        self.assertEqual(developer["auth_user_id"], supabase_id)
+
     def test_rejects_invalid_registration_data(self):
         cases = [
             ("", "usuario@example.com", "senha-segura"),
@@ -85,6 +104,7 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertIn('st.form("password_recovery_form")', app_source)
         self.assertIn("supabase_sign_in", app_source)
         self.assertIn("github_sign_in", app_source)
+        self.assertIn("resolve_trusted_developer_user", app_source)
         self.assertIn("Entrar como desenvolvedor com GitHub", app_source)
         callback = app_source.index("identity = github_sign_in")
         session_saved = app_source.index(
