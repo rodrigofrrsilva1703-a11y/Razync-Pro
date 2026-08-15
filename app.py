@@ -36,6 +36,10 @@ from ui_system import inject_design_system, page_header, section, business_card,
 from ui_helpers import MONTH_NAMES_PT, filter_transactions, paginate_frame
 from login_security import login_attempt_guard
 from storage_service import download_document, remove_document, upload_document
+from growth_tools import (
+    build_notifications, checkout_url, integration_readiness, normalize_nfse,
+    notification_calendar, read_nfse_export, suggest_nfse_columns,
+)
 from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
     github_authorization_url, github_sign_in, is_developer_github_configured,
@@ -1099,6 +1103,41 @@ elif page == "Notas Fiscais":
             iid=st.selectbox("Selecione",invoices["id"].tolist(),key="delinv"); st.caption("Confira antes de excluir: esta ação é definitiva.")
             if st.button("Excluir nota selecionada",width="stretch"): delete_invoice(uid,int(iid)); st.rerun()
 
+elif page == "Importar NFS-e":
+    header("Importar NFS-e", "Traga para o Razync as notas exportadas pelo portal da prefeitura ou pelo Emissor Nacional.")
+    st.info("Exporte as notas em CSV ou XLSX. O arquivo é lido apenas durante a importação e não é armazenado.")
+    nfse_file = st.file_uploader("Arquivo de NFS-e", type=["csv", "xlsx", "xls"], key="nfse_import")
+    if nfse_file is not None:
+        try:
+            nfse_frame = read_nfse_export(nfse_file)
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            suggestions = suggest_nfse_columns(nfse_frame.columns)
+            options = ["—"] + list(nfse_frame.columns)
+            labels = {"date": "Data de emissão", "number": "Número da nota", "amount": "Valor", "customer": "Cliente/tomador", "document": "CPF/CNPJ", "description": "Descrição", "status": "Situação"}
+            mapping = {}
+            for field, label in labels.items():
+                suggested = suggestions.get(field)
+                index = options.index(suggested) if suggested in options else 0
+                selected = st.selectbox(label, options, index=index, key=f"nfse_{field}")
+                mapping[field] = None if selected == "—" else selected
+            try:
+                nfse_rows = normalize_nfse(nfse_frame, mapping)
+            except ValueError as exc:
+                st.warning(str(exc))
+                nfse_rows = []
+            if nfse_rows:
+                st.dataframe(pd.DataFrame(nfse_rows), width="stretch", hide_index=True)
+                existing_numbers = set(invoices["number"].fillna("").astype(str)) if not invoices.empty else set()
+                new_rows = [row for row in nfse_rows if row["number"] not in existing_numbers]
+                st.caption(f"{len(new_rows)} nota(s) nova(s); {len(nfse_rows) - len(new_rows)} já cadastrada(s).")
+                if st.button("Importar notas novas", type="primary", width="stretch", disabled=not new_rows):
+                    for row in new_rows:
+                        add_invoice(uid, **row)
+                    st.success(f"{len(new_rows)} nota(s) importada(s).")
+                    st.rerun()
+
 elif page == "DAS":
     header("DAS","Gere a guia no PGMEI oficial e mantenha competência, vencimento, valor, pagamento e PDF organizados no Razync.")
     year=st.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="dasyear")
@@ -1357,6 +1396,17 @@ elif page == "Documentos":
         st.subheader("Cobertura documental")
         coverage=document_coverage(docs,CURRENT_YEAR); st.dataframe(coverage,width="stretch",hide_index=True)
 
+elif page == "Espaço do Contador":
+    header("Espaço do Contador", "Prepare informações organizadas para compartilhar com seu contador sem liberar sua senha.")
+    st.warning("Nunca compartilhe senha do gov.br, banco ou Razync. Envie apenas os relatórios e arquivos necessários.")
+    accountant_year = st.selectbox("Ano de referência", list(range(CURRENT_YEAR - 4, CURRENT_YEAR + 1)), index=4, key="accountant_year")
+    summary_pdf = financial_summary_pdf(profile, accountant_year, financial_analysis(transactions, accountant_year))
+    st.download_button("Baixar resumo financeiro", summary_pdf, file_name=f"resumo_contador_{accountant_year}.pdf", mime="application/pdf", width="stretch")
+    st.caption("Para documentos e dados completos, use o Backup e compartilhe o arquivo por um canal seguro.")
+    if st.button("Abrir Backup", width="stretch"):
+        st.session_state["_navigate_to"] = "Backup"
+        st.rerun()
+
 elif page == "Assistente Razync":
     header("Assistente Razync","Faça perguntas simples sobre os dados que já estão no sistema.")
     prompts=["Quanto ainda posso faturar?","Compare este mês com o anterior","Qual foi minha maior despesa?","Quanto faturei no trimestre?","Tenho documentos faltando?","Qual é o próximo vencimento?","Tenho DAS atrasado?","Como estão minhas notas?"]
@@ -1411,6 +1461,39 @@ elif page == "Meu MEI":
     with st.form("profile_form"):
         cnpj=st.text_input("CNPJ",value=str(profile.get("cnpj") or "")); business=st.text_input("Razão social",value=str(profile.get("business_name") or "")); trade=st.text_input("Nome fantasia",value=str(profile.get("trade_name") or "")); activity=st.text_input("Atividade principal",value=str(profile.get("main_activity") or "")); activity_type=st.selectbox("Tipo de atividade",["Serviços","Comércio","Indústria","Misto"],index=["Serviços","Comércio","Indústria","Misto"].index(profile.get("activity_type") if profile.get("activity_type") in ["Serviços","Comércio","Indústria","Misto"] else "Serviços")); opening_date=st.date_input("Data de abertura",value=opening or date.today()); annual_limit=st.number_input("Limite anual personalizado (opcional)",min_value=0.0,value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),step=1000.0); city=st.text_input("Município",value=str(profile.get("city") or "")); state=st.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); phone=st.text_input("Telefone",value=str(profile.get("phone") or "")); municipal=st.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_reg=st.text_input("Inscrição estadual",value=str(profile.get("state_registration") or "")); has_employee=st.checkbox("Possui empregado",value=bool(profile.get("has_employee",False)))
         if st.form_submit_button("Salvar dados",width="stretch"): save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee); st.success("Dados salvos."); st.rerun()
+
+elif page == "Central de Notificações":
+    header("Central de Notificações", "Priorize vencimentos e leve os prazos para o calendário do celular.")
+    notification_items = build_notifications(das_rows, obligations, year_revenue, limit)
+    if not notification_items:
+        st.success("Nenhum alerta importante identificado agora.")
+    else:
+        for item in notification_items:
+            message = f"**{item['title']}** — {item['detail']}"
+            if item["level"] == "urgent":
+                st.error(message)
+            else:
+                st.warning(message)
+        calendar_file = notification_calendar(notification_items, "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/")
+        st.download_button("Adicionar prazos ao calendário (.ics)", calendar_file, file_name="agenda_razync_mei.ics", mime="text/calendar", width="stretch")
+    st.caption("Os alertas são calculados com os dados cadastrados. Confirme sempre datas e valores nos documentos oficiais.")
+
+elif page == "Plano e Assinatura":
+    header("Plano e Assinatura", "Acompanhe os recursos disponíveis e, quando configurado, faça o upgrade por checkout seguro.")
+    if st.session_state.get("auth_provider") == "github":
+        st.success("Plano atual: Razync Pro — acesso de desenvolvimento")
+    else:
+        st.info("Plano atual: Essencial")
+    st.write("✓ Organização financeira e fiscal")
+    st.write("✓ Importação de extrato e NFS-e")
+    st.write("✓ Alertas, relatórios, documentos e backup")
+    config = {"CHECKOUT_PRO_URL": st.secrets.get("CHECKOUT_PRO_URL", "")}
+    payment_url = checkout_url(config, "pro")
+    if payment_url:
+        st.link_button("Assinar Razync Pro", payment_url, type="primary", width="stretch")
+        st.caption("O pagamento é processado pelo provedor configurado; dados de cartão não passam pelo Razync.")
+    else:
+        st.caption("Checkout comercial ainda não configurado. O uso atual permanece inalterado.")
 
 elif page == "Segurança da Conta":
     header("Segurança da Conta", "Atualize sua senha e confira como sua sessão é protegida.")
@@ -1473,10 +1556,11 @@ elif page == "Status do Sistema":
     if runtime["persistent"]: st.success("O banco configurado é persistente.")
     else: st.warning("O app está usando SQLite temporário. No Streamlit Cloud, configure DATABASE_URL com PostgreSQL/Supabase antes de colocar clientes reais.")
     st.subheader("Integrações")
-    st.write("• PostgreSQL/Supabase:","configurado" if runtime["persistent"] else "pendente")
-    st.write("• NFS-e Nacional: preparação funcional; credenciais/API externa pendentes")
-    st.write("• Integrações bancárias diretas: pendentes; importação de arquivo já disponível")
-    st.write("• Documentos: Supabase Storage privado quando a conta usa Supabase Auth; fallback legado durante a migração")
+    status_config = {key: st.secrets.get(key, "") for key in ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "CHECKOUT_PRO_URL")}
+    for integration in integration_readiness(status_config, runtime["persistent"]):
+        marker = "✓" if integration["ready"] else "○"
+        st.write(f"{marker} **{integration['name']}** — {integration['detail']}")
+    st.write("○ **Integrações bancárias diretas** — importação inteligente de arquivo já disponível")
 
 elif page == "Backup":
     header("Backup","Baixe um pacote dos dados para manter uma cópia independente.")
