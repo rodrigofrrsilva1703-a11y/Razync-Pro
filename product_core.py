@@ -10,9 +10,9 @@ from fiscal_rules import das_status
 NAV_GROUPS = {
     "Visão Geral": ["Dashboard", "Assistente Razync"],
     "Financeiro": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
-    "Fiscal MEI": ["DAS", "DASN-SIMEI", "Obrigações", "Notas Fiscais", "Relatório Mensal", "Fechamento Mensal"],
-    "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos"],
-    "Configurações": ["Primeiros Passos", "Meu MEI", "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
+    "Fiscal MEI": ["DAS", "DASN-SIMEI", "Obrigações", "Notas Fiscais", "Importar NFS-e", "Relatório Mensal", "Fechamento Mensal"],
+    "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos", "Espaço do Contador"],
+    "Configurações": ["Primeiros Passos", "Meu MEI", "Central de Notificações", "Plano e Assinatura", "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
 }
 
 
