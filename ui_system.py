@@ -124,13 +124,22 @@ hr { border-color:#cfdee8 !important; }
   --rz-shadow-soft:{t['shadow_soft']};
 }}
 html, body, [class*="css"] {{ font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {{ display:none!important; }}
+#MainMenu, footer, [data-testid="stDecoration"], [data-testid="stStatusWidget"] {{ display:none!important; }}
+[data-testid="stToolbar"] {{ display:flex!important; background:transparent!important; }}
+[data-testid="stToolbar"] button:not([data-testid="stExpandSidebarButton"]) {{ display:none!important; }}
 :where(button, a, input, textarea, select, [role="tab"]):focus-visible {{ outline:3px solid color-mix(in srgb,var(--rz-primary) 50%,transparent)!important; outline-offset:2px; }}
 @media (prefers-reduced-motion:reduce) {{ *, *::before, *::after {{ scroll-behavior:auto!important; transition:none!important; animation:none!important; }} }}
 .stApp {{ background:var(--rz-bg); color:var(--rz-text); }}
 [data-testid="stHeader"] {{ background:rgba(0,0,0,0); }}
 [data-testid="stSidebar"] {{ background:{t['sidebar']}; border-right:1px solid var(--rz-border); }}
 [data-testid="stSidebar"] > div:first-child {{ padding-top:.55rem; }}
+[data-testid="stExpandSidebarButton"] {{
+  position:fixed!important; left:.65rem!important; top:.65rem!important; z-index:9999!important;
+  width:42px!important; height:42px!important; border-radius:11px!important;
+  background:var(--rz-surface)!important; border:1px solid var(--rz-border)!important;
+  box-shadow:var(--rz-shadow-soft)!important;
+}}
+[data-testid="stExpandSidebarButton"] span {{ color:var(--rz-primary)!important; }}
 .block-container {{ max-width:1320px; padding-top:1.25rem; padding-bottom:3rem; }}
 
 /* Lockup do grupo: símbolo visual + wordmark Razync Pro. */
