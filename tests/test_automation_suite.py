@@ -1,9 +1,10 @@
 from datetime import date
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
-from automation_suite import cash_forecast, das_payment_matches, expense_anomalies, learned_category, receivable_reminders
+from automation_suite import automation_overview, cash_forecast, das_payment_matches, expense_anomalies, learned_category, receivable_reminders
 
 
 class AutomationSuiteTests(unittest.TestCase):
@@ -38,6 +39,28 @@ class AutomationSuiteTests(unittest.TestCase):
         reminders = receivable_reminders(invoices, pd.DataFrame())
         self.assertEqual(len(reminders), 1)
         self.assertTrue(reminders[0]["whatsapp_url"].startswith("https://wa.me/"))
+
+
+    def test_overview_exposes_sorted_actionable_routes(self):
+        with (
+            patch("automation_suite.monthly_closing", return_value={"score": 100, "checklist": []}),
+            patch("automation_suite.smart_invoice_matches", return_value=pd.DataFrame()),
+            patch("automation_suite.das_payment_matches", return_value=[]),
+            patch("automation_suite.expense_anomalies", return_value=[]),
+            patch("automation_suite.document_queue", return_value={"missing_count": 0}),
+            patch("automation_suite.receivable_reminders", return_value=[]),
+            patch("automation_suite.cash_forecast", return_value=pd.DataFrame()),
+        ):
+            result = automation_overview(
+                {}, pd.DataFrame(), pd.DataFrame(), [], [
+                    {"status": "Pendente", "due_date": date(2026, 1, 10)}
+                ], [], 2026, 8,
+            )
+
+        self.assertEqual(result["action_items"][0]["priority"], 1)
+        self.assertEqual(result["action_items"][0]["page"], "Obrigações")
+        self.assertIn("actions", result)
+
 
 
 if __name__ == "__main__":
