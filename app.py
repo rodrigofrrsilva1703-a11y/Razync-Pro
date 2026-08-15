@@ -40,6 +40,9 @@ from growth_tools import (
     build_notifications, checkout_url, integration_readiness, normalize_nfse,
     notification_calendar, read_nfse_export, suggest_nfse_columns,
 )
+from automation_suite import (
+    automation_overview, learned_category,
+)
 from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
     github_authorization_url, github_sign_in, is_developer_github_configured,
@@ -553,6 +556,11 @@ with st.sidebar:
     elif st.button("⌂ Início", key="nav_home", width="stretch"):
         st.session_state["_navigate_to"] = "Dashboard"
         st.rerun()
+    if page == "Central de Automações":
+        st.info("⚙ Central de Automações")
+    elif st.button("⚙ Central de Automações", key="nav_automation", width="stretch"):
+        st.session_state["_navigate_to"] = "Central de Automações"
+        st.rerun()
     if page == "Assistente Razync":
         st.info("Assistente Razync")
     elif st.button("Assistente Razync", key="nav_assistant", width="stretch"):
@@ -629,6 +637,8 @@ if page == "Dashboard":
             st.session_state["_navigate_to"] = "DAS"; st.rerun()
         if st.button("✓ Obrigações", key="dash_oblig", width="stretch"):
             st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
+        if st.button("⚙ Central de automações", key="dash_automation", width="stretch"):
+            st.session_state["_navigate_to"] = "Central de Automações"; st.rerun()
 
     chart_col, status_col = st.columns([1.65,1], gap="large")
     with chart_col:
@@ -904,7 +914,15 @@ elif page == "Importar Extrato":
                 value_col = c.selectbox("Coluna de valor", cols, index=min(2,len(cols)-1))
                 st.subheader("2. Prepare a importação")
                 prepared = prepare_statement(raw, date_col, desc_col, value_col)
-                prepared["Categoria sugerida"] = prepared["description"].apply(suggest_category)
+                learned_suggestions = [
+                    learned_category(
+                        row["description"], row["tx_type"], transactions,
+                        suggest_category(row["description"]),
+                    )
+                    for _, row in prepared.iterrows()
+                ]
+                prepared["Categoria sugerida"] = [item["category"] for item in learned_suggestions]
+                prepared["Confiança da categoria"] = [item["confidence"] for item in learned_suggestions]
                 if prepared.empty:
                     st.warning("Nenhuma linha válida foi encontrada com esse mapeamento.")
                 else:
@@ -1413,6 +1431,112 @@ elif page == "Espaço do Contador":
     if st.button("Abrir Backup", width="stretch"):
         st.session_state["_navigate_to"] = "Backup"
         st.rerun()
+
+elif page == "Central de Automações":
+    header("Central de Automações", "O Razync revisa seus dados, antecipa pendências e prepara as próximas ações sem alterar nada sem sua confirmação.")
+    automation = automation_overview(
+        profile, transactions, invoices, das_rows, obligations, docs,
+        CURRENT_YEAR, date.today().month,
+    )
+    closing = automation["closing"]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Fechamento do mês", f"{closing['score']}%")
+    c2.metric("Conciliações sugeridas", len(automation["invoice_matches"]))
+    c3.metric("DAS identificados", len(automation["das_matches"]))
+    c4.metric("Sem documento", automation["documents"]["missing_count"])
+
+    section("Resumo automático de hoje", "A lista muda conforme você registra e confere as informações.")
+    for item in automation["actions"][:8]:
+        st.info(item)
+
+    today_tab, closing_tab, review_tab, forecast_tab, share_tab = st.tabs([
+        "Hoje", "Fechamento", "Conciliação", "Previsão", "Cobranças e contador"
+    ])
+
+    with today_tab:
+        st.subheader("12 rotinas disponíveis")
+        routines = [
+            ("Fechamento mensal", "Automática", "Revisa movimentações, notas, documentos e DAS."),
+            ("Conciliação", "Assistida", "Sugere vínculos e aguarda sua confirmação."),
+            ("Categorias inteligentes", "Automática", "Reutiliza suas próprias classificações anteriores."),
+            ("DAS", "Assistida", "Localiza possíveis pagamentos no extrato."),
+            ("Documentos", "Automática", "Lê PDFs e sugere tipo, competência e valor."),
+            ("NFS-e", "Assistida", "Importa arquivos e bloqueia números já cadastrados."),
+            ("Previsão financeira", "Automática", "Projeta os próximos três meses."),
+            ("Alertas inteligentes", "Automática", "Mostra somente situações que exigem atenção."),
+            ("Pacote do contador", "Assistida", "Prepara relatório e backup sem compartilhar senhas."),
+            ("Backup", "Assistida", "Gera um pacote completo sob demanda."),
+            ("Cobrança de clientes", "Assistida", "Prepara lembretes; você decide se envia."),
+            ("Assistente proativo", "Automática", "Apresenta as prioridades no painel."),
+        ]
+        st.dataframe(pd.DataFrame(routines, columns=["Rotina", "Modo", "O que faz"]), width="stretch", hide_index=True)
+        q1, q2, q3 = st.columns(3)
+        if q1.button("Importar NFS-e", width="stretch"):
+            st.session_state["_navigate_to"] = "Importar NFS-e"; st.rerun()
+        if q2.button("Organizar documentos", width="stretch"):
+            st.session_state["_navigate_to"] = "Documentos"; st.rerun()
+        if q3.button("Ver alertas", width="stretch"):
+            st.session_state["_navigate_to"] = "Central de Notificações"; st.rerun()
+
+    with closing_tab:
+        st.progress(closing["score"] / 100)
+        st.caption(f"Fechamento de {date.today().month:02d}/{CURRENT_YEAR}: {closing['score']}% pronto")
+        checklist = pd.DataFrame(closing["checklist"])
+        st.dataframe(checklist, width="stretch", hide_index=True)
+        if st.button("Abrir fechamento mensal", key="automation_closing", width="stretch"):
+            st.session_state["_navigate_to"] = "Fechamento Mensal"; st.rerun()
+
+    with review_tab:
+        st.subheader("Possíveis pagamentos de DAS")
+        if automation["das_matches"]:
+            st.dataframe(pd.DataFrame(automation["das_matches"]), width="stretch", hide_index=True)
+            st.caption("O Razync apenas sugere. Confirme o pagamento na página DAS depois de conferir o extrato.")
+        else:
+            st.success("Nenhum possível pagamento de DAS aguardando revisão.")
+        st.subheader("Despesas fora do padrão")
+        if automation["anomalies"]:
+            anomaly_df = pd.DataFrame(automation["anomalies"]).rename(columns={"description": "Descrição", "category": "Categoria", "value": "Valor", "reference": "Mediana"})
+            st.dataframe(anomaly_df, width="stretch", hide_index=True, column_config={"Valor": st.column_config.NumberColumn(format="R$ %.2f"), "Mediana": st.column_config.NumberColumn(format="R$ %.2f")})
+        else:
+            st.success("Nenhuma despesa fora do padrão foi identificada.")
+        if st.button("Abrir conciliação inteligente", key="automation_reconcile", width="stretch"):
+            st.session_state["_navigate_to"] = "Conciliação"; st.rerun()
+
+    with forecast_tab:
+        st.caption("Projeção baseada na média dos últimos três meses cadastrados.")
+        st.dataframe(
+            automation["forecast"], width="stretch", hide_index=True,
+            column_config={
+                "Receitas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Despesas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Saldo projetado": st.column_config.NumberColumn(format="R$ %.2f"),
+            },
+        )
+        projected = automation["forecast"]
+        if not projected.empty and float(projected.iloc[-1]["Saldo projetado"]) < 0:
+            st.error("A projeção indica saldo negativo. Revise despesas e recebimentos previstos.")
+        else:
+            st.success("A projeção atual não indica saldo negativo nos próximos três meses.")
+
+    with share_tab:
+        st.subheader("Lembretes de recebimento")
+        reminders = automation["reminders"]
+        if not reminders:
+            st.success("Nenhuma nota emitida está aguardando conciliação com recebimento.")
+        else:
+            reminder_labels = {item["invoice_id"]: f"Nota {item['number'] or item['invoice_id']} · {item['customer']} · {brl(item['amount'])}" for item in reminders}
+            reminder_id = st.selectbox("Nota para preparar lembrete", list(reminder_labels), format_func=lambda value: reminder_labels[value])
+            reminder = next(item for item in reminders if item["invoice_id"] == reminder_id)
+            st.text_area("Mensagem preparada", value=reminder["message"], height=140)
+            r1, r2 = st.columns(2)
+            r1.link_button("Abrir no WhatsApp", reminder["whatsapp_url"], width="stretch")
+            r2.link_button("Abrir no e-mail", reminder["email_url"], width="stretch")
+            st.caption("Nenhuma mensagem é enviada automaticamente. Revise antes de enviar.")
+        p1, p2 = st.columns(2)
+        if p1.button("Abrir Espaço do Contador", width="stretch"):
+            st.session_state["_navigate_to"] = "Espaço do Contador"; st.rerun()
+        if p2.button("Preparar backup", width="stretch"):
+            st.session_state["_navigate_to"] = "Backup"; st.rerun()
 
 elif page == "Assistente Razync":
     header("Assistente Razync","Faça perguntas simples sobre os dados que já estão no sistema.")
