@@ -42,7 +42,7 @@ from growth_tools import (
     notification_calendar, read_nfse_export, suggest_nfse_columns,
 )
 from automation_suite import (
-    automation_overview, learned_category,
+    automation_overview, das_payment_matches, learned_category,
 )
 from auth_service import (
     AuthServiceError, is_supabase_auth_configured, reset_password,
@@ -59,6 +59,11 @@ from brand_assets import brand_logo_data_uri, ensure_brand_assets
 from document_intelligence import CATEGORIES as DOCUMENT_CATEGORIES, analyze_document
 from demo_mode import render_demo
 from legal_content import PRIVACY_NOTICE, PRIVACY_VERSION, TERMS_OF_USE
+from customer_experience import (
+    OFFICIAL_SERVICES, build_today_plan, das_journey, financial_story,
+    integration_catalog, next_onboarding_step, security_checklist,
+    transaction_restore_payload,
+)
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -565,7 +570,8 @@ sidebar_labels = {
     "Clientes e Fornecedores": "Clientes e fornecedores", "Empregado": "Empregado",
     "Documentos": "Documentos", "Espaço do Contador": "Espaço do contador",
     "Primeiros Passos": "Primeiros passos", "Meu MEI": "Dados do MEI",
-    "Central de Notificações": "Alertas e calendário", "Plano e Assinatura": "Plano e assinatura",
+    "Central de Notificações": "Alertas e calendário", "Integrações": "Integrações",
+    "Plano e Assinatura": "Plano e assinatura",
     "Segurança da Conta": "Segurança da conta", "Histórico de Atividades": "Histórico de atividades",
     "Status do Sistema": "Status do sistema", "Backup": "Backup dos dados",
 }
@@ -585,7 +591,7 @@ sidebar_groups = {
         "Central de Automações", "Central de Notificações", "Assistente Razync",
     ],
     "Configurações": [
-        "Meu MEI", "Plano e Assinatura", "Segurança da Conta",
+        "Meu MEI", "Integrações", "Plano e Assinatura", "Segurança da Conta",
         "Histórico de Atividades", "Status do Sistema", "Backup",
     ],
 }
@@ -611,6 +617,7 @@ sidebar_icons = {
     "Central de Automações": ":material/bolt:",
     "Central de Notificações": ":material/notifications:",
     "Assistente Razync": ":material/auto_awesome:",
+    "Integrações": ":material/hub:",
     "Meu MEI": ":material/store:",
     "Plano e Assinatura": ":material/credit_card:",
     "Segurança da Conta": ":material/shield:",
@@ -812,6 +819,20 @@ with st.sidebar:
         if st.button("Sair", key="sidebar_logout", width="stretch"):
             logout_current_user()
 
+undo_transaction = st.session_state.get("_undo_transaction")
+if undo_transaction:
+    undo_text, undo_action = st.columns([5, 1.2])
+    undo_text.info(f"“{undo_transaction.get('description') or 'Lançamento'}” foi excluído. Você pode desfazer esta ação enquanto estiver conectado.")
+    if undo_action.button("Desfazer", key="undo_deleted_transaction", width="stretch"):
+        try:
+            add_transaction(uid, **transaction_restore_payload(undo_transaction))
+        except Exception:
+            st.error("Não foi possível restaurar o lançamento.")
+        else:
+            st.session_state.pop("_undo_transaction", None)
+            st.success("Lançamento restaurado.")
+            st.rerun()
+
 # Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
 _dashboard_stats = None
 if page == "Dashboard":
@@ -845,17 +866,25 @@ if page == "Dashboard":
             f"e {brl(projection['projected_result'])} de resultado no ano."
         )
 
-    action_col, quick_col = st.columns([1.72, 1], gap="large")
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
+    setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
+    notification_items = build_notifications(das_rows, obligations, year_revenue, limit)
+    today_plan = build_today_plan(priorities, notification_items, setup_progress, limit=5)
+
+    action_col, quick_col = st.columns([1.72, 1], gap="large")
     with action_col:
-        section("Centro de ação", "Pendências priorizadas pelo Razync Pro.")
-        for idx, item in enumerate(priorities[:3]):
-            row, btn = st.columns([4.8,1.15])
+        section("O que fazer hoje", "Uma rotina curta, ordenada pelo que merece atenção primeiro.")
+        st.markdown(
+            f'<div class="rz-routine-meta"><span>{today_plan["total"]} ação(ões)</span><span>{today_plan["urgent"]} urgente(s)</span><span>Atualizado com seus dados</span></div>',
+            unsafe_allow_html=True,
+        )
+        for idx, item in enumerate(today_plan["items"][:4]):
+            row, btn = st.columns([4.8, 1.15])
             with row:
                 level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
                 alert_card(level, item["title"], item["detail"])
             with btn:
-                if item["page"] != "Dashboard" and st.button("Resolver", key=f"priority_{idx}", width="stretch"):
+                if item["page"] != "Dashboard" and st.button("Resolver", key=f"today_action_{idx}", width="stretch"):
                     st.session_state["_navigate_to"] = item["page"]
                     st.rerun()
     with quick_col:
@@ -870,6 +899,10 @@ if page == "Dashboard":
             st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
         if st.button("⚙ Central de automações", key="dash_automation", width="stretch"):
             st.session_state["_navigate_to"] = "Central de Automações"; st.rerun()
+
+    with st.expander("Entenda seus números", expanded=False):
+        for insight in financial_story(month_in, month_out, year_revenue, limit):
+            alert_card(insight["tone"], insight["title"], insight["detail"])
 
     chart_col, status_col = st.columns([1.65,1], gap="large")
     with chart_col:
@@ -913,14 +946,27 @@ if page == "Dashboard":
         empty_state("Seu histórico financeiro começa aqui", "Registre uma receita ou despesa, ou importe o extrato bancário para preencher os indicadores automaticamente.", "＋")
     else:
         recent = transactions.sort_values("tx_date", ascending=False).head(8)
-        st.dataframe(
-            recent[["tx_date","tx_type","description","counterparty","value"]],
-            width="stretch", hide_index=True,
-            column_config={
-                "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
-                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-            },
+        with st.container(key="recent_desktop"):
+            st.dataframe(
+                recent[["tx_date","tx_type","description","counterparty","value"]],
+                width="stretch", hide_index=True,
+                column_config={
+                    "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                    "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
+                    "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                },
+            )
+        mobile_cards = []
+        for row in recent.itertuples():
+            tx_date = pd.to_datetime(row.tx_date).strftime("%d/%m/%Y")
+            mobile_cards.append(
+                f'<div class="rz-mobile-card"><div class="rz-mobile-card-head"><span>{escape(str(row.tx_type))}</span><strong>{brl(float(row.value))}</strong></div>'
+                f'<div class="rz-mobile-card-title">{escape(str(row.description or "Sem descrição"))}</div>'
+                f'<div class="rz-mobile-card-meta">{tx_date} · {escape(str(row.counterparty or "Sem cliente/fornecedor"))}</div></div>'
+            )
+        st.markdown(
+            '<div class="rz-mobile-only"><div class="rz-mobile-list">' + "".join(mobile_cards) + "</div></div>",
+            unsafe_allow_html=True,
         )
 
     with st.expander("Configuração inicial do MEI", expanded=not bool(profile.get("cnpj"))):
@@ -1021,7 +1067,11 @@ elif page == "Movimentações":
         with st.expander("Excluir um lançamento"):
             item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
             st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
-            if st.button("Excluir lançamento selecionado", width="stretch"): delete_transaction(uid,int(item)); st.rerun()
+            if st.button("Excluir lançamento selecionado", width="stretch"):
+                deleted = transactions.loc[transactions["id"] == item].iloc[0].to_dict()
+                st.session_state["_undo_transaction"] = transaction_restore_payload(deleted)
+                delete_transaction(uid, int(item))
+                st.rerun()
 
 elif page == "Recorrências":
     header(
@@ -1238,7 +1288,10 @@ elif page == "Conciliação":
             duplicate_id = st.selectbox("Lançamento a excluir", duplicates["id"].tolist(), key="duplicate_delete")
             st.caption("Confira os registros antes de excluir. A exclusão é definitiva.")
             if st.button("Excluir lançamento selecionado", width="stretch"):
-                delete_transaction(uid, int(duplicate_id)); st.rerun()
+                deleted = transactions.loc[transactions["id"] == duplicate_id].iloc[0].to_dict()
+                st.session_state["_undo_transaction"] = transaction_restore_payload(deleted)
+                delete_transaction(uid, int(duplicate_id))
+                st.rerun()
 
     if st.button("Importar novo extrato", width="stretch"):
         st.session_state["_navigate_to"] = "Importar Extrato"
@@ -1261,6 +1314,10 @@ elif page == "Análise Financeira":
     analysis = financial_analysis(transactions, analysis_year)
     ac1,ac2,ac3,ac4 = st.columns(4)
     ac1.metric("Receitas",brl(analysis["revenue"])); ac2.metric("Despesas",brl(analysis["expense"])); ac3.metric("Resultado",brl(analysis["result"])); ac4.metric("Margem",f"{analysis['margin']:.1f}%")
+    analysis_limit = annual_limit_for(opening, analysis_year, profile.get("annual_limit"))
+    section("Leitura automática", "O que os números cadastrados indicam, em linguagem simples.")
+    for insight in financial_story(analysis["revenue"], analysis["expense"], analysis["revenue"], analysis_limit):
+        alert_card(insight["tone"], insight["title"], insight["detail"])
     monthly = analysis["monthly"]
     if not monthly.empty:
         fig = px.line(monthly,x="Mês",y=["Receitas","Despesas","Resultado"],markers=True,template=PLOT_TEMPLATE)
@@ -1333,7 +1390,19 @@ elif page == "Relatório Mensal":
     st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
 
 elif page == "Notas Fiscais":
-    header("Notas Fiscais","Controle as notas emitidas e acompanhe se cada uma já foi conciliada com uma receita.")
+    header("Notas Fiscais","Prepare a emissão no portal oficial, organize as notas e acompanhe cada recebimento.")
+    section("Emitir NFS-e de serviço", "O Razync prepara os dados; a autorização da nota acontece no Emissor Nacional.")
+    nfse_info, nfse_action = st.columns([1.8, 1])
+    with nfse_info:
+        st.write(f"**Prestador:** {profile.get('trade_name') or profile.get('business_name') or 'Complete os dados do MEI'}")
+        st.caption(f"CNPJ: {profile.get('cnpj') or 'não cadastrado'} · Atividade: {profile.get('main_activity') or 'não cadastrada'}")
+        st.caption("A emissão direta por API depende das credenciais e requisitos oficiais do Ambiente Nacional. Nenhuma senha gov.br é solicitada pelo Razync.")
+    with nfse_action:
+        st.link_button("Abrir Emissor Nacional", OFFICIAL_SERVICES["nfse"]["url"], type="primary", width="stretch")
+        if st.button("Importar notas emitidas", key="open_nfse_import", width="stretch"):
+            st.session_state["_navigate_to"] = "Importar NFS-e"
+            st.rerun()
+
     with st.container(border=True):
         st.caption("NOVA NOTA")
         with st.form("invoice_form",clear_on_submit=True):
@@ -1399,7 +1468,21 @@ elif page == "DAS":
     year=st.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="dasyear")
     month=st.selectbox("Competência",list(range(1,13)),format_func=lambda m:f"{m:02d}/{year}",key="dasmonth")
     competence=f"{year}-{month:02d}"
-    official_pgmei_url="https://www8.receita.fazenda.gov.br/simplesnacional/aplicacoes/atspo/pgmei.app/identificacao"
+    official_pgmei_url=OFFICIAL_SERVICES["das"]["url"]
+    payment_suggestions = das_payment_matches(das_rows, transactions)
+    journey = das_journey(competence, das_rows, docs, payment_suggestions)
+
+    section("Andamento desta competência", "O Razync acompanha a jornada, mas nunca confirma pagamento sem sua revisão.")
+    st.progress(journey["percent"] / 100)
+    journey_cards = []
+    for journey_step in journey["steps"]:
+        state_class = "is-done" if journey_step["done"] else "is-pending"
+        state_label = "Concluído" if journey_step["done"] else "Pendente"
+        journey_cards.append(
+            f'<div class="rz-status-step {state_class}"><strong>{escape(journey_step["title"])}</strong>'
+            f'<span>{state_label} · {escape(journey_step["detail"])}</span></div>'
+        )
+    st.markdown('<div class="rz-status-grid">' + "".join(journey_cards) + "</div>", unsafe_allow_html=True)
 
     section("Emitir guia oficial", "A emissão e o pagamento acontecem no ambiente da Receita Federal; o Razync organiza o processo e guarda a guia.")
     step1,step2,step3=st.columns(3)
@@ -1424,6 +1507,23 @@ elif page == "DAS":
         help="Abre o PGMEI no domínio receita.fazenda.gov.br.",
     )
     st.caption("Por segurança, o Razync nunca pede nem armazena sua senha gov.br. Confira no pagamento o favorecido oficial e os dados do CNPJ.")
+
+    competence_matches = [item for item in payment_suggestions if item.get("competence") == competence]
+    current_das = next((item for item in das_rows if item.get("competence") == competence), None)
+    if competence_matches and current_das:
+        match = competence_matches[0]
+        alert_card(
+            "warn",
+            "Possível pagamento encontrado no extrato",
+            f"{match['date'].strftime('%d/%m/%Y')} · {brl(match['value'])} · confiança {match['score']}%.",
+        )
+        if st.button("Conferi e quero marcar como pago", key="confirm_das_match", width="stretch"):
+            upsert_das(
+                uid, competence, current_das.get("due_date"), float(current_das.get("amount") or match["value"]),
+                "Pago", match["date"], (str(current_das.get("notes") or "") + "\nPagamento conciliado com movimentação após confirmação do usuário.").strip(),
+            )
+            st.success("Pagamento confirmado e controle do DAS atualizado.")
+            st.rerun()
 
     with st.expander("Registrar a guia emitida", expanded=not bool(das_rows)):
         due=st.date_input("Vencimento da guia",value=das_due_date(competence),key="das_due")
@@ -1653,13 +1753,18 @@ elif page == "Documentos":
         coverage=document_coverage(docs,CURRENT_YEAR); st.dataframe(coverage,width="stretch",hide_index=True)
 
 elif page == "Espaço do Contador":
-    header("Espaço do Contador", "Prepare informações organizadas para compartilhar com seu contador sem liberar sua senha.")
+    header("Espaço do Contador", "Prepare um pacote organizado para compartilhar sem liberar sua senha.")
     st.warning("Nunca compartilhe senha do gov.br, banco ou Razync. Envie apenas os relatórios e arquivos necessários.")
     accountant_year = st.selectbox("Ano de referência", list(range(CURRENT_YEAR - 4, CURRENT_YEAR + 1)), index=4, key="accountant_year")
+    accountant_month = st.selectbox("Mês de referência", list(range(1, 13)), index=date.today().month - 1, format_func=lambda value: MONTH_NAMES_PT[value - 1], key="accountant_month")
     summary_pdf = financial_summary_pdf(profile, accountant_year, financial_analysis(transactions, accountant_year))
-    st.download_button("Baixar resumo financeiro", summary_pdf, file_name=f"resumo_contador_{accountant_year}.pdf", mime="application/pdf", width="stretch")
-    st.caption("Para documentos e dados completos, use o Backup e compartilhe o arquivo por um canal seguro.")
-    if st.button("Abrir Backup", width="stretch"):
+    accountant_closing = monthly_closing(transactions, invoices, docs, das_rows, accountant_year, accountant_month)
+    closing_pdf = closing_summary_pdf(profile, accountant_year, accountant_month, accountant_closing)
+    p1, p2 = st.columns(2)
+    p1.download_button("Resumo financeiro", summary_pdf, file_name=f"resumo_contador_{accountant_year}.pdf", mime="application/pdf", width="stretch")
+    p2.download_button("Fechamento do mês", closing_pdf, file_name=f"fechamento_{accountant_year}_{accountant_month:02d}.pdf", mime="application/pdf", width="stretch")
+    st.caption("Para documentos e dados completos, gere também o backup e compartilhe o arquivo por um canal seguro.")
+    if st.button("Preparar backup completo", width="stretch"):
         st.session_state["_navigate_to"] = "Backup"
         st.rerun()
 
@@ -1795,6 +1900,15 @@ elif page == "Primeiros Passos":
         st.caption(f"{progress['done']} de {progress['total']} etapas concluídas")
         st.progress(progress["percent"] / 100)
 
+    next_step = next_onboarding_step(progress)
+    if next_step:
+        alert_card("info", f"Próxima etapa: {next_step['action']}", next_step["detail"])
+        if next_step["page"] != "Primeiros Passos" and st.button(next_step["action"], key="onboarding_next_action", type="primary", width="stretch"):
+            st.session_state["_navigate_to"] = next_step["page"]
+            st.rerun()
+    else:
+        st.success("Configuração inicial concluída. O Razync já consegue gerar alertas e relatórios mais completos.")
+
     section("1. Dados essenciais do negócio", "Você pode completar os detalhes avançados depois em Meu MEI.")
     with st.form("onboarding_profile"):
         a,b = st.columns(2)
@@ -1812,9 +1926,15 @@ elif page == "Primeiros Passos":
 
     section("2. Próximas etapas")
     progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
+    step_cards = []
     for step in progress["steps"]:
-        status = "✓" if step["done"] else "○"
-        st.write(f"{status} **{step['title']}** — {step['detail']}")
+        state_class = "is-done" if step["done"] else "is-pending"
+        state_label = "Concluído" if step["done"] else "Pendente"
+        step_cards.append(
+            f'<div class="rz-status-step {state_class}"><strong>{escape(step["title"])}</strong>'
+            f'<span>{state_label} · {escape(step["detail"])}</span></div>'
+        )
+    st.markdown('<div class="rz-status-grid">' + "".join(step_cards) + "</div>", unsafe_allow_html=True)
 
     a,b,c = st.columns(3)
     if a.button("Registrar movimentação", width="stretch"): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
@@ -1832,20 +1952,63 @@ elif page == "Meu MEI":
         if st.form_submit_button("Salvar dados",width="stretch"): save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee); st.success("Dados salvos."); st.rerun()
 
 elif page == "Central de Notificações":
-    header("Central de Notificações", "Priorize vencimentos e leve os prazos para o calendário do celular.")
+    header("Central de Notificações", "Priorize vencimentos, resolva no local certo e leve os prazos para o calendário.")
     notification_items = build_notifications(das_rows, obligations, year_revenue, limit)
     if not notification_items:
         st.success("Nenhum alerta importante identificado agora.")
     else:
-        for item in notification_items:
-            message = f"**{item['title']}** — {item['detail']}"
-            if item["level"] == "urgent":
-                st.error(message)
-            else:
-                st.warning(message)
+        for idx, item in enumerate(notification_items):
+            alert_content, alert_action = st.columns([4.8, 1.1])
+            with alert_content:
+                alert_card(
+                    "danger" if item["level"] == "urgent" else "warn",
+                    item["title"],
+                    item["detail"],
+                )
+            with alert_action:
+                if st.button("Resolver", key=f"notification_action_{idx}", width="stretch"):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
         calendar_file = notification_calendar(notification_items, "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/")
         st.download_button("Adicionar prazos ao calendário (.ics)", calendar_file, file_name="agenda_razync_mei.ics", mime="text/calendar", width="stretch")
     st.caption("Os alertas são calculados com os dados cadastrados. Confirme sempre datas e valores nos documentos oficiais.")
+
+elif page == "Integrações":
+    header("Integrações", "Veja o que já funciona, o que exige confirmação e o que depende de credenciais externas.")
+    runtime = database_runtime_info()
+    integration_config = {
+        key: secret_value(key)
+        for key in (
+            "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "CHECKOUT_PRO_URL",
+            "OPEN_FINANCE_PROVIDER_URL", "WHATSAPP_BUSINESS_URL",
+        )
+    }
+    catalog = integration_catalog(integration_config, runtime["persistent"])
+    active_count = sum(1 for item in catalog if item["ready"])
+    automatic_count = sum(1 for item in catalog if item["mode"] == "Automático")
+    i1, i2, i3 = st.columns(3)
+    i1.metric("Disponíveis", f"{active_count}/{len(catalog)}")
+    i2.metric("Automáticas", automatic_count)
+    i3.metric("Sempre com confirmação", len(catalog) - automatic_count)
+
+    section("Central de conexões", "Nenhuma integração envia dados ou mensagens sem autorização.")
+    left, right = st.columns(2, gap="large")
+    for idx, item in enumerate(catalog):
+        target = left if idx % 2 == 0 else right
+        with target:
+            with st.container(border=True):
+                st.markdown(f"**{item['name']}**")
+                st.caption(f"{item['status']} · {item['mode']}")
+                st.write(item["detail"])
+                if item["page"] and st.button("Abrir recurso", key=f"integration_page_{idx}", width="stretch"):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
+                if item["name"] == "DAS do MEI":
+                    st.link_button("Abrir portal oficial", OFFICIAL_SERVICES["das"]["url"], width="stretch")
+                elif item["name"] == "NFS-e Nacional":
+                    st.link_button("Abrir emissor oficial", OFFICIAL_SERVICES["nfse"]["url"], width="stretch")
+
+    st.info("Open Finance direto exige um provedor participante e consentimento do cliente. WhatsApp automático exige conta Business e aprovação do provedor. Até lá, importação de extrato e mensagens revisadas continuam disponíveis.")
 
 elif page == "Plano e Assinatura":
     header("Plano e Assinatura", "Acompanhe os recursos disponíveis e, quando configurado, faça o upgrade por checkout seguro.")
@@ -1892,6 +2055,32 @@ elif page == "Segurança da Conta":
                         st.error(str(exc))
                     else:
                         st.success("Senha alterada com sucesso.")
+    section("Verificação de segurança")
+    runtime = database_runtime_info()
+    storage_ready = bool(secret_value("SUPABASE_URL") and secret_value("SUPABASE_PUBLISHABLE_KEY"))
+    leaked_passwords_ready = secret_value("LEAKED_PASSWORD_PROTECTION_ENABLED").lower() in {"1", "true", "yes", "sim"}
+    checks = security_checklist(
+        auth_enabled=is_supabase_auth_configured() or st.session_state.get("auth_provider") == "github",
+        database_persistent=runtime["persistent"],
+        storage_enabled=storage_ready,
+        leaked_password_protection=leaked_passwords_ready,
+    )
+    security_cards = []
+    for check in checks:
+        state_class = "is-done" if check["done"] else "is-pending"
+        state_label = "Ativo" if check["done"] else "Revisar"
+        security_cards.append(
+            f'<div class="rz-status-step {state_class}"><strong>{escape(check["title"])}</strong>'
+            f'<span>{state_label} · {escape(check["detail"])}</span></div>'
+        )
+    st.markdown('<div class="rz-status-grid">' + "".join(security_cards) + "</div>", unsafe_allow_html=True)
+    if not leaked_passwords_ready:
+        st.link_button(
+            "Como ativar proteção contra senhas vazadas",
+            "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection",
+            width="stretch",
+        )
+
     section("Sessão e privacidade")
     st.write("✓ A opção **Manter conectado** armazena somente um token de renovação criptografado.")
     st.write("✓ Ao sair, a sessão local e o token persistente são removidos.")
