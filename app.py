@@ -573,9 +573,13 @@ primary_sidebar_pages = [
     "Documentos", "Espaço do Contador", "Assistente Razync",
 ]
 primary_sidebar_icons = {
-    "Dashboard": "⌂", "Movimentações": "↕", "DAS": "▣",
-    "Central de Automações": "⚡", "Documentos": "▱",
-    "Espaço do Contador": "▤", "Assistente Razync": "✦",
+    "Dashboard": ":material/home:",
+    "Movimentações": ":material/swap_vert:",
+    "DAS": ":material/receipt_long:",
+    "Central de Automações": ":material/bolt:",
+    "Documentos": ":material/folder_open:",
+    "Espaço do Contador": ":material/bar_chart:",
+    "Assistente Razync": ":material/auto_awesome:",
 }
 advanced_sidebar_groups = {
     "Financeiro": ["Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
@@ -633,39 +637,40 @@ st.markdown(
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] > div {
-        gap: .2rem;
+    .st-key-main_navigation [data-testid="stButton"] {
+        margin: .08rem 0;
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label {
+    .st-key-main_navigation [data-testid="stButton"] button {
         min-height: 3.05rem;
-        padding: .66rem .75rem;
-        border: 1px solid transparent;
+        justify-content: flex-start;
+        gap: .72rem;
+        padding: .62rem .78rem;
+        border: 0 !important;
         border-radius: 12px;
         color: var(--rz-muted);
-        cursor: pointer;
-        transition: background .15s ease, color .15s ease, border-color .15s ease;
+        background: transparent;
+        box-shadow: none !important;
+        transition: background .15s ease, color .15s ease;
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        opacity: 0;
-    }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+    .st-key-main_navigation [data-testid="stButton"] button:hover {
         color: var(--rz-text);
         background: var(--rz-soft);
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
-        color: var(--rz-text);
-        background: color-mix(in srgb, var(--rz-muted) 11%, transparent);
-        border-color: color-mix(in srgb, var(--rz-muted) 8%, transparent);
-        box-shadow: inset 3px 0 0 var(--rz-primary);
+    .st-key-main_navigation [data-testid="stButton"] button:disabled {
+        color: var(--rz-text) !important;
+        background: color-mix(in srgb, var(--rz-muted) 13%, transparent) !important;
+        border: 0 !important;
+        opacity: 1 !important;
+        cursor: default;
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label p {
+    .st-key-main_navigation [data-testid="stButton"] button p {
         font-size: .96rem;
-        font-weight: 540;
+        font-weight: 530;
         letter-spacing: -.005em;
+    }
+    .st-key-main_navigation [data-testid="stButton"] button span {
+        color: currentColor;
+        font-size: 1.3rem;
     }
     [data-testid="stSidebar"] hr {
         margin: .9rem 0;
@@ -709,20 +714,18 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    primary_index = primary_sidebar_pages.index(page) if page in primary_sidebar_pages else None
-    selected_primary = st.radio(
-        "Menu principal",
-        primary_sidebar_pages,
-        index=primary_index,
-        format_func=lambda destination: (
-            f"{primary_sidebar_icons[destination]}　{sidebar_labels[destination]}"
-        ),
-        key=f"_primary_nav_{page}",
-        label_visibility="collapsed",
-    )
-    if selected_primary is not None and selected_primary != page:
-        st.session_state["_navigate_to"] = selected_primary
-        st.rerun()
+    with st.container(key="main_navigation"):
+        for destination in primary_sidebar_pages:
+            is_active = page == destination
+            if st.button(
+                sidebar_labels[destination],
+                key=f"main_nav_{destination}",
+                icon=primary_sidebar_icons[destination],
+                disabled=is_active,
+                width="stretch",
+            ):
+                st.session_state["_navigate_to"] = destination
+                st.rerun()
 
     advanced_pages, advanced_labels = [], {}
     for section_name, destinations in advanced_sidebar_groups.items():
