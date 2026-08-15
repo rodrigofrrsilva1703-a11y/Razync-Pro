@@ -198,53 +198,377 @@ def ensure_login() -> dict:
 
     if "user" in st.session_state:
         user = st.session_state["user"]
-        sidebar_labels = {
-    "Dashboard": "Início",
-    "Central de Automações": "Pendências e automações",
-    "Assistente Razync": "Assistente Razync",
-    "Movimentações": "Receitas e despesas",
-    "Recorrências": "Lançamentos recorrentes",
-    "Importar Extrato": "Importar extrato bancário",
-    "Conciliação": "Conferir notas e recebimentos",
-    "Fluxo de Caixa": "Fluxo de caixa",
-    "Análise Financeira": "Análise financeira",
-    "DAS": "DAS mensal",
-    "DASN-SIMEI": "Declaração anual",
-    "Obrigações": "Prazos e obrigações",
-    "Notas Fiscais": "Notas fiscais",
-    "Importar NFS-e": "Importar NFS-e",
-    "Relatório Mensal": "Relatório mensal",
-    "Fechamento Mensal": "Fechamento mensal",
-    "Clientes e Fornecedores": "Clientes e fornecedores",
-    "Empregado": "Empregado",
-    "Documentos": "Documentos",
-    "Espaço do Contador": "Espaço do contador",
-    "Primeiros Passos": "Primeiros passos",
-    "Meu MEI": "Dados do meu MEI",
-    "Central de Notificações": "Alertas e calendário",
-    "Plano e Assinatura": "Plano e assinatura",
-    "Segurança da Conta": "Segurança da conta",
-    "Histórico de Atividades": "Histórico de atividades",
-    "Status do Sistema": "Status do sistema",
-    "Backup": "Backup dos dados",
+        with st.sidebar:
+            st.caption(f"Conectado como {user['name']}")
+            if st.button("Sair", width="stretch"):
+                clear_persisted_session(session_controller)
+                if auth_enabled:
+                    supabase_sign_out(
+                        st.session_state.get("access_token", ""),
+                        st.session_state.get("refresh_token", ""),
+                    )
+                for key in list(st.session_state):
+                    del st.session_state[key]
+                st.rerun()
+        return user
+
+    if st.session_state.get("_demo_mode"):
+        render_demo()
+        st.stop()
+
+    st.markdown(
+        f"""
+        <div class="rz-login-shell">
+          <div class="rz-login-brand">
+            <img class="rz-login-mark" src="{BRAND_LOGO_DATA_URI}" alt="Logo Razync Pro">
+            <div><strong>Razync</strong><span>PRO</span></div>
+          </div>
+          <div class="rz-login-kicker">Gestão inteligente para MEI</div>
+          <h1>Menos planilhas.<br><em>Mais controle do seu MEI.</em></h1>
+          <p class="rz-login-lead">Organize o financeiro, acompanhe obrigações e mantenha seus documentos prontos para decidir com tranquilidade.</p>
+          <div class="rz-login-benefits">
+            <span><b>01</b> Financeiro em dia</span>
+            <span><b>02</b> Alertas fiscais</span>
+            <span><b>03</b> Dados protegidos</span>
+          </div>
+          <div class="rz-login-proof">
+            <span>Feito para a rotina real do MEI</span><i></i><span>Simples de começar</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if not auth_enabled:
+        st.warning(
+            "Supabase Auth ainda não está configurado neste ambiente. "
+            "O acesso temporário de migração está ativo."
+        )
+
+    if st.button("Explorar demonstração sem criar conta", width="stretch"):
+        st.session_state["_demo_mode"] = True
+        st.rerun()
+    st.caption("A demonstração usa somente dados fictícios e não grava informações.")
+
+    login_tab, signup_tab, recovery_tab = st.tabs(
+        ["Entrar", "Criar conta", "Recuperar senha"]
+    )
+
+    with login_tab:
+        st.markdown('<div class="rz-auth-heading"><strong>Bem-vindo de volta</strong><span>Entre para continuar cuidando do seu negócio.</span></div>', unsafe_allow_html=True)
+        if is_developer_github_configured():
+            st.link_button(
+                "Entrar como desenvolvedor com GitHub",
+                github_authorization_url(),
+                width="stretch",
+                type="primary",
+            )
+            st.caption(
+                "Acesso administrativo protegido e liberado somente para a conta autorizada."
+            )
+            st.divider()
+        with st.form("login_form"):
+            email = st.text_input("E-mail", key="login_email").strip()
+            password = st.text_input("Senha", type="password", key="login_password")
+            keep_connected = st.checkbox(
+                "Manter conectado neste dispositivo",
+                value=True,
+                disabled=session_controller is None,
+                help="Sua sessão é renovada pelo Supabase e removida ao sair.",
+            )
+            submitted = st.form_submit_button("Entrar", width="stretch")
+
+        if submitted:
+            if not email or not password:
+                st.warning("Informe o e-mail e a senha.")
+            else:
+                retry_after = login_attempt_guard.retry_after(email)
+                if retry_after:
+                    minutes = max(1, (retry_after + 59) // 60)
+                    st.error(f"Muitas tentativas. Tente novamente em {minutes} minuto(s).")
+                else:
+                    try:
+                        if auth_enabled:
+                            identity = supabase_sign_in(email, password)
+                            user = resolve_supabase_user(
+                                identity["auth_user_id"],
+                                identity["email"],
+                                identity.get("name", ""),
+                            )
+                            st.session_state["access_token"] = identity["access_token"]
+                            st.session_state["refresh_token"] = identity["refresh_token"]
+                        else:
+                            user = authenticate(email, password)
+                    except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
+                        user = None
+                        if isinstance(exc, DatabaseConnectionError):
+                            st.error("Não foi possível acessar sua conta agora.")
+                            st.warning(str(exc))
+
+                    if user:
+                        login_attempt_guard.record_success(email)
+                        st.session_state["user"] = user
+                        if (
+                            auth_enabled
+                            and keep_connected
+                            and session_controller is not None
+                        ):
+                            persist_refresh_token(
+                                session_controller,
+                                st.session_state["refresh_token"],
+                            )
+                        st.rerun()
+
+                    retry_after = login_attempt_guard.record_failure(email)
+                    if retry_after:
+                        minutes = max(1, (retry_after + 59) // 60)
+                        st.error(f"Muitas tentativas. Tente novamente em {minutes} minuto(s).")
+                    else:
+                        st.error("E-mail ou senha inválidos, ou e-mail ainda não confirmado.")
+
+    with signup_tab:
+        st.markdown('<div class="rz-auth-heading"><strong>Crie sua conta</strong><span>Comece a organizar seu MEI em poucos minutos.</span></div>', unsafe_allow_html=True)
+        with st.form("signup_form"):
+            name = st.text_input("Nome", key="signup_name").strip()
+            email = st.text_input("E-mail", key="signup_email").strip()
+            password = st.text_input(
+                "Senha", type="password", key="signup_password",
+                help="Use pelo menos 8 caracteres.",
+            )
+            confirmation = st.text_input(
+                "Confirmar senha", type="password",
+                key="signup_password_confirmation",
+            )
+            consent = st.checkbox(
+                f"Li e aceito os Termos de Uso e a Política de Privacidade (versão {PRIVACY_VERSION}).",
+                key="signup_legal_consent",
+            )
+            submitted = st.form_submit_button("Criar conta", width="stretch")
+
+        if submitted:
+            if not consent:
+                st.error("Aceite os Termos de Uso e a Política de Privacidade para criar a conta.")
+            elif password != confirmation:
+                st.error("As senhas não coincidem.")
+            elif auth_enabled:
+                try:
+                    identity = supabase_sign_up(name, email, password)
+                    if identity["confirmed"]:
+                        user = resolve_supabase_user(
+                            identity["auth_user_id"], identity["email"], identity["name"]
+                        )
+                        st.session_state["access_token"] = identity["access_token"]
+                        st.session_state["refresh_token"] = identity["refresh_token"]
+                        st.session_state["user"] = user
+                        st.rerun()
+                    st.success("Conta criada. Confirme o e-mail antes de entrar.")
+                except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
+                    st.error(str(exc))
+            else:
+                try:
+                    created, message = create_user(name, email, password)
+                except DatabaseConnectionError as exc:
+                    st.error("Não foi possível criar sua conta agora.")
+                    st.warning(str(exc))
+                else:
+                    if created:
+                        user = authenticate(email, password)
+                        if user:
+                            st.session_state["user"] = user
+                            st.success(message)
+                            st.rerun()
+                    else:
+                        st.error(message)
+
+    with recovery_tab:
+        st.markdown('<div class="rz-auth-heading"><strong>Recupere o acesso</strong><span>Informe seu e-mail para receber as instruções.</span></div>', unsafe_allow_html=True)
+        if auth_enabled:
+            with st.form("password_recovery_form"):
+                email = st.text_input("E-mail", key="recovery_email").strip()
+                submitted = st.form_submit_button(
+                    "Enviar recuperação", width="stretch"
+                )
+            if submitted:
+                try:
+                    reset_password(email)
+                    st.success(
+                        "Se existir uma conta com este e-mail, enviaremos as instruções."
+                    )
+                except AuthServiceError as exc:
+                    st.error(str(exc))
+        else:
+            st.info("A recuperação estará disponível após configurar o Supabase Auth.")
+
+    with st.expander("Privacidade e Termos de Uso"):
+        st.markdown(PRIVACY_NOTICE)
+        st.markdown(TERMS_OF_USE)
+        st.caption(f"Versão vigente: {PRIVACY_VERSION}")
+    st.markdown('<div class="rz-login-security">🔒 Conexão segura · seus dados permanecem privados</div>', unsafe_allow_html=True)
+    st.stop()
+
+
+def tx_df(uid: int) -> pd.DataFrame:
+    df = pd.DataFrame(list_transactions(uid))
+    if df.empty:
+        return pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
+    df["tx_date"] = pd.to_datetime(df["tx_date"])
+    return df
+
+
+def invoice_df(uid: int) -> pd.DataFrame:
+    df = pd.DataFrame(list_invoices(uid))
+    if not df.empty:
+        df["issue_date"] = pd.to_datetime(df["issue_date"])
+    return df
+
+
+def opening_date_from(profile: dict) -> date | None:
+    value = profile.get("opening_date")
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def monthly_rows(df: pd.DataFrame, year: int) -> list[dict]:
+    rows = []
+    for month in range(1,13):
+        cur = df[(df["tx_type"]=="Receita") & (df["tx_date"].dt.year==year) & (df["tx_date"].dt.month==month)] if not df.empty else df
+        if cur.empty:
+            services = sales = with_doc = without_doc = total = 0.0
+        else:
+            services = float(cur[cur["category"].isin(["Serviços","Serviço"])]["value"].sum())
+            total = float(cur["value"].sum())
+            sales = total - services
+            has_doc = cur["document_number"].fillna("").astype(str).str.strip().ne("")
+            with_doc = float(cur.loc[has_doc,"value"].sum())
+            without_doc = total - with_doc
+        rows.append({"month":month,"month_name":MONTH_NAMES_PT[month - 1],"with_doc":with_doc,"without_doc":without_doc,"services":services,"sales":sales,"total":total})
+    return rows
+
+
+def category_totals_for_dasn(df: pd.DataFrame, year: int) -> tuple[float,float]:
+    if df.empty:
+        return 0.0,0.0
+    cur = df[(df["tx_type"]=="Receita") & (df["tx_date"].dt.year==year)]
+    services = float(cur[cur["category"].isin(["Serviços","Serviço"])]["value"].sum())
+    sales = float(cur["value"].sum()) - services
+    return services, sales
+
+
+def cashflow_monthly(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    rows = []
+    for month in range(1, 13):
+        cur = df[df["tx_date"].dt.year == year] if not df.empty else df
+        cur = cur[cur["tx_date"].dt.month == month] if not cur.empty else cur
+        entradas = float(cur[cur["tx_type"] == "Receita"]["value"].sum()) if not cur.empty else 0.0
+        saidas = float(cur[cur["tx_type"] == "Despesa"]["value"].sum()) if not cur.empty else 0.0
+        rows.append({"Mês": MONTH_NAMES_PT[month - 1], "Entradas": entradas, "Saídas": saidas, "Resultado": entradas-saidas})
+    out = pd.DataFrame(rows)
+    out["Saldo acumulado"] = out["Resultado"].cumsum()
+    return out
+
+def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list, obligations: list) -> tuple[int, list[str]]:
+    score = 100
+    notes = []
+    if not profile.get("cnpj"):
+        score -= 20; notes.append("Complete os dados do CNPJ em Meu MEI.")
+    if not profile.get("main_activity"):
+        score -= 10; notes.append("Informe a atividade principal.")
+    if limit and revenue / limit >= 0.8:
+        score -= 20; notes.append("Faturamento acima de 80% do limite monitorado.")
+    overdue = [d for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado"]
+    if overdue:
+        score -= min(30, len(overdue) * 10); notes.append(f"Existem {len(overdue)} DAS em atraso.")
+    late_obs = [o for o in obligations if o.get("status") != "Concluído" and o.get("due_date") and o.get("due_date") < date.today()]
+    if late_obs:
+        score -= min(20, len(late_obs) * 5); notes.append(f"Existem {len(late_obs)} obrigações vencidas.")
+    return max(score, 0), notes
+
+
+user = ensure_login()
+uid = int(user["id"])
+generated_recurring = materialize_due_recurring(uid)
+if generated_recurring:
+    st.toast(f"{generated_recurring} lançamento(s) recorrente(s) gerado(s).", icon="✓")
+
+pending_page = st.session_state.pop("_navigate_to", None)
+if pending_page:
+    st.session_state["_current_page"] = pending_page
+
+page = st.session_state.get("_current_page", "Dashboard")
+all_pages = [p for pages in NAV_GROUPS.values() for p in pages]
+if page not in all_pages:
+    page = "Dashboard"
+    st.session_state["_current_page"] = page
+
+# PERFORMANCE V15: one Supabase round-trip per session/data change.
+_snapshot_key = f"_mei_snapshot_{uid}"
+_snapshot_version_key = f"_mei_snapshot_version_{uid}"
+_current_data_version = data_version(uid)
+if _snapshot_key not in st.session_state or st.session_state.get(_snapshot_version_key) != _current_data_version:
+    try:
+        st.session_state[_snapshot_key] = load_user_snapshot(uid)
+        st.session_state[_snapshot_version_key] = _current_data_version
+    except DatabaseConnectionError as exc:
+        st.error("Não foi possível sincronizar os dados do Razync Pro.")
+        st.warning(str(exc))
+        st.stop()
+
+_snapshot = st.session_state[_snapshot_key]
+profile = dict(_snapshot.get("profile") or {})
+
+transactions = pd.DataFrame(_snapshot.get("transactions") or [])
+if transactions.empty:
+    transactions = pd.DataFrame(columns=["id","tx_date","tx_type","description","category","value","document_number","counterparty","payment_method"])
+else:
+    transactions["tx_date"] = pd.to_datetime(transactions["tx_date"])
+
+invoices = pd.DataFrame(_snapshot.get("invoices") or [])
+if not invoices.empty:
+    invoices["issue_date"] = pd.to_datetime(invoices["issue_date"])
+
+das_rows = list(_snapshot.get("das") or [])
+docs = list(_snapshot.get("documents") or [])
+employees = list(_snapshot.get("employees") or [])
+contacts = list(_snapshot.get("contacts") or [])
+obligations = list(_snapshot.get("obligations") or [])
+
+# Shared financial context used by Dashboard and fiscal/management pages.
+opening = opening_date_from(profile)
+limit = annual_limit_for(opening, CURRENT_YEAR, profile.get("annual_limit"))
+year_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR)] if not transactions.empty else transactions
+year_revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if not year_tx.empty else 0.0
+year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
+limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
+
+sidebar_labels = {
+    "Dashboard": "Início", "Central de Automações": "Pendências e automações",
+    "Assistente Razync": "Assistente Razync", "Movimentações": "Receitas e despesas",
+    "Recorrências": "Lançamentos recorrentes", "Importar Extrato": "Importar extrato bancário",
+    "Conciliação": "Conferir notas e recebimentos", "Fluxo de Caixa": "Fluxo de caixa",
+    "Análise Financeira": "Análise financeira", "DAS": "DAS mensal",
+    "DASN-SIMEI": "Declaração anual", "Obrigações": "Prazos e obrigações",
+    "Notas Fiscais": "Notas fiscais", "Importar NFS-e": "Importar NFS-e",
+    "Relatório Mensal": "Relatório mensal", "Fechamento Mensal": "Fechamento mensal",
+    "Clientes e Fornecedores": "Clientes e fornecedores", "Empregado": "Empregado",
+    "Documentos": "Documentos", "Espaço do Contador": "Espaço do contador",
+    "Primeiros Passos": "Primeiros passos", "Meu MEI": "Dados do meu MEI",
+    "Central de Notificações": "Alertas e calendário", "Plano e Assinatura": "Plano e assinatura",
+    "Segurança da Conta": "Segurança da conta", "Histórico de Atividades": "Histórico de atividades",
+    "Status do Sistema": "Status do sistema", "Backup": "Backup dos dados",
 }
 sidebar_sections = {
-    "Financeiro": NAV_GROUPS["Financeiro"],
-    "Impostos e MEI": NAV_GROUPS["Fiscal MEI"],
-    "Organização": NAV_GROUPS["Gestão"],
-    "Conta e configurações": NAV_GROUPS["Configurações"],
+    "Financeiro": NAV_GROUPS["Financeiro"], "Impostos e MEI": NAV_GROUPS["Fiscal MEI"],
+    "Organização": NAV_GROUPS["Gestão"], "Conta e configurações": NAV_GROUPS["Configurações"],
 }
-sidebar_prefix = {
-    "Financeiro": "💰",
-    "Impostos e MEI": "🧾",
-    "Organização": "📁",
-    "Conta e configurações": "⚙",
-}
+sidebar_prefix = {"Financeiro": "💰", "Impostos e MEI": "🧾", "Organização": "📁", "Conta e configurações": "⚙"}
 primary_sidebar_pages = [
-    ("⌂ Início", "Dashboard"),
-    ("⚡ Pendências e automações", "Central de Automações"),
-    ("↕ Receitas e despesas", "Movimentações"),
-    ("▣ DAS e impostos", "DAS"),
+    ("⌂ Início", "Dashboard"), ("⚡ Pendências e automações", "Central de Automações"),
+    ("↕ Receitas e despesas", "Movimentações"), ("▣ DAS e impostos", "DAS"),
     ("▱ Documentos", "Documentos"),
 ]
 
@@ -263,8 +587,7 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("**Mais ferramentas**")
-    more_pages = []
-    more_labels = {}
+    more_pages, more_labels = [], {}
     primary_destinations = {destination for _, destination in primary_sidebar_pages}
     for section_name, section_pages in sidebar_sections.items():
         for destination in section_pages:
@@ -272,20 +595,15 @@ with st.sidebar:
                 continue
             more_pages.append(destination)
             more_labels[destination] = f"{sidebar_prefix[section_name]} {section_name} · {sidebar_labels.get(destination, destination)}"
-    for destination in ("Assistente Razync",):
-        if destination not in more_pages:
-            more_pages.insert(0, destination)
-            more_labels[destination] = f"✦ Ajuda · {sidebar_labels[destination]}"
-
+    more_pages.insert(0, "Assistente Razync")
+    more_labels["Assistente Razync"] = "✦ Ajuda · Assistente Razync"
     more_options = ["Escolha uma ferramenta..."] + more_pages
     current_more = page if page in more_pages else "Escolha uma ferramenta..."
-    if "_sidebar_more" not in st.session_state or st.session_state["_sidebar_more"] not in more_options:
-        st.session_state["_sidebar_more"] = current_more
     selected_more = st.selectbox(
-        "Todas as ferramentas",
-        more_options,
+        "Todas as ferramentas", more_options,
+        index=more_options.index(current_more),
         format_func=lambda value: more_labels.get(value, value),
-        key="_sidebar_more",
+        key=f"_sidebar_more_{page}",
         label_visibility="collapsed",
     )
     if selected_more != "Escolha uma ferramenta..." and selected_more != page:
@@ -296,10 +614,8 @@ with st.sidebar:
     if page == "Primeiros Passos":
         st.info("◉ Primeiros passos")
     elif st.button("◉ Primeiros passos", key="simple_nav_onboarding", width="stretch"):
-        st.session_state["_sidebar_more"] = "Escolha uma ferramenta..."
         st.session_state["_navigate_to"] = "Primeiros Passos"
         st.rerun()
-
     with st.expander("Aparência"):
         st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
 
