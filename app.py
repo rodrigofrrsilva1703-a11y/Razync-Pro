@@ -553,40 +553,69 @@ year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if
 limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
 
 sidebar_labels = {
-    "Dashboard": "Visão geral", "Central de Automações": "Automações",
-    "Assistente Razync": "Assistente", "Movimentações": "Financeiro",
+    "Dashboard": "Início", "Central de Automações": "Central de automações",
+    "Assistente Razync": "Assistente", "Movimentações": "Receitas e despesas",
     "Recorrências": "Lançamentos recorrentes", "Importar Extrato": "Importar extrato",
-    "Conciliação": "Conciliação", "Fluxo de Caixa": "Fluxo de caixa",
-    "Análise Financeira": "Análise financeira", "DAS": "Fiscal e DAS",
+    "Conciliação": "Conciliação financeira", "Fluxo de Caixa": "Fluxo de caixa",
+    "Análise Financeira": "Análise financeira", "DAS": "DAS mensal",
     "DASN-SIMEI": "Declaração anual", "Obrigações": "Prazos e obrigações",
     "Notas Fiscais": "Notas fiscais", "Importar NFS-e": "Importar NFS-e",
     "Relatório Mensal": "Relatório mensal", "Fechamento Mensal": "Fechamento mensal",
     "Clientes e Fornecedores": "Clientes e fornecedores", "Empregado": "Empregado",
-    "Documentos": "Documentos", "Espaço do Contador": "Relatórios",
+    "Documentos": "Documentos", "Espaço do Contador": "Espaço do contador",
     "Primeiros Passos": "Primeiros passos", "Meu MEI": "Dados do MEI",
     "Central de Notificações": "Alertas e calendário", "Plano e Assinatura": "Plano e assinatura",
     "Segurança da Conta": "Segurança da conta", "Histórico de Atividades": "Histórico de atividades",
     "Status do Sistema": "Status do sistema", "Backup": "Backup dos dados",
 }
-primary_sidebar_pages = [
-    "Dashboard", "Movimentações", "DAS", "Central de Automações",
-    "Documentos", "Espaço do Contador", "Assistente Razync",
-]
-primary_sidebar_icons = {
+sidebar_groups = {
+    "Financeiro": [
+        "Movimentações", "Recorrências", "Importar Extrato",
+        "Conciliação", "Fluxo de Caixa", "Análise Financeira",
+    ],
+    "Fiscal": [
+        "DAS", "Notas Fiscais", "Importar NFS-e", "Obrigações", "DASN-SIMEI",
+    ],
+    "Gestão": [
+        "Documentos", "Clientes e Fornecedores", "Empregado",
+        "Fechamento Mensal", "Relatório Mensal", "Espaço do Contador",
+    ],
+    "Automações e ajuda": [
+        "Central de Automações", "Central de Notificações", "Assistente Razync",
+    ],
+    "Configurações": [
+        "Meu MEI", "Plano e Assinatura", "Segurança da Conta",
+        "Histórico de Atividades", "Status do Sistema", "Backup",
+    ],
+}
+sidebar_icons = {
     "Dashboard": ":material/home:",
     "Movimentações": ":material/swap_vert:",
+    "Recorrências": ":material/event_repeat:",
+    "Importar Extrato": ":material/upload_file:",
+    "Conciliação": ":material/rule:",
+    "Fluxo de Caixa": ":material/timeline:",
+    "Análise Financeira": ":material/monitoring:",
     "DAS": ":material/receipt_long:",
-    "Central de Automações": ":material/bolt:",
+    "Notas Fiscais": ":material/request_quote:",
+    "Importar NFS-e": ":material/upload:",
+    "Obrigações": ":material/event:",
+    "DASN-SIMEI": ":material/description:",
     "Documentos": ":material/folder_open:",
-    "Espaço do Contador": ":material/bar_chart:",
+    "Clientes e Fornecedores": ":material/groups:",
+    "Empregado": ":material/badge:",
+    "Fechamento Mensal": ":material/task_alt:",
+    "Relatório Mensal": ":material/assessment:",
+    "Espaço do Contador": ":material/business_center:",
+    "Central de Automações": ":material/bolt:",
+    "Central de Notificações": ":material/notifications:",
     "Assistente Razync": ":material/auto_awesome:",
-}
-advanced_sidebar_groups = {
-    "Financeiro": ["Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
-    "Fiscal": ["DASN-SIMEI", "Obrigações", "Notas Fiscais", "Importar NFS-e"],
-    "Gestão": ["Relatório Mensal", "Fechamento Mensal", "Clientes e Fornecedores", "Empregado"],
-    "Configurações": ["Meu MEI", "Central de Notificações", "Plano e Assinatura",
-                      "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
+    "Meu MEI": ":material/store:",
+    "Plano e Assinatura": ":material/credit_card:",
+    "Segurança da Conta": ":material/shield:",
+    "Histórico de Atividades": ":material/history:",
+    "Status do Sistema": ":material/health_and_safety:",
+    "Backup": ":material/backup:",
 }
 
 st.markdown(
@@ -597,14 +626,14 @@ st.markdown(
         background: var(--rz-surface);
     }
     [data-testid="stSidebar"] .block-container {
-        padding: 1.15rem .85rem 1.1rem;
+        padding: 1.05rem .85rem 1.1rem;
     }
     .rz-side-brand {
         display: flex;
         align-items: center;
         gap: .72rem;
-        padding: .12rem .38rem .82rem;
-        margin-bottom: .3rem;
+        padding: .12rem .38rem .72rem;
+        margin-bottom: .18rem;
     }
     .rz-side-brand img {
         width: 44px;
@@ -637,43 +666,62 @@ st.markdown(
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    .st-key-main_navigation [data-testid="stButton"] {
-        margin: .08rem 0;
+    .st-key-sidebar_navigation [data-testid="stButton"] {
+        margin: .06rem 0;
     }
-    .st-key-main_navigation [data-testid="stButton"] button {
-        min-height: 3.05rem;
+    .st-key-sidebar_navigation [data-testid="stButton"] button {
+        min-height: 2.72rem;
         justify-content: flex-start;
-        gap: .72rem;
-        padding: .62rem .78rem;
+        gap: .68rem;
+        padding: .5rem .7rem;
         border: 0 !important;
-        border-radius: 12px;
+        border-radius: 11px;
         color: var(--rz-muted);
         background: transparent;
         box-shadow: none !important;
         transition: background .15s ease, color .15s ease;
     }
-    .st-key-main_navigation [data-testid="stButton"] button:hover {
+    .st-key-sidebar_navigation [data-testid="stButton"] button:hover {
         color: var(--rz-text);
         background: var(--rz-soft);
     }
-    .st-key-main_navigation [data-testid="stButton"] button:disabled {
+    .st-key-sidebar_navigation [data-testid="stButton"] button:disabled {
         color: var(--rz-text) !important;
         background: color-mix(in srgb, var(--rz-muted) 13%, transparent) !important;
-        border: 0 !important;
         opacity: 1 !important;
         cursor: default;
     }
-    .st-key-main_navigation [data-testid="stButton"] button p {
-        font-size: .96rem;
+    .st-key-sidebar_navigation [data-testid="stButton"] button p {
+        font-size: .91rem;
         font-weight: 530;
-        letter-spacing: -.005em;
+        letter-spacing: -.004em;
     }
-    .st-key-main_navigation [data-testid="stButton"] button span {
+    .st-key-sidebar_navigation [data-testid="stButton"] button span {
         color: currentColor;
-        font-size: 1.3rem;
+        font-size: 1.22rem;
+    }
+    .st-key-sidebar_navigation [data-testid="stExpander"] {
+        margin: .08rem 0;
+        border: 0;
+        background: transparent;
+    }
+    .st-key-sidebar_navigation [data-testid="stExpander"] summary {
+        min-height: 2.75rem;
+        padding: .42rem .55rem;
+        border-radius: 11px;
+        color: var(--rz-text);
+        font-size: .92rem;
+        font-weight: 650;
+    }
+    .st-key-sidebar_navigation [data-testid="stExpander"] summary:hover {
+        background: var(--rz-soft);
+    }
+    .st-key-sidebar_navigation [data-testid="stExpander"] details > div {
+        padding-left: .35rem;
+        border-left: 1px solid var(--rz-border);
     }
     [data-testid="stSidebar"] hr {
-        margin: .9rem 0;
+        margin: .78rem 0;
         border-color: var(--rz-border);
     }
     [data-testid="stSidebar"] details {
@@ -684,10 +732,6 @@ st.markdown(
         border-radius: 10px;
         color: var(--rz-muted);
         font-size: .88rem;
-    }
-    [data-testid="stSidebar"] details summary:hover {
-        color: var(--rz-text);
-        background: var(--rz-soft);
     }
     .rz-side-account {
         padding: .12rem .15rem .25rem;
@@ -714,50 +758,42 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    with st.container(key="main_navigation"):
-        for destination in primary_sidebar_pages:
-            is_active = page == destination
-            if st.button(
-                sidebar_labels[destination],
-                key=f"main_nav_{destination}",
-                icon=primary_sidebar_icons[destination],
-                disabled=is_active,
-                width="stretch",
-            ):
-                st.session_state["_navigate_to"] = destination
-                st.rerun()
-
-    advanced_pages, advanced_labels = [], {}
-    for section_name, destinations in advanced_sidebar_groups.items():
-        for destination in destinations:
-            advanced_pages.append(destination)
-            advanced_labels[destination] = f"{section_name} · {sidebar_labels[destination]}"
-    advanced_options = ["Selecione..."] + advanced_pages
-    current_advanced = page if page in advanced_pages else "Selecione..."
-
-    st.divider()
-    with st.expander("Mais recursos", expanded=page in advanced_pages):
-        selected_advanced = st.selectbox(
-            "Ferramentas",
-            advanced_options,
-            index=advanced_options.index(current_advanced),
-            format_func=lambda destination: advanced_labels.get(destination, destination),
-            key=f"_advanced_nav_{page}",
-            label_visibility="collapsed",
-        )
-    if selected_advanced != "Selecione..." and selected_advanced != page:
-        st.session_state["_navigate_to"] = selected_advanced
-        st.rerun()
-
-    setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
-    if setup_progress["percent"] < 100:
+    with st.container(key="sidebar_navigation"):
         if st.button(
-            f"◫  Configurar meu MEI · {setup_progress['percent']}%",
-            key="sidebar_onboarding",
+            sidebar_labels["Dashboard"],
+            key="grouped_nav_dashboard",
+            icon=sidebar_icons["Dashboard"],
+            disabled=page == "Dashboard",
             width="stretch",
         ):
-            st.session_state["_navigate_to"] = "Primeiros Passos"
+            st.session_state["_navigate_to"] = "Dashboard"
             st.rerun()
+
+        for group_title, destinations in sidebar_groups.items():
+            with st.expander(group_title, expanded=page in destinations):
+                for destination in destinations:
+                    if st.button(
+                        sidebar_labels[destination],
+                        key=f"grouped_nav_{destination}",
+                        icon=sidebar_icons[destination],
+                        disabled=page == destination,
+                        width="stretch",
+                    ):
+                        st.session_state["_navigate_to"] = destination
+                        st.rerun()
+
+        setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
+        if setup_progress["percent"] < 100:
+            st.divider()
+            if st.button(
+                f"Configurar meu MEI · {setup_progress['percent']}%",
+                key="sidebar_onboarding",
+                icon=":material/checklist:",
+                disabled=page == "Primeiros Passos",
+                width="stretch",
+            ):
+                st.session_state["_navigate_to"] = "Primeiros Passos"
+                st.rerun()
 
     st.divider()
     with st.expander("Conta e preferências"):
@@ -765,7 +801,7 @@ with st.sidebar:
         account_email = str(user.get("email") or "").strip()
         st.markdown(f"**{account_name}**")
         if account_email:
-            st.markdown(f'<div class="rz-side-account">{account_email}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="rz-side-account">{escape(account_email)}</div>', unsafe_allow_html=True)
         st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
         if st.button("Sair", key="sidebar_logout", width="stretch"):
             logout_current_user()
