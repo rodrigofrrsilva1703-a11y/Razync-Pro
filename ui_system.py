@@ -51,6 +51,7 @@ def tokens(theme_name: str) -> dict:
 def inject_design_system(theme_name: str) -> None:
     t = tokens(theme_name)
     dark = theme_name == "Escuro"
+    primary_contrast = "#06131c" if dark else "#ffffff"
 
     if dark:
         native = """
@@ -123,6 +124,9 @@ hr { border-color:#cfdee8 !important; }
   --rz-shadow-soft:{t['shadow_soft']};
 }}
 html, body, [class*="css"] {{ font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {{ display:none!important; }}
+:where(button, a, input, textarea, select, [role="tab"]):focus-visible {{ outline:3px solid color-mix(in srgb,var(--rz-primary) 50%,transparent)!important; outline-offset:2px; }}
+@media (prefers-reduced-motion:reduce) {{ *, *::before, *::after {{ scroll-behavior:auto!important; transition:none!important; animation:none!important; }} }}
 .stApp {{ background:var(--rz-bg); color:var(--rz-text); }}
 [data-testid="stHeader"] {{ background:rgba(0,0,0,0); }}
 [data-testid="stSidebar"] {{ background:{t['sidebar']}; border-right:1px solid var(--rz-border); }}
@@ -247,8 +251,21 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:white!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(8,185,239,.30)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {{ min-height:2.85rem; display:flex; align-items:center; justify-content:center; border:0!important; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:{primary_contrast}!important; font-weight:800; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a p {{ color:{primary_contrast}!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a:hover {{ filter:brightness(1.04); transform:translateY(-1px); }}
 .rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
+.stApp:has(.rz-demo-shell) [data-testid="stSidebar"] {{ display:none; }}
+.stApp:has(.rz-demo-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
+.stApp:has(.rz-demo-shell) [data-testid="stMain"] {{ background:linear-gradient(150deg,var(--rz-bg),var(--rz-soft))!important; }}
+.rz-demo-shell {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.2rem 0 1rem; }}
+.rz-demo-brand {{ font-size:1.18rem; font-weight:900; letter-spacing:-.04em; }}
+.rz-demo-brand span {{ color:var(--rz-primary); font-size:.62rem; letter-spacing:.12em; margin-left:.25rem; }}
+.rz-demo-badge {{ color:var(--rz-primary); background:var(--rz-primary-soft); border:1px solid color-mix(in srgb,var(--rz-primary) 28%,transparent); border-radius:999px; padding:.38rem .68rem; font-size:.7rem; font-weight:760; }}
+.rz-next-action {{ background:linear-gradient(135deg,var(--rz-surface),var(--rz-soft)); border:1px solid var(--rz-border); border-left:4px solid var(--rz-primary); border-radius:14px; padding:15px 17px; box-shadow:var(--rz-shadow-soft); }}
+.rz-next-action strong {{ display:block; font-size:.92rem; margin-bottom:.22rem; }}
+.rz-next-action span {{ color:var(--rz-muted); font-size:.79rem; line-height:1.45; }}
 
 {native}
 @media (max-width:1000px) {{ .block-container {{ padding-left:1rem; padding-right:1rem; }} [data-testid="stMetric"] {{ min-height:96px; }} }}
@@ -291,6 +308,7 @@ hr {{ border-color:var(--rz-border); }}
 
 
 def page_header(title: str, subtitle: str, eyebrow: str = "Razync Pro • MEI") -> None:
+    """Render a consistent, compact page context for every product area."""
     st.markdown(f'<div class="rz-eyebrow">{eyebrow}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="rz-page-title">{title}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="rz-page-sub">{subtitle}</div>', unsafe_allow_html=True)
