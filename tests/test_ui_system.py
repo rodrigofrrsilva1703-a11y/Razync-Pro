@@ -19,6 +19,8 @@ def test_login_design_system_renders_without_template_errors():
     assert '[data-testid="stLinkButton"]' in css
     assert "prefers-reduced-motion" in css
     assert ".rz-demo-shell" in css
+    assert ".rz-mobile-card" in css
+    assert ".rz-status-grid" in css
 
 
 def test_brand_palette_preserves_distinct_light_and_dark_modes():
