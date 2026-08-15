@@ -15,7 +15,7 @@ from database import (
     update_obligation_status, update_transaction, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
-    add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
+    resolve_trusted_developer_user, add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
     materialize_due_recurring, set_recurring_transaction_active, list_audit_logs, add_transactions_bulk,
 )
 from database import database_runtime_info
@@ -170,7 +170,7 @@ def ensure_login() -> dict:
     ):
         try:
             identity = github_sign_in(oauth_code, oauth_state)
-            user = resolve_supabase_user(
+            user = resolve_trusted_developer_user(
                 identity["auth_user_id"], identity["email"], identity["name"]
             )
         except (AuthServiceError, DatabaseConnectionError, ValueError) as exc:
