@@ -88,7 +88,8 @@ def brl(value: float) -> str:
 
 
 def header(title: str, subtitle: str) -> None:
-    page_header(title, subtitle)
+    current_page = str(globals().get("page", title))
+    page_header(title, subtitle, eyebrow=f"{group_for_page(current_page)} • Razync Pro")
 
 
 def alert_box(level: str, title: str, text: str) -> None:
@@ -803,6 +804,11 @@ with st.sidebar:
         if account_email:
             st.markdown(f'<div class="rz-side-account">{escape(account_email)}</div>', unsafe_allow_html=True)
         st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
+        if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
+            st.session_state.pop(_snapshot_key, None)
+            st.session_state.pop(_snapshot_version_key, None)
+            st.toast("Dados atualizados com segurança.")
+            st.rerun()
         if st.button("Sair", key="sidebar_logout", width="stretch"):
             logout_current_user()
 
@@ -811,7 +817,7 @@ _dashboard_stats = None
 if page == "Dashboard":
     business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
     cnpj_label = str(profile.get("cnpj") or "").strip() or None
-    page_header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
+    header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
     business_card(business_label, CURRENT_YEAR, cnpj_label)
 
     today = date.today()
@@ -904,7 +910,7 @@ if page == "Dashboard":
 
     section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
     if transactions.empty:
-        st.info("Ainda não há movimentações. Use “Nova movimentação” ou importe um extrato para começar.")
+        empty_state("Seu histórico financeiro começa aqui", "Registre uma receita ou despesa, ou importe o extrato bancário para preencher os indicadores automaticamente.", "＋")
     else:
         recent = transactions.sort_values("tx_date", ascending=False).head(8)
         st.dataframe(
@@ -1670,9 +1676,16 @@ elif page == "Central de Automações":
     c3.metric("DAS identificados", len(automation["das_matches"]))
     c4.metric("Sem documento", automation["documents"]["missing_count"])
 
-    section("Resumo automático de hoje", "A lista muda conforme você registra e confere as informações.")
-    for item in automation["actions"][:8]:
-        st.info(item)
+    section("Resumo automático de hoje", "Prioridades explicadas e com acesso direto ao local certo.")
+    for idx, item in enumerate(automation["action_items"][:6]):
+        action_text, action_button = st.columns([4.7, 1.2])
+        with action_text:
+            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
+            alert_card(level, item["title"], item["detail"])
+        with action_button:
+            if item["page"] and st.button("Abrir", key=f"automation_action_{idx}", width="stretch"):
+                st.session_state["_navigate_to"] = item["page"]
+                st.rerun()
 
     today_tab, closing_tab, review_tab, forecast_tab, share_tab = st.tabs([
         "Hoje", "Fechamento", "Conciliação", "Previsão", "Cobranças e contador"
