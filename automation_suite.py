@@ -158,15 +158,31 @@ def automation_overview(profile: dict, transactions: pd.DataFrame, invoices: pd.
     reminders = receivable_reminders(invoices, transactions)
     overdue_das = sum(1 for item in das_rows if das_status(item.get("status", "Pendente"), item.get("due_date")) == "Atrasado")
     overdue_obligations = sum(1 for item in obligations if item.get("status") != "Concluído" and _date(item.get("due_date")) and _date(item.get("due_date")) < date.today())
-    actions = []
-    if closing["score"] < 100: actions.append(f"Fechamento de {month:02d}/{year} está {closing['score']}% pronto.")
-    if not invoice_matches.empty: actions.append(f"Há {len(invoice_matches)} conciliação(ões) de nota sugerida(s).")
-    if payment_matches: actions.append(f"Há {len(payment_matches)} possível(is) pagamento(s) de DAS no extrato.")
-    if documents_status["missing_count"]: actions.append(f"Há {documents_status['missing_count']} lançamento(s) sem documento.")
-    if overdue_das: actions.append(f"Há {overdue_das} DAS em atraso.")
-    if overdue_obligations: actions.append(f"Há {overdue_obligations} obrigação(ões) vencida(s).")
-    if anomalies: actions.append(f"Há {len(anomalies)} despesa(s) fora do padrão para revisar.")
-    if reminders: actions.append(f"Há {len(reminders)} nota(s) sem recebimento conciliado.")
-    if not actions: actions.append("Tudo em ordem: nenhuma ação importante identificada hoje.")
-    return {"closing": closing, "invoice_matches": invoice_matches, "das_matches": payment_matches, "anomalies": anomalies, "documents": documents_status, "reminders": reminders, "actions": actions, "forecast": cash_forecast(transactions, 3)}
+    action_items = []
+
+    def add_action(priority: int, title: str, detail: str, page: str | None) -> None:
+        action_items.append({"priority": priority, "title": title, "detail": detail, "page": page})
+
+    if overdue_das:
+        add_action(1, f"{overdue_das} DAS em atraso", "Revise as competências vencidas e confirme os pagamentos.", "DAS")
+    if overdue_obligations:
+        add_action(1, f"{overdue_obligations} obrigação(ões) vencida(s)", "Atualize os prazos fiscais que já venceram.", "Obrigações")
+    if closing["score"] < 100:
+        add_action(2, f"Fechamento de {month:02d}/{year} em {closing['score']}%", "Confira os itens pendentes para concluir o mês.", "Fechamento Mensal")
+    if not invoice_matches.empty:
+        add_action(2, f"{len(invoice_matches)} conciliação(ões) sugerida(s)", "Confira os vínculos entre notas e recebimentos.", "Conciliação")
+    if payment_matches:
+        add_action(2, f"{len(payment_matches)} possível(is) pagamento(s) de DAS", "Valide as sugestões encontradas no extrato.", "DAS")
+    if documents_status["missing_count"]:
+        add_action(3, f"{documents_status['missing_count']} lançamento(s) sem documento", "Anexe os comprovantes para melhorar a organização.", "Documentos")
+    if anomalies:
+        add_action(3, f"{len(anomalies)} despesa(s) fora do padrão", "Revise os valores antes do fechamento mensal.", "Análise Financeira")
+    if reminders:
+        add_action(3, f"{len(reminders)} recebimento(s) para acompanhar", "Prepare lembretes de cobrança e envie somente após revisar.", "Central de Automações")
+    if not action_items:
+        add_action(4, "Tudo em ordem", "Nenhuma ação importante foi identificada hoje.", None)
+
+    action_items.sort(key=lambda item: item["priority"])
+    actions = [f"{item['title']}. {item['detail']}" for item in action_items]
+    return {"closing": closing, "invoice_matches": invoice_matches, "das_matches": payment_matches, "anomalies": anomalies, "documents": documents_status, "reminders": reminders, "actions": actions, "action_items": action_items, "forecast": cash_forecast(transactions, 3)}
 
