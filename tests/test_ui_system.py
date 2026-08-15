@@ -16,6 +16,9 @@ def test_login_design_system_renders_without_template_errors():
     assert "backdrop-filter:blur(18px)" in css
     assert '[data-baseweb="input"]' in css
     assert "button p { color:white!important; }" in css
+    assert '[data-testid="stLinkButton"]' in css
+    assert "prefers-reduced-motion" in css
+    assert ".rz-demo-shell" in css
 
 
 def test_brand_palette_preserves_distinct_light_and_dark_modes():
