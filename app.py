@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 
 import pandas as pd
 import plotly.express as px
@@ -553,7 +554,7 @@ limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
 
 sidebar_labels = {
     "Dashboard": "Visão geral", "Central de Automações": "Automações",
-    "Assistente Razync": "Assistente Razync", "Movimentações": "Movimentações",
+    "Assistente Razync": "Assistente", "Movimentações": "Financeiro",
     "Recorrências": "Lançamentos recorrentes", "Importar Extrato": "Importar extrato",
     "Conciliação": "Conciliação", "Fluxo de Caixa": "Fluxo de caixa",
     "Análise Financeira": "Análise financeira", "DAS": "Fiscal e DAS",
@@ -571,27 +572,10 @@ primary_sidebar_pages = [
     "Dashboard", "Movimentações", "DAS", "Central de Automações",
     "Documentos", "Espaço do Contador", "Assistente Razync",
 ]
-primary_sidebar_labels = {
-    "Dashboard": "Visão geral", "Movimentações": "Financeiro", "DAS": "Fiscal e DAS",
-    "Central de Automações": "Automações", "Documentos": "Documentos",
-    "Espaço do Contador": "Relatórios", "Assistente Razync": "Assistente",
-}
-sidebar_page_sections = {
-    "Dashboard": "Dashboard",
-    "Movimentações": "Movimentações", "Recorrências": "Movimentações",
-    "Importar Extrato": "Movimentações", "Conciliação": "Movimentações",
-    "Fluxo de Caixa": "Movimentações", "Análise Financeira": "Movimentações",
-    "DAS": "DAS", "DASN-SIMEI": "DAS", "Obrigações": "DAS",
-    "Notas Fiscais": "DAS", "Importar NFS-e": "DAS",
-    "Central de Automações": "Central de Automações",
-    "Central de Notificações": "Central de Automações",
-    "Documentos": "Documentos", "Fechamento Mensal": "Documentos",
-    "Clientes e Fornecedores": "Documentos", "Empregado": "Documentos",
-    "Espaço do Contador": "Espaço do Contador", "Relatório Mensal": "Espaço do Contador",
-    "Assistente Razync": "Assistente Razync",
-    "Primeiros Passos": "Dashboard", "Meu MEI": "Dashboard",
-    "Plano e Assinatura": "Dashboard", "Segurança da Conta": "Dashboard",
-    "Histórico de Atividades": "Dashboard", "Status do Sistema": "Dashboard", "Backup": "Dashboard",
+primary_sidebar_icons = {
+    "Dashboard": "⌂", "Movimentações": "↕", "DAS": "▣",
+    "Central de Automações": "⚡", "Documentos": "▱",
+    "Espaço do Contador": "▤", "Assistente Razync": "✦",
 }
 advanced_sidebar_groups = {
     "Financeiro": ["Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
@@ -604,48 +588,107 @@ advanced_sidebar_groups = {
 st.markdown(
     """
     <style>
-    [data-testid="stSidebar"] { border-right: 1px solid var(--rz-border); }
-    [data-testid="stSidebar"] .block-container { padding-top: 1.2rem; padding-bottom: 1.15rem; }
-    [data-testid="stSidebar"] [data-testid="stRadio"] > div { gap: .18rem; }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label {
-        min-height: 2.55rem; padding: .48rem .62rem; border: 1px solid transparent;
-        border-radius: 11px; transition: background .16s ease, border-color .16s ease;
+    [data-testid="stSidebar"] {
+        border-right: 1px solid var(--rz-border);
+        background: var(--rz-surface);
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-        background: var(--rz-soft); border-color: var(--rz-border);
+    [data-testid="stSidebar"] .block-container {
+        padding: 1.15rem .85rem 1.1rem;
     }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
-        color: var(--rz-primary);
-        background: color-mix(in srgb, var(--rz-primary) 12%, transparent);
-        border-color: color-mix(in srgb, var(--rz-primary) 25%, transparent);
-    }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label p { font-size: .94rem; font-weight: 650; }
-    [data-testid="stSidebar"] [data-testid="stRadio"] input { accent-color: var(--rz-primary); }
     .rz-side-brand {
-        display: flex; align-items: center; gap: .72rem; margin: 0 0 .2rem; padding: .72rem;
-        border: 1px solid var(--rz-border); border-radius: 15px;
-        background: linear-gradient(145deg, var(--rz-surface), var(--rz-soft));
-        box-shadow: 0 7px 22px rgba(7, 23, 38, .06);
+        display: flex;
+        align-items: center;
+        gap: .72rem;
+        padding: .12rem .38rem .82rem;
+        margin-bottom: .3rem;
     }
     .rz-side-brand img {
-        width: 42px; height: 42px; border-radius: 11px; object-fit: cover;
-        box-shadow: 0 4px 12px rgba(3, 174, 238, .18);
+        width: 44px;
+        height: 44px;
+        border-radius: 11px;
+        object-fit: cover;
+        box-shadow: 0 5px 14px rgba(3, 174, 238, .17);
     }
-    .rz-side-brand strong { display: block; font-size: .98rem; letter-spacing: -.01em; color: var(--rz-text); }
+    .rz-side-brand strong {
+        color: var(--rz-text);
+        font-size: 1.08rem;
+        letter-spacing: -.025em;
+    }
+    .rz-side-brand em {
+        margin-left: .28rem;
+        color: var(--rz-primary);
+        font-size: .62rem;
+        font-style: normal;
+        font-weight: 800;
+        letter-spacing: .09em;
+        vertical-align: .12rem;
+    }
     .rz-side-brand span {
-        display: block; margin-top: .12rem; font-size: .68rem; font-weight: 700;
-        letter-spacing: .08em; text-transform: uppercase; color: var(--rz-muted);
+        display: block;
+        max-width: 185px;
+        margin-top: .1rem;
+        overflow: hidden;
+        color: var(--rz-muted);
+        font-size: .7rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    .rz-side-label {
-        margin: 1rem 0 .34rem; color: var(--rz-muted); font-size: .68rem;
-        font-weight: 750; letter-spacing: .09em; text-transform: uppercase;
+    [data-testid="stSidebar"] [data-testid="stRadio"] > div {
+        gap: .2rem;
     }
-    .rz-side-progress {
-        margin-top: .65rem; padding: .68rem .72rem .5rem; border: 1px solid var(--rz-border);
-        border-radius: 12px; background: var(--rz-surface);
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {
+        min-height: 3.05rem;
+        padding: .66rem .75rem;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        color: var(--rz-muted);
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease, border-color .15s ease;
     }
-    .rz-side-progress strong { color: var(--rz-text); font-size: .82rem; }
-    .rz-side-progress span { float: right; color: var(--rz-primary); font-weight: 750; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        opacity: 0;
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+        color: var(--rz-text);
+        background: var(--rz-soft);
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+        color: var(--rz-text);
+        background: color-mix(in srgb, var(--rz-muted) 11%, transparent);
+        border-color: color-mix(in srgb, var(--rz-muted) 8%, transparent);
+        box-shadow: inset 3px 0 0 var(--rz-primary);
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label p {
+        font-size: .96rem;
+        font-weight: 540;
+        letter-spacing: -.005em;
+    }
+    [data-testid="stSidebar"] hr {
+        margin: .9rem 0;
+        border-color: var(--rz-border);
+    }
+    [data-testid="stSidebar"] details {
+        border: 0;
+        background: transparent;
+    }
+    [data-testid="stSidebar"] details summary {
+        border-radius: 10px;
+        color: var(--rz-muted);
+        font-size: .88rem;
+    }
+    [data-testid="stSidebar"] details summary:hover {
+        color: var(--rz-text);
+        background: var(--rz-soft);
+    }
+    .rz-side-account {
+        padding: .12rem .15rem .25rem;
+        color: var(--rz-muted);
+        font-size: .72rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -657,22 +700,27 @@ with st.sidebar:
         f"""
         <div class="rz-side-brand">
           <img src="{BRAND_LOGO_DATA_URI}" alt="Razync Pro">
-          <div><strong>Razync Pro</strong><span>Painel do seu negócio</span></div>
+          <div>
+            <strong>Razync<em>PRO</em></strong>
+            <span>{escape(str(business_sidebar))}</span>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.caption(business_sidebar)
 
-    st.markdown('<div class="rz-side-label">Navegação</div>', unsafe_allow_html=True)
-    active_primary = sidebar_page_sections.get(page, "Dashboard")
+    primary_index = primary_sidebar_pages.index(page) if page in primary_sidebar_pages else None
     selected_primary = st.radio(
-        "Navegação principal", primary_sidebar_pages,
-        index=primary_sidebar_pages.index(active_primary),
-        format_func=lambda destination: primary_sidebar_labels[destination],
-        key=f"_primary_nav_{page}", label_visibility="collapsed",
+        "Menu principal",
+        primary_sidebar_pages,
+        index=primary_index,
+        format_func=lambda destination: (
+            f"{primary_sidebar_icons[destination]}　{sidebar_labels[destination]}"
+        ),
+        key=f"_primary_nav_{page}",
+        label_visibility="collapsed",
     )
-    if selected_primary != active_primary:
+    if selected_primary is not None and selected_primary != page:
         st.session_state["_navigate_to"] = selected_primary
         st.rerun()
 
@@ -680,38 +728,41 @@ with st.sidebar:
     for section_name, destinations in advanced_sidebar_groups.items():
         for destination in destinations:
             advanced_pages.append(destination)
-            advanced_labels[destination] = f"{section_name}  ·  {sidebar_labels[destination]}"
-    advanced_options = ["Abrir ferramenta..."] + advanced_pages
-    current_advanced = page if page in advanced_pages else "Abrir ferramenta..."
-    with st.expander("Ferramentas avançadas"):
+            advanced_labels[destination] = f"{section_name} · {sidebar_labels[destination]}"
+    advanced_options = ["Selecione..."] + advanced_pages
+    current_advanced = page if page in advanced_pages else "Selecione..."
+
+    st.divider()
+    with st.expander("Mais recursos", expanded=page in advanced_pages):
         selected_advanced = st.selectbox(
-            "Escolha uma ferramenta", advanced_options,
+            "Ferramentas",
+            advanced_options,
             index=advanced_options.index(current_advanced),
             format_func=lambda destination: advanced_labels.get(destination, destination),
-            key=f"_advanced_nav_{page}", label_visibility="collapsed",
+            key=f"_advanced_nav_{page}",
+            label_visibility="collapsed",
         )
-    if selected_advanced != "Abrir ferramenta..." and selected_advanced != page:
+    if selected_advanced != "Selecione..." and selected_advanced != page:
         st.session_state["_navigate_to"] = selected_advanced
         st.rerun()
 
     setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
     if setup_progress["percent"] < 100:
-        st.markdown(
-            f'<div class="rz-side-progress"><strong>Configuração</strong>'
-            f'<span>{setup_progress["percent"]}%</span></div>',
-            unsafe_allow_html=True,
-        )
-        st.progress(setup_progress["percent"] / 100)
-        if st.button("Concluir configuração", key="sidebar_onboarding", width="stretch"):
+        if st.button(
+            f"◫  Configurar meu MEI · {setup_progress['percent']}%",
+            key="sidebar_onboarding",
+            width="stretch",
+        ):
             st.session_state["_navigate_to"] = "Primeiros Passos"
             st.rerun()
 
     st.divider()
-    account_name = str(user.get("name") or "Minha conta")
-    with st.expander(f"{account_name}  ·  Conta"):
+    with st.expander("Conta e preferências"):
+        account_name = str(user.get("name") or "Minha conta")
         account_email = str(user.get("email") or "").strip()
+        st.markdown(f"**{account_name}**")
         if account_email:
-            st.caption(account_email)
+            st.markdown(f'<div class="rz-side-account">{account_email}</div>', unsafe_allow_html=True)
         st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
         if st.button("Sair", key="sidebar_logout", width="stretch"):
             logout_current_user()
