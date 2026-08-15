@@ -473,6 +473,54 @@ def resolve_supabase_user(auth_user_id: str, email: str, name: str = "") -> dict
     return {"id": row["id"], "name": row["name"], "email": row["email"], "auth_user_id": auth_user_id}
 
 
+def resolve_trusted_developer_user(
+    developer_identity_id: str, email: str, name: str = ""
+) -> dict[str, Any]:
+    """Reuse an existing account without replacing its Supabase Auth identity.
+
+    The caller must first verify the external developer identity against the
+    server-side allowlist. Normal Supabase sign-ins keep using the strict
+    resolve_supabase_user one-identity protection.
+    """
+    normalized_email = email.strip().lower()
+    if not normalized_email:
+        raise ValueError("O GitHub não forneceu um e-mail válido.")
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                select(users).where(users.c.auth_user_id == developer_identity_id)
+            ).mappings().first()
+            if row is None:
+                row = conn.execute(
+                    select(users).where(users.c.email == normalized_email)
+                ).mappings().first()
+            if row is None:
+                result = conn.execute(
+                    insert(users).values(
+                        name=name.strip() or normalized_email.split("@", 1)[0],
+                        email=normalized_email,
+                        auth_user_id=developer_identity_id,
+                        password_hash=_hash_password(os.urandom(32).hex()),
+                    )
+                )
+                uid = int(result.inserted_primary_key[0])
+                conn.execute(insert(profiles).values(user_id=uid))
+                row = conn.execute(
+                    select(users).where(users.c.id == uid)
+                ).mappings().one()
+    except (IntegrityError, OperationalError) as exc:
+        if isinstance(exc, OperationalError):
+            raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+        raise ValueError("Não foi possível acessar a conta de desenvolvedor.") from None
+
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "auth_user_id": row.get("auth_user_id"),
+    }
+
+
 def get_profile(user_id: int) -> dict[str, Any]:
     cached = _cache_get("profile", user_id)
     if cached is not None:
