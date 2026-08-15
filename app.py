@@ -713,7 +713,7 @@ with st.sidebar:
         if account_email:
             st.caption(account_email)
         st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
-        if st.button("Sair da conta", key="sidebar_logout", width="stretch"):
+        if st.button("Sair", key="sidebar_logout", width="stretch"):
             logout_current_user()
 
 # Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
