@@ -101,6 +101,25 @@ def secret_value(name: str) -> str:
         return ""
 
 
+def logout_current_user() -> None:
+    """Close the active session and return safely to the login screen."""
+    auth_enabled = is_supabase_auth_configured()
+    session_controller = persistent_session_controller() if auth_enabled else None
+    if session_controller is not None:
+        clear_persisted_session(session_controller)
+    if auth_enabled:
+        try:
+            supabase_sign_out(
+                st.session_state.get("access_token", ""),
+                st.session_state.get("refresh_token", ""),
+            )
+        except AuthServiceError:
+            pass
+    for key in list(st.session_state):
+        del st.session_state[key]
+    st.rerun()
+
+
 def document_bytes(document: dict) -> bytes:
     if document.get("storage_path"):
         return download_document(
@@ -197,20 +216,7 @@ def ensure_login() -> dict:
             st.rerun()
 
     if "user" in st.session_state:
-        user = st.session_state["user"]
-        with st.sidebar:
-            st.caption(f"Conectado como {user['name']}")
-            if st.button("Sair", width="stretch"):
-                clear_persisted_session(session_controller)
-                if auth_enabled:
-                    supabase_sign_out(
-                        st.session_state.get("access_token", ""),
-                        st.session_state.get("refresh_token", ""),
-                    )
-                for key in list(st.session_state):
-                    del st.session_state[key]
-                st.rerun()
-        return user
+        return st.session_state["user"]
 
     if st.session_state.get("_demo_mode"):
         render_demo()
@@ -546,78 +552,169 @@ year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if
 limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
 
 sidebar_labels = {
-    "Dashboard": "Início", "Central de Automações": "Pendências e automações",
-    "Assistente Razync": "Assistente Razync", "Movimentações": "Receitas e despesas",
-    "Recorrências": "Lançamentos recorrentes", "Importar Extrato": "Importar extrato bancário",
-    "Conciliação": "Conferir notas e recebimentos", "Fluxo de Caixa": "Fluxo de caixa",
-    "Análise Financeira": "Análise financeira", "DAS": "DAS mensal",
+    "Dashboard": "Visão geral", "Central de Automações": "Automações",
+    "Assistente Razync": "Assistente Razync", "Movimentações": "Movimentações",
+    "Recorrências": "Lançamentos recorrentes", "Importar Extrato": "Importar extrato",
+    "Conciliação": "Conciliação", "Fluxo de Caixa": "Fluxo de caixa",
+    "Análise Financeira": "Análise financeira", "DAS": "Fiscal e DAS",
     "DASN-SIMEI": "Declaração anual", "Obrigações": "Prazos e obrigações",
     "Notas Fiscais": "Notas fiscais", "Importar NFS-e": "Importar NFS-e",
     "Relatório Mensal": "Relatório mensal", "Fechamento Mensal": "Fechamento mensal",
     "Clientes e Fornecedores": "Clientes e fornecedores", "Empregado": "Empregado",
-    "Documentos": "Documentos", "Espaço do Contador": "Espaço do contador",
-    "Primeiros Passos": "Primeiros passos", "Meu MEI": "Dados do meu MEI",
+    "Documentos": "Documentos", "Espaço do Contador": "Relatórios",
+    "Primeiros Passos": "Primeiros passos", "Meu MEI": "Dados do MEI",
     "Central de Notificações": "Alertas e calendário", "Plano e Assinatura": "Plano e assinatura",
     "Segurança da Conta": "Segurança da conta", "Histórico de Atividades": "Histórico de atividades",
     "Status do Sistema": "Status do sistema", "Backup": "Backup dos dados",
 }
-sidebar_sections = {
-    "Financeiro": NAV_GROUPS["Financeiro"], "Impostos e MEI": NAV_GROUPS["Fiscal MEI"],
-    "Organização": NAV_GROUPS["Gestão"], "Conta e configurações": NAV_GROUPS["Configurações"],
-}
-sidebar_prefix = {"Financeiro": "💰", "Impostos e MEI": "🧾", "Organização": "📁", "Conta e configurações": "⚙"}
 primary_sidebar_pages = [
-    ("⌂ Início", "Dashboard"), ("⚡ Pendências e automações", "Central de Automações"),
-    ("↕ Receitas e despesas", "Movimentações"), ("▣ DAS e impostos", "DAS"),
-    ("▱ Documentos", "Documentos"),
+    "Dashboard", "Movimentações", "DAS", "Central de Automações",
+    "Documentos", "Espaço do Contador", "Assistente Razync",
 ]
+primary_sidebar_labels = {
+    "Dashboard": "Visão geral", "Movimentações": "Financeiro", "DAS": "Fiscal e DAS",
+    "Central de Automações": "Automações", "Documentos": "Documentos",
+    "Espaço do Contador": "Relatórios", "Assistente Razync": "Assistente",
+}
+sidebar_page_sections = {
+    "Dashboard": "Dashboard",
+    "Movimentações": "Movimentações", "Recorrências": "Movimentações",
+    "Importar Extrato": "Movimentações", "Conciliação": "Movimentações",
+    "Fluxo de Caixa": "Movimentações", "Análise Financeira": "Movimentações",
+    "DAS": "DAS", "DASN-SIMEI": "DAS", "Obrigações": "DAS",
+    "Notas Fiscais": "DAS", "Importar NFS-e": "DAS",
+    "Central de Automações": "Central de Automações",
+    "Central de Notificações": "Central de Automações",
+    "Documentos": "Documentos", "Fechamento Mensal": "Documentos",
+    "Clientes e Fornecedores": "Documentos", "Empregado": "Documentos",
+    "Espaço do Contador": "Espaço do Contador", "Relatório Mensal": "Espaço do Contador",
+    "Assistente Razync": "Assistente Razync",
+    "Primeiros Passos": "Dashboard", "Meu MEI": "Dashboard",
+    "Plano e Assinatura": "Dashboard", "Segurança da Conta": "Dashboard",
+    "Histórico de Atividades": "Dashboard", "Status do Sistema": "Dashboard", "Backup": "Dashboard",
+}
+advanced_sidebar_groups = {
+    "Financeiro": ["Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
+    "Fiscal": ["DASN-SIMEI", "Obrigações", "Notas Fiscais", "Importar NFS-e"],
+    "Gestão": ["Relatório Mensal", "Fechamento Mensal", "Clientes e Fornecedores", "Empregado"],
+    "Configurações": ["Meu MEI", "Central de Notificações", "Plano e Assinatura",
+                      "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
+}
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] { border-right: 1px solid var(--rz-border); }
+    [data-testid="stSidebar"] .block-container { padding-top: 1.2rem; padding-bottom: 1.15rem; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] > div { gap: .18rem; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {
+        min-height: 2.55rem; padding: .48rem .62rem; border: 1px solid transparent;
+        border-radius: 11px; transition: background .16s ease, border-color .16s ease;
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+        background: var(--rz-soft); border-color: var(--rz-border);
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+        color: var(--rz-primary);
+        background: color-mix(in srgb, var(--rz-primary) 12%, transparent);
+        border-color: color-mix(in srgb, var(--rz-primary) 25%, transparent);
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label p { font-size: .94rem; font-weight: 650; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] input { accent-color: var(--rz-primary); }
+    .rz-side-brand {
+        display: flex; align-items: center; gap: .72rem; margin: 0 0 .2rem; padding: .72rem;
+        border: 1px solid var(--rz-border); border-radius: 15px;
+        background: linear-gradient(145deg, var(--rz-surface), var(--rz-soft));
+        box-shadow: 0 7px 22px rgba(7, 23, 38, .06);
+    }
+    .rz-side-brand img {
+        width: 42px; height: 42px; border-radius: 11px; object-fit: cover;
+        box-shadow: 0 4px 12px rgba(3, 174, 238, .18);
+    }
+    .rz-side-brand strong { display: block; font-size: .98rem; letter-spacing: -.01em; color: var(--rz-text); }
+    .rz-side-brand span {
+        display: block; margin-top: .12rem; font-size: .68rem; font-weight: 700;
+        letter-spacing: .08em; text-transform: uppercase; color: var(--rz-muted);
+    }
+    .rz-side-label {
+        margin: 1rem 0 .34rem; color: var(--rz-muted); font-size: .68rem;
+        font-weight: 750; letter-spacing: .09em; text-transform: uppercase;
+    }
+    .rz-side-progress {
+        margin-top: .65rem; padding: .68rem .72rem .5rem; border: 1px solid var(--rz-border);
+        border-radius: 12px; background: var(--rz-surface);
+    }
+    .rz-side-progress strong { color: var(--rz-text); font-size: .82rem; }
+    .rz-side-progress span { float: right; color: var(--rz-primary); font-weight: 750; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
-    st.image(BRAND_LOGO_PATH, width=54)
     business_sidebar = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
-    st.markdown("### RAZYNC PRO")
+    st.markdown(
+        f"""
+        <div class="rz-side-brand">
+          <img src="{BRAND_LOGO_DATA_URI}" alt="Razync Pro">
+          <div><strong>Razync Pro</strong><span>Painel do seu negócio</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption(business_sidebar)
-    st.markdown("**Acessos principais**")
-    for label, destination in primary_sidebar_pages:
-        if page == destination:
-            st.info(label)
-        elif st.button(label, key=f"simple_nav_{destination}", width="stretch"):
-            st.session_state["_sidebar_more"] = "Escolha uma ferramenta..."
-            st.session_state["_navigate_to"] = destination
+
+    st.markdown('<div class="rz-side-label">Navegação</div>', unsafe_allow_html=True)
+    active_primary = sidebar_page_sections.get(page, "Dashboard")
+    selected_primary = st.radio(
+        "Navegação principal", primary_sidebar_pages,
+        index=primary_sidebar_pages.index(active_primary),
+        format_func=lambda destination: primary_sidebar_labels[destination],
+        key=f"_primary_nav_{page}", label_visibility="collapsed",
+    )
+    if selected_primary != active_primary:
+        st.session_state["_navigate_to"] = selected_primary
+        st.rerun()
+
+    advanced_pages, advanced_labels = [], {}
+    for section_name, destinations in advanced_sidebar_groups.items():
+        for destination in destinations:
+            advanced_pages.append(destination)
+            advanced_labels[destination] = f"{section_name}  ·  {sidebar_labels[destination]}"
+    advanced_options = ["Abrir ferramenta..."] + advanced_pages
+    current_advanced = page if page in advanced_pages else "Abrir ferramenta..."
+    with st.expander("Ferramentas avançadas"):
+        selected_advanced = st.selectbox(
+            "Escolha uma ferramenta", advanced_options,
+            index=advanced_options.index(current_advanced),
+            format_func=lambda destination: advanced_labels.get(destination, destination),
+            key=f"_advanced_nav_{page}", label_visibility="collapsed",
+        )
+    if selected_advanced != "Abrir ferramenta..." and selected_advanced != page:
+        st.session_state["_navigate_to"] = selected_advanced
+        st.rerun()
+
+    setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
+    if setup_progress["percent"] < 100:
+        st.markdown(
+            f'<div class="rz-side-progress"><strong>Configuração</strong>'
+            f'<span>{setup_progress["percent"]}%</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.progress(setup_progress["percent"] / 100)
+        if st.button("Concluir configuração", key="sidebar_onboarding", width="stretch"):
+            st.session_state["_navigate_to"] = "Primeiros Passos"
             st.rerun()
 
-    st.markdown("**Mais ferramentas**")
-    more_pages, more_labels = [], {}
-    primary_destinations = {destination for _, destination in primary_sidebar_pages}
-    for section_name, section_pages in sidebar_sections.items():
-        for destination in section_pages:
-            if destination in primary_destinations or destination == "Primeiros Passos":
-                continue
-            more_pages.append(destination)
-            more_labels[destination] = f"{sidebar_prefix[section_name]} {section_name} · {sidebar_labels.get(destination, destination)}"
-    more_pages.insert(0, "Assistente Razync")
-    more_labels["Assistente Razync"] = "✦ Ajuda · Assistente Razync"
-    more_options = ["Escolha uma ferramenta..."] + more_pages
-    current_more = page if page in more_pages else "Escolha uma ferramenta..."
-    selected_more = st.selectbox(
-        "Todas as ferramentas", more_options,
-        index=more_options.index(current_more),
-        format_func=lambda value: more_labels.get(value, value),
-        key=f"_sidebar_more_{page}",
-        label_visibility="collapsed",
-    )
-    if selected_more != "Escolha uma ferramenta..." and selected_more != page:
-        st.session_state["_navigate_to"] = selected_more
-        st.rerun()
-
-    st.caption(f"Você está em: {sidebar_labels.get(page, page)}")
-    if page == "Primeiros Passos":
-        st.info("◉ Primeiros passos")
-    elif st.button("◉ Primeiros passos", key="simple_nav_onboarding", width="stretch"):
-        st.session_state["_navigate_to"] = "Primeiros Passos"
-        st.rerun()
-    with st.expander("Aparência"):
-        st.selectbox("Tema", ["Claro", "Escuro"], key="ui_theme")
+    st.divider()
+    account_name = str(user.get("name") or "Minha conta")
+    with st.expander(f"{account_name}  ·  Conta"):
+        account_email = str(user.get("email") or "").strip()
+        if account_email:
+            st.caption(account_email)
+        st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
+        if st.button("Sair da conta", key="sidebar_logout", width="stretch"):
+            logout_current_user()
 
 # Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
 _dashboard_stats = None
