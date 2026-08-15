@@ -9,6 +9,7 @@ from typing import Iterable
 import pandas as pd
 
 from fiscal_rules import das_status
+from customer_experience import integration_catalog
 
 
 def _as_date(value):
@@ -152,10 +153,12 @@ def checkout_url(config: dict, plan: str) -> str:
 
 
 def integration_readiness(config: dict, database_persistent: bool) -> list[dict]:
+    """Keep the legacy status API while using the richer integration catalog."""
     return [
-        {"name": "Dados e autenticação", "ready": bool(database_persistent), "detail": "Supabase/PostgreSQL"},
-        {"name": "Documentos privados", "ready": bool(config.get("SUPABASE_URL") and config.get("SUPABASE_PUBLISHABLE_KEY")), "detail": "Storage com acesso por usuário"},
-        {"name": "Cobrança online", "ready": bool(checkout_url(config, "pro")), "detail": "Link de checkout configurável"},
-        {"name": "NFS-e", "ready": True, "detail": "Importação CSV/XLSX disponível"},
-        {"name": "Agenda", "ready": True, "detail": "Alertas internos e calendário ICS"},
+        {
+            "name": item["name"],
+            "ready": item["ready"],
+            "detail": f"{item['status']} · {item['detail']}",
+        }
+        for item in integration_catalog(config, database_persistent)
     ]
