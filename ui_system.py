@@ -270,7 +270,6 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a:hover {{ filter:brightness(1.04); transform:translateY(-1px); }}
 .rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
-.stApp:has(.rz-demo-shell) [data-testid="stSidebar"] {{ display:none; }}
 .stApp:has(.rz-demo-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
 .stApp:has(.rz-demo-shell) [data-testid="stMain"] {{ background:linear-gradient(150deg,var(--rz-bg),var(--rz-soft))!important; }}
 .rz-demo-shell {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.2rem 0 1rem; }}
