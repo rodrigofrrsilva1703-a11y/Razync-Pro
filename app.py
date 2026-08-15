@@ -91,6 +91,13 @@ def alert_box(level: str, title: str, text: str) -> None:
     alert_card(level, title, text)
 
 
+def secret_value(name: str) -> str:
+    try:
+        return str(st.secrets.get(name, ""))
+    except Exception:
+        return ""
+
+
 def document_bytes(document: dict) -> bytes:
     if document.get("storage_path"):
         return download_document(
@@ -1487,7 +1494,7 @@ elif page == "Plano e Assinatura":
     st.write("✓ Organização financeira e fiscal")
     st.write("✓ Importação de extrato e NFS-e")
     st.write("✓ Alertas, relatórios, documentos e backup")
-    config = {"CHECKOUT_PRO_URL": st.secrets.get("CHECKOUT_PRO_URL", "")}
+    config = {"CHECKOUT_PRO_URL": secret_value("CHECKOUT_PRO_URL")}
     payment_url = checkout_url(config, "pro")
     if payment_url:
         st.link_button("Assinar Razync Pro", payment_url, type="primary", width="stretch")
@@ -1556,7 +1563,7 @@ elif page == "Status do Sistema":
     if runtime["persistent"]: st.success("O banco configurado é persistente.")
     else: st.warning("O app está usando SQLite temporário. No Streamlit Cloud, configure DATABASE_URL com PostgreSQL/Supabase antes de colocar clientes reais.")
     st.subheader("Integrações")
-    status_config = {key: st.secrets.get(key, "") for key in ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "CHECKOUT_PRO_URL")}
+    status_config = {key: secret_value(key) for key in ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "CHECKOUT_PRO_URL")}
     for integration in integration_readiness(status_config, runtime["persistent"]):
         marker = "✓" if integration["ready"] else "○"
         st.write(f"{marker} **{integration['name']}** — {integration['detail']}")
