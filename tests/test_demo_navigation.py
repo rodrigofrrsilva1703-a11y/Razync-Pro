@@ -17,6 +17,9 @@ def test_demo_has_visible_sidebar_navigation():
 def test_design_system_does_not_hide_demo_sidebar():
     design_source = (Path(__file__).resolve().parents[1] / "ui_system.py").read_text(encoding="utf-8")
     assert '.stApp:has(.rz-demo-shell) [data-testid="stSidebar"]' not in design_source
+    assert '[data-testid="stExpandSidebarButton"]' in design_source
+    assert "position:fixed!important" in design_source
+    assert '[data-testid="stToolbar"] {{ display:flex!important' in design_source
 
 
 def test_demo_can_return_to_the_real_system():
