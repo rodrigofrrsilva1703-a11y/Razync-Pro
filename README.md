@@ -23,6 +23,11 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 - Assistente Razync com leitura dos dados cadastrados
 - Cadastro completo do MEI
 - Backup e exportação CSV
+- Alertas internos com exportação de calendário (.ics)
+- Importação de NFS-e em CSV/XLSX com detecção de colunas e duplicidades
+- Espaço do contador com resumo financeiro sem compartilhamento de senha
+- Checkout comercial configurável por URL HTTPS
+- Diagnóstico de integrações e infraestrutura
 
 ## Regras de MEI consideradas
 
