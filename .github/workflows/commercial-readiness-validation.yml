@@ -1,0 +1,39 @@
+name: Commercial readiness validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-publish:
+    if: github.head_ref == 'commercial-readiness-v1' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: commercial-readiness-v1
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Apply incremental commercial patch
+        run: python scripts/apply_commercial_readiness.py
+      - name: Remove temporary validation files
+        run: rm -f scripts/apply_commercial_readiness.py .github/workflows/commercial-readiness-validation.yml
+      - name: Validate Python
+        run: python -m compileall -q -x '^./scripts/' .
+      - name: Run full test suite
+        run: python -m unittest discover -s tests -v
+      - name: Publish validated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "finaliza prontidao comercial v1"
+          git push origin HEAD:commercial-readiness-v1
