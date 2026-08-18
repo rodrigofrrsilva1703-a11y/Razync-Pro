@@ -1,7 +1,8 @@
-name: Tests
+name: Razync Pro CI
 
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
 
@@ -16,5 +17,13 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Validate syntax
+        run: python -m compileall -q -x '^./scripts/' .
+      - name: Validate main imports
+        run: python -c "import sqlalchemy, streamlit, pandas, plotly, supabase"
+      - name: Check forbidden preview files
+        run: |
+          test ! -f preview_access.py
+          test ! -f preview_app.py
       - name: Run tests
         run: python -m unittest discover -s tests -v
