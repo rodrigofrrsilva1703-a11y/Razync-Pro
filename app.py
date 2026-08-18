@@ -65,6 +65,9 @@ from customer_experience import (
     transaction_restore_payload,
 )
 from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_GROUPS, SIDEBAR_ICONS
+from finance_workspace import render_finance_workspace
+from fiscal_workspace import render_fiscal_workspace
+from workspace_style import inject_workspace_style
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -87,6 +90,7 @@ if "ui_theme" not in st.session_state:
 UI_THEME = st.session_state["ui_theme"]
 PLOT_TEMPLATE = tokens(UI_THEME)["plot"]
 inject_design_system(UI_THEME)
+inject_workspace_style()
 
 
 def brl(value: float) -> str:
@@ -100,6 +104,11 @@ def header(title: str, subtitle: str) -> None:
 
 def alert_box(level: str, title: str, text: str) -> None:
     alert_card(level, title, text)
+
+
+def navigate_to(destination: str) -> None:
+    st.session_state["_navigate_to"] = destination
+    st.rerun()
 
 
 def secret_value(name: str) -> str:
@@ -933,6 +942,18 @@ if page == "Dashboard":
         for label, done in checklist:
             st.write(("✓ " if done else "○ ") + label)
 
+elif page == "Financeiro":
+    header("Financeiro", "Controle entradas, saídas, conciliação e análise em uma única área.")
+    render_finance_workspace(
+        transactions=transactions,
+        invoices=invoices,
+        annual_limit=limit,
+        current_year=CURRENT_YEAR,
+        theme=UI_THEME,
+        brl=brl,
+        navigate=navigate_to,
+    )
+
 elif page == "Movimentações":
     header("Movimentações","Registre o que entrou e saiu do MEI. Comece pelo essencial; os detalhes ficam opcionais.")
     with st.container(border=True):
@@ -1411,6 +1432,22 @@ elif page == "Importar NFS-e":
                         add_invoice(uid, **row)
                     st.success(f"{len(new_rows)} nota(s) importada(s).")
                     st.rerun()
+
+elif page == "Fiscal":
+    header("Fiscal MEI", "Acompanhe DAS, notas, obrigações e declaração anual sem se perder entre telas.")
+    render_fiscal_workspace(
+        profile=profile,
+        transactions=transactions,
+        invoices=invoices,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=docs,
+        current_year=CURRENT_YEAR,
+        annual_limit=limit,
+        annual_revenue=year_revenue,
+        brl=brl,
+        navigate=navigate_to,
+    )
 
 elif page == "DAS":
     header("DAS","Gere a guia no PGMEI oficial e mantenha competência, vencimento, valor, pagamento e PDF organizados no Razync.")
