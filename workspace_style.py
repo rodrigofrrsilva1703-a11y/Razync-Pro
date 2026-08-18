@@ -69,6 +69,40 @@ def inject_workspace_style() -> None:
                 font-size: 1.08rem !important;
             }
         }
+
+        @media (max-width: 480px) {
+            [data-testid="stAppViewContainer"] .block-container {
+                padding-left: .62rem;
+                padding-right: .62rem;
+            }
+            [data-testid="stHorizontalBlock"] {
+                gap: .42rem !important;
+            }
+            [data-testid="stButton"] button,
+            [data-testid="stLinkButton"] a,
+            [data-testid="stDownloadButton"] button {
+                min-height: 2.9rem;
+                white-space: normal;
+            }
+            [data-testid="stMetricValue"] {
+                font-size: 1.16rem;
+            }
+            [data-testid="stMetricLabel"] {
+                font-size: .76rem;
+            }
+            [data-testid="stForm"] {
+                padding: .78rem;
+            }
+            [data-testid="stFileUploader"] section {
+                min-height: 5.2rem;
+            }
+            h1 {
+                font-size: 1.52rem !important;
+            }
+            h2 {
+                font-size: 1.22rem !important;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
