@@ -14,6 +14,27 @@ def onboarding_progress(profile: dict, has_transactions: bool, has_das: bool, ha
     return {"steps": steps, "done": done, "total": len(steps), "percent": round(done / len(steps) * 100) if steps else 0, "complete": done == len(steps)}
 
 
+def first_session_plan(progress: dict) -> list[dict]:
+    """Short onboarding path for a new MEI without exposing every system module."""
+    routes = {
+        "identity": "Primeiros Passos",
+        "activity": "Primeiros Passos",
+        "opening": "Primeiros Passos",
+        "financial": "Movimentações",
+        "das": "DAS",
+        "documents": "Documentos",
+    }
+    return [
+        {
+            "title": step["title"],
+            "detail": step["detail"],
+            "done": bool(step["done"]),
+            "page": routes.get(step["key"], "Primeiros Passos"),
+        }
+        for step in progress.get("steps", [])
+    ]
+
+
 def recommended_setup(profile: dict) -> list[str]:
     activity_type = str(profile.get("activity_type") or "").lower()
     recs = ["Cadastre receitas e despesas com frequência para manter os relatórios atualizados."]
