@@ -64,6 +64,7 @@ from customer_experience import (
     integration_catalog, next_onboarding_step, security_checklist,
     transaction_restore_payload,
 )
+from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_GROUPS, SIDEBAR_ICONS
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -558,73 +559,6 @@ year_revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if
 year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
 limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
 
-sidebar_labels = {
-    "Dashboard": "Início", "Central de Automações": "Central de automações",
-    "Assistente Razync": "Assistente", "Movimentações": "Receitas e despesas",
-    "Recorrências": "Lançamentos recorrentes", "Importar Extrato": "Importar extrato",
-    "Conciliação": "Conciliação financeira", "Fluxo de Caixa": "Fluxo de caixa",
-    "Análise Financeira": "Análise financeira", "DAS": "DAS mensal",
-    "DASN-SIMEI": "Declaração anual", "Obrigações": "Prazos e obrigações",
-    "Notas Fiscais": "Notas fiscais", "Importar NFS-e": "Importar NFS-e",
-    "Relatório Mensal": "Relatório mensal", "Fechamento Mensal": "Fechamento mensal",
-    "Clientes e Fornecedores": "Clientes e fornecedores", "Empregado": "Empregado",
-    "Documentos": "Documentos", "Espaço do Contador": "Espaço do contador",
-    "Primeiros Passos": "Primeiros passos", "Meu MEI": "Dados do MEI",
-    "Central de Notificações": "Alertas e calendário", "Integrações": "Integrações",
-    "Plano e Assinatura": "Plano e assinatura",
-    "Segurança da Conta": "Segurança da conta", "Histórico de Atividades": "Histórico de atividades",
-    "Status do Sistema": "Status do sistema", "Backup": "Backup dos dados",
-}
-sidebar_groups = {
-    "Financeiro": [
-        "Movimentações", "Recorrências", "Importar Extrato",
-        "Conciliação", "Fluxo de Caixa", "Análise Financeira",
-    ],
-    "Fiscal": [
-        "DAS", "Notas Fiscais", "Importar NFS-e", "Obrigações", "DASN-SIMEI",
-    ],
-    "Gestão": [
-        "Documentos", "Clientes e Fornecedores", "Empregado",
-        "Fechamento Mensal", "Relatório Mensal", "Espaço do Contador",
-    ],
-    "Automações e ajuda": [
-        "Central de Automações", "Central de Notificações", "Assistente Razync",
-    ],
-    "Configurações": [
-        "Meu MEI", "Integrações", "Plano e Assinatura", "Segurança da Conta",
-        "Histórico de Atividades", "Status do Sistema", "Backup",
-    ],
-}
-sidebar_icons = {
-    "Dashboard": ":material/home:",
-    "Movimentações": ":material/swap_vert:",
-    "Recorrências": ":material/event_repeat:",
-    "Importar Extrato": ":material/upload_file:",
-    "Conciliação": ":material/rule:",
-    "Fluxo de Caixa": ":material/timeline:",
-    "Análise Financeira": ":material/monitoring:",
-    "DAS": ":material/receipt_long:",
-    "Notas Fiscais": ":material/request_quote:",
-    "Importar NFS-e": ":material/upload:",
-    "Obrigações": ":material/event:",
-    "DASN-SIMEI": ":material/description:",
-    "Documentos": ":material/folder_open:",
-    "Clientes e Fornecedores": ":material/groups:",
-    "Empregado": ":material/badge:",
-    "Fechamento Mensal": ":material/task_alt:",
-    "Relatório Mensal": ":material/assessment:",
-    "Espaço do Contador": ":material/business_center:",
-    "Central de Automações": ":material/bolt:",
-    "Central de Notificações": ":material/notifications:",
-    "Assistente Razync": ":material/auto_awesome:",
-    "Integrações": ":material/hub:",
-    "Meu MEI": ":material/store:",
-    "Plano e Assinatura": ":material/credit_card:",
-    "Segurança da Conta": ":material/shield:",
-    "Histórico de Atividades": ":material/history:",
-    "Status do Sistema": ":material/health_and_safety:",
-    "Backup": ":material/backup:",
-}
 
 st.markdown(
     """
@@ -768,22 +702,37 @@ with st.sidebar:
 
     with st.container(key="sidebar_navigation"):
         if st.button(
-            sidebar_labels["Dashboard"],
+            SIDEBAR_LABELS["Dashboard"],
             key="grouped_nav_dashboard",
-            icon=sidebar_icons["Dashboard"],
+            icon=SIDEBAR_ICONS["Dashboard"],
             disabled=page == "Dashboard",
             width="stretch",
         ):
             st.session_state["_navigate_to"] = "Dashboard"
             st.rerun()
 
-        for group_title, destinations in sidebar_groups.items():
+        for group_title, destinations in SIDEBAR_GROUPS.items():
             with st.expander(group_title, expanded=page in destinations):
                 for destination in destinations:
                     if st.button(
-                        sidebar_labels[destination],
+                        SIDEBAR_LABELS[destination],
                         key=f"grouped_nav_{destination}",
-                        icon=sidebar_icons[destination],
+                        icon=SIDEBAR_ICONS[destination],
+                        disabled=page == destination,
+                        width="stretch",
+                    ):
+                        st.session_state["_navigate_to"] = destination
+                        st.rerun()
+
+        secondary_pages = [item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages]
+        with st.expander("Mais ferramentas", expanded=page in secondary_pages):
+            for section_name, destinations in SIDEBAR_SECONDARY_GROUPS.items():
+                st.caption(section_name.upper())
+                for destination in destinations:
+                    if st.button(
+                        SIDEBAR_LABELS[destination],
+                        key=f"secondary_nav_{destination}",
+                        icon=SIDEBAR_ICONS[destination],
                         disabled=page == destination,
                         width="stretch",
                     ):
