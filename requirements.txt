@@ -9,3 +9,4 @@ supabase==2.31.0
 streamlit-cookies-controller==0.0.4
 cryptography==49.0.0
 pypdf>=5.0.0,<7.0.0
+sentry-sdk>=2.0.0,<3.0.0
