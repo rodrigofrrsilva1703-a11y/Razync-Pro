@@ -15,7 +15,7 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 - Fluxo de caixa e análise financeira
 - Relatório Mensal de Receitas Brutas e fechamento mensal
 - Controle de notas fiscais e importação de NFS-e em CSV/XLSX
-- Controle mensal do DAS e resumo anual para DASN-SIMEI
+- Controle mensal do DAS, leitura assistida da guia e resumo anual para DASN-SIMEI
 - Agenda de obrigações e central de notificações
 - Cadastro de clientes, fornecedores e empregado
 - Cofre de documentos em Supabase Storage privado
@@ -24,6 +24,12 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 - Cadastro completo do MEI
 - Backup e exportações
 - Integrações e diagnóstico de infraestrutura
+
+## Experiência do produto
+
+A navegação prioriza poucas áreas principais: Início, Financeiro, Fiscal MEI, Gestão, Produtividade e Conta/Sistema. Ferramentas detalhadas continuam disponíveis internamente, sem remoção de funcionalidades.
+
+O catálogo comercial diferencia **Essencial** e **Pro** por capacidade, mas preços não ficam fixos no código. Checkout e integrações externas são configurados por ambiente para evitar promessas de serviços que ainda não estejam conectados.
 
 ## Regras de MEI consideradas
 
@@ -53,6 +59,7 @@ sqlite:///razync_pro.db
 - valores monetários armazenados como `Numeric(14,2)`
 - migrações versionadas em `supabase/migrations`
 - testes automatizados e validação contínua no GitHub Actions
+- logs operacionais estruturados sem PII pelo módulo `monitoring.py`
 
 Contas criadas antes do Supabase Auth são vinculadas com segurança no primeiro acesso confirmado usando o mesmo e-mail.
 
@@ -66,7 +73,13 @@ Exemplo com PostgreSQL + psycopg:
 DATABASE_URL=postgresql+psycopg://USUARIO:SENHA@HOST:5432/BANCO
 ```
 
-Para Streamlit Community Cloud, configure `DATABASE_URL`, `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` nos Secrets do aplicativo. Não coloque a senha do banco nem chaves secretas no repositório. Consulte `PRODUCTION_SETUP.md`.
+Para Streamlit Community Cloud, configure `DATABASE_URL`, `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` nos Secrets do aplicativo. Não coloque a senha do banco nem chaves secretas no repositório.
+
+Documentos operacionais:
+
+- `PRODUCTION_SETUP.md` — configuração de produção;
+- `PRODUCTION_CHECKLIST.md` — validação real no Streamlit Cloud;
+- `OPERATIONS_RUNBOOK.md` — backup, restauração, monitoramento, LGPD e incidentes.
 
 ## Banco de dados
 
@@ -76,7 +89,9 @@ As principais tabelas incluem usuários, perfil do MEI, movimentações, recorr�
 
 ## Preparação comercial
 
-O produto já possui autenticação, recuperação de senha, confirmação de e-mail, políticas de isolamento por usuário, armazenamento privado e registro de atividades. Antes de uma operação comercial em escala, mantenha revisão contínua de LGPD, termos de uso, política de privacidade, retenção de logs, backups automáticos, monitoramento e procedimentos de suporte.
+O produto já possui autenticação, recuperação de senha, confirmação de e-mail, políticas de isolamento por usuário, armazenamento privado, exportação de dados, registro de atividades e uma navegação consolidada. Antes de operação comercial em escala, mantenha revisão contínua de LGPD, termos de uso, política de privacidade, retenção de logs, backups automáticos, teste de restauração, observabilidade e procedimentos de suporte.
+
+A exclusão de uma identidade Supabase deve ser processada por backend administrativo seguro ou procedimento operacional autorizado; o aplicativo Streamlit não deve receber `service_role` para executar essa tarefa.
 
 ## Observação fiscal
 
