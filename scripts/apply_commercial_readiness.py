@@ -11,6 +11,17 @@ def replace_once(old: str, new: str, label: str) -> None:
     source = source.replace(old, new, 1)
 
 
+def replace_line_start(prefix: str, new_line: str, label: str) -> None:
+    global source
+    lines = source.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.startswith(prefix):
+            lines[index] = new_line
+            source = "".join(lines)
+            return
+    raise SystemExit(f"Marcador não encontrado: {label}")
+
+
 replace_once(
     "from onboarding_tools import onboarding_progress, recommended_setup\n",
     "from onboarding_tools import onboarding_progress, recommended_setup, first_session_plan\n",
@@ -94,9 +105,9 @@ replace_once(
     "employee validation",
 )
 
-replace_once(
-    '        valid_reference = not reference.strip() or bool(__import__("re").fullmatch(r"20\\d{2}-(0[1-9]|1[0-2])", reference.strip()))\n',
-    '        valid_reference = not reference.strip() or valid_competence(reference.strip())\n',
+replace_line_start(
+    "        valid_reference = not reference.strip() or bool(__import__",
+    "        valid_reference = not reference.strip() or valid_competence(reference.strip())\n",
     "competence validation",
 )
 
