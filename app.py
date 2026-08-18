@@ -68,6 +68,7 @@ from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_
 from finance_workspace import render_finance_workspace
 from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
+from dashboard_workspace import render_dashboard_workspace
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -791,156 +792,18 @@ if undo_transaction:
             st.success("Lançamento restaurado.")
             st.rerun()
 
-# Dashboard metrics are calculated from the local snapshot — zero network calls while navigating.
-_dashboard_stats = None
+# Dashboard V2 uses only the local snapshot while navigating.
 if page == "Dashboard":
     business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
     cnpj_label = str(profile.get("cnpj") or "").strip() or None
-    header("Visão geral", "Seu financeiro e suas obrigações em uma tela, com foco no que precisa de ação agora.")
+    header("Visão geral", "O que importa hoje para manter seu MEI organizado.")
     business_card(business_label, CURRENT_YEAR, cnpj_label)
-
-    today = date.today()
-    month_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR) & (transactions["tx_date"].dt.month == today.month)] if not transactions.empty else transactions
-    month_in = float(month_tx[month_tx["tx_type"] == "Receita"]["value"].sum()) if not month_tx.empty else 0.0
-    month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
-    month_result = month_in - month_out
-
-    section("Resumo financeiro", "Valores do mês atual e faturamento acumulado no ano.")
-    k1,k2,k3,k4 = st.columns(4)
-    k1.metric("Entradas no mês", brl(month_in))
-    k2.metric("Saídas no mês", brl(month_out))
-    k3.metric("Resultado do mês", brl(month_result))
-    k4.metric("Faturamento no ano", brl(year_revenue))
-
-    projection = financial_projection(transactions, limit, CURRENT_YEAR, today)
-    if projection["limit_risk"]:
-        st.warning(
-            f"Projeção anual: {brl(projection['projected_revenue'])} "
-            f"({projection['projected_limit_pct']:.1f}% do limite). Revise o ritmo de faturamento."
-        )
-    else:
-        st.caption(
-            f"Projeção no ritmo atual: {brl(projection['projected_revenue'])} de faturamento "
-            f"e {brl(projection['projected_result'])} de resultado no ano."
-        )
-
-    priorities = action_items(profile, transactions, invoices, das_rows, obligations, limit, year_revenue)
-    setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
-    notification_items = build_notifications(das_rows, obligations, year_revenue, limit)
-    today_plan = build_today_plan(priorities, notification_items, setup_progress, limit=5)
-
-    action_col, quick_col = st.columns([1.72, 1], gap="large")
-    with action_col:
-        section("O que fazer hoje", "Uma rotina curta, ordenada pelo que merece atenção primeiro.")
-        st.markdown(
-            f'<div class="rz-routine-meta"><span>{today_plan["total"]} ação(ões)</span><span>{today_plan["urgent"]} urgente(s)</span><span>Atualizado com seus dados</span></div>',
-            unsafe_allow_html=True,
-        )
-        for idx, item in enumerate(today_plan["items"][:4]):
-            row, btn = st.columns([4.8, 1.15])
-            with row:
-                level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-                alert_card(level, item["title"], item["detail"])
-            with btn:
-                if item["page"] != "Dashboard" and st.button("Resolver", key=f"today_action_{idx}", width="stretch"):
-                    st.session_state["_navigate_to"] = item["page"]
-                    st.rerun()
-    with quick_col:
-        section("Acesso rápido", "As ações mais usadas no dia a dia.")
-        if st.button("＋ Nova movimentação", key="dash_new_tx", width="stretch"):
-            st.session_state["_navigate_to"] = "Movimentações"; st.rerun()
-        if st.button("↥ Importar extrato", key="dash_import", width="stretch"):
-            st.session_state["_navigate_to"] = "Importar Extrato"; st.rerun()
-        if st.button("▣ Impostos e DAS", key="dash_fiscal", width="stretch"):
-            st.session_state["_navigate_to"] = "DAS"; st.rerun()
-        if st.button("✓ Obrigações", key="dash_oblig", width="stretch"):
-            st.session_state["_navigate_to"] = "Obrigações"; st.rerun()
-        if st.button("⚙ Central de automações", key="dash_automation", width="stretch"):
-            st.session_state["_navigate_to"] = "Central de Automações"; st.rerun()
-
-    with st.expander("Entenda seus números", expanded=False):
-        for insight in financial_story(month_in, month_out, year_revenue, limit):
-            alert_card(insight["tone"], insight["title"], insight["detail"])
-
-    chart_col, status_col = st.columns([1.65,1], gap="large")
-    with chart_col:
-        section("Evolução do faturamento", "Receitas registradas mês a mês no ano atual.")
-        chart = pd.DataFrame(monthly_rows(transactions, CURRENT_YEAR))
-        fig = px.area(chart, x="month_name", y="total", markers=True)
-        apply_plot_theme(fig, UI_THEME, height=320)
-        fig.update_traces(line=dict(width=2.4), fillcolor="rgba(8,185,239,.12)")
-        fig.update_xaxes(title="", showgrid=False)
-        fig.update_yaxes(title="", gridcolor=tokens(UI_THEME)["border"])
-        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-    with status_col:
-        section("Situação do MEI", "Limite, DAS e nível de organização.")
-        health_score, health_notes = mei_health_score(profile, year_revenue, limit, das_rows, obligations)
-        s1,s2 = st.columns(2)
-        s1.metric("Limite usado", f"{limit_pct:.1f}%")
-        overdue_das = sum(1 for d in das_rows if das_status(d.get("status", "Pendente"), d.get("due_date")) == "Atrasado")
-        s2.metric("DAS atrasado", overdue_das)
-        st.caption(f"Limite monitorado: {brl(limit)} • restante: {brl(max(limit-year_revenue,0))}")
-        st.progress(min(max(limit_pct/100, 0), 1.0))
-        st.caption(f"Índice de organização: {health_score}/100")
-        st.progress(health_score/100)
-        if health_notes:
-            for note in health_notes[:2]: st.caption(f"• {note}")
-
-    deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
-    section("Próximos 30 dias", "Vencimentos que merecem atenção antes de virarem pendência.")
-    if deadlines:
-        for idx, item in enumerate(deadlines[:5]):
-            due_col, title_col, action_col = st.columns([1.1, 4, 1])
-            due_col.caption(item["date"].strftime("%d/%m"))
-            title_col.write(f"**{item['title']}** · {item['status']}")
-            if action_col.button("Abrir", key=f"deadline_{idx}", width="stretch"):
-                st.session_state["_navigate_to"] = item["page"]
-                st.rerun()
-    else:
-        st.success("Nenhum vencimento cadastrado para os próximos 30 dias.")
-
-    section("Movimentações recentes", "Últimos registros financeiros adicionados ao sistema.")
-    if transactions.empty:
-        empty_state("Seu histórico financeiro começa aqui", "Registre uma receita ou despesa, ou importe o extrato bancário para preencher os indicadores automaticamente.", "＋")
-    else:
-        recent = transactions.sort_values("tx_date", ascending=False).head(8)
-        with st.container(key="recent_desktop"):
-            st.dataframe(
-                recent[["tx_date","tx_type","description","counterparty","value"]],
-                width="stretch", hide_index=True,
-                column_config={
-                    "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                    "tx_type": "Tipo", "description": "Descrição", "counterparty": "Cliente/fornecedor",
-                    "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-                },
-            )
-        mobile_cards = []
-        for row in recent.itertuples():
-            tx_date = pd.to_datetime(row.tx_date).strftime("%d/%m/%Y")
-            mobile_cards.append(
-                f'<div class="rz-mobile-card"><div class="rz-mobile-card-head"><span>{escape(str(row.tx_type))}</span><strong>{brl(float(row.value))}</strong></div>'
-                f'<div class="rz-mobile-card-title">{escape(str(row.description or "Sem descrição"))}</div>'
-                f'<div class="rz-mobile-card-meta">{tx_date} · {escape(str(row.counterparty or "Sem cliente/fornecedor"))}</div></div>'
-            )
-        st.markdown(
-            '<div class="rz-mobile-only"><div class="rz-mobile-list">' + "".join(mobile_cards) + "</div></div>",
-            unsafe_allow_html=True,
-        )
-
-    with st.expander("Configuração inicial do MEI", expanded=not bool(profile.get("cnpj"))):
-        checklist = [
-            ("CNPJ cadastrado", bool(profile.get("cnpj"))),
-            ("Atividade principal informada", bool(profile.get("main_activity"))),
-            ("Data de abertura cadastrada", bool(profile.get("opening_date"))),
-            ("Primeira movimentação registrada", not transactions.empty),
-            ("Calendário do DAS criado", bool(das_rows)),
-            ("Documento armazenado", bool(docs)),
-        ]
-        done_count = sum(1 for _, done in checklist if done)
-        st.caption(f"{done_count} de {len(checklist)} etapas concluídas")
-        st.progress(done_count/len(checklist))
-        for label, done in checklist:
-            st.write(("✓ " if done else "○ ") + label)
+    render_dashboard_workspace(
+        profile=profile, transactions=transactions, invoices=invoices,
+        das_rows=das_rows, obligations=obligations, documents=docs,
+        annual_limit=limit, annual_revenue=year_revenue, current_year=CURRENT_YEAR,
+        brl=brl, navigate=navigate_to,
+    )
 
 elif page == "Financeiro":
     header("Financeiro", "Controle entradas, saídas, conciliação e análise em uma única área.")
