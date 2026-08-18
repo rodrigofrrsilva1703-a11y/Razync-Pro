@@ -1,5 +1,95 @@
-from pathlib import Path
+import importlib
+import os
+import tempfile
 import unittest
+from pathlib import Path
+
+
+class AuthenticationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.db_path = Path(tempfile.gettempdir()) / "razync_auth_test.db"
+        if cls.db_path.exists():
+            cls.db_path.unlink()
+        os.environ["DATABASE_URL"] = f"sqlite:///{cls.db_path.as_posix()}"
+
+        import database
+        cls.database = importlib.reload(database)
+        cls.database.init_db()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.database.engine.dispose()
+        if cls.db_path.exists():
+            cls.db_path.unlink()
+
+    def test_account_creation_and_authentication(self):
+        created, message = self.database.create_user(
+            "Usuário de Teste",
+            "usuario@example.com",
+            "senha-segura",
+        )
+        self.assertTrue(created, message)
+
+        user = self.database.authenticate("USUARIO@example.com", "senha-segura")
+        self.assertIsNotNone(user)
+        self.assertEqual(user["email"], "usuario@example.com")
+        self.assertIsNone(
+            self.database.authenticate("usuario@example.com", "senha-incorreta")
+        )
+
+    def test_links_confirmed_supabase_identity_to_existing_account(self):
+        created, message = self.database.create_user(
+            "Conta Legada", "legacy@example.com", "senha-segura"
+        )
+        self.assertTrue(created, message)
+
+        linked = self.database.resolve_supabase_user(
+            "12345678-1234-5678-1234-567812345678",
+            "LEGACY@example.com",
+            "Nome do Auth",
+        )
+        self.assertEqual(linked["email"], "legacy@example.com")
+        self.assertEqual(
+            linked["auth_user_id"],
+            "12345678-1234-5678-1234-567812345678",
+        )
+
+        same = self.database.resolve_supabase_user(
+            "12345678-1234-5678-1234-567812345678",
+            "legacy@example.com",
+        )
+        self.assertEqual(same["id"], linked["id"])
+
+    def test_trusted_developer_reuses_account_without_replacing_supabase_identity(self):
+        created, message = self.database.create_user(
+            "Conta do Desenvolvedor", "developer@example.com", "senha-segura"
+        )
+        self.assertTrue(created, message)
+        supabase_id = "22345678-1234-5678-1234-567812345678"
+        linked = self.database.resolve_supabase_user(
+            supabase_id, "developer@example.com"
+        )
+
+        developer = self.database.resolve_trusted_developer_user(
+            "32345678-1234-5678-1234-567812345678",
+            "DEVELOPER@example.com",
+            "Rodrigo",
+        )
+
+        self.assertEqual(developer["id"], linked["id"])
+        self.assertEqual(developer["auth_user_id"], supabase_id)
+
+    def test_rejects_invalid_registration_data(self):
+        cases = [
+            ("", "usuario@example.com", "senha-segura"),
+            ("Usuário", "email-invalido", "senha-segura"),
+            ("Usuário", "usuario@example.com", "curta"),
+        ]
+        for name, email, password in cases:
+            with self.subTest(name=name, email=email):
+                created, _ = self.database.create_user(name, email, password)
+                self.assertFalse(created)
 
 
 class LoginUiRegressionTests(unittest.TestCase):
