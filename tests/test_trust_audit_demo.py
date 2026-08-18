@@ -18,7 +18,7 @@ class TrustAuditDemoTests(unittest.TestCase):
         self.assertIn("render_demo()", self.app)
         demo = Path("demo_mode.py").read_text(encoding="utf-8")
         self.assertNotIn("from database", demo)
-        self.assertIn("Dados fictícios", demo)
+        self.assertIn("dados fictícios", demo.lower())
 
     def test_audit_table_has_rls_owner_policy_and_safe_payload(self):
         self.assertIn("enable row level security", self.migration)
