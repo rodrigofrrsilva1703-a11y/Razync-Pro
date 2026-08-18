@@ -30,7 +30,7 @@ from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
 from backup_tools import backup_checksum, build_backup_zip, document_coverage
-from onboarding_tools import onboarding_progress, recommended_setup
+from onboarding_tools import onboarding_progress, recommended_setup, first_session_plan
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from automation_tools import financial_projection, upcoming_deadlines
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
@@ -70,6 +70,12 @@ from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
 from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
+from productivity_workspace import render_productivity_workspace
+from account_workspace import render_account_workspace
+from fiscal_automation import analyze_das_guide
+from validators import valid_cnpj, valid_cpf, cpf_or_cnpj_status, valid_competence
+from commercial_readiness import PLAN_CATALOG, integration_maturity, production_checklist
+from monitoring import safe_error
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -79,6 +85,7 @@ st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="w
 try:
     init_db()
 except DatabaseConnectionError as exc:
+    safe_error("database_init_failed", exc, operation="init_db", backend="database")
     st.error("Não foi possível conectar o Razync Pro ao banco definitivo.")
     st.warning(str(exc))
     st.markdown("**Confira os Secrets do Streamlit:**")
@@ -743,6 +750,17 @@ if page == "Dashboard":
         brl=brl, navigate=navigate_to,
     )
 
+elif page == "Produtividade":
+    header("Produtividade", "Automações, alertas e assistência em uma única área.")
+    render_productivity_workspace(navigate=navigate_to)
+
+elif page == "Conta e Sistema":
+    header("Conta e sistema", "Dados, privacidade, segurança e operação do Razync Pro.")
+    render_account_workspace(
+        navigate=navigate_to,
+        developer_access=st.session_state.get("auth_provider") == "github",
+    )
+
 elif page == "Financeiro":
     header("Financeiro", "Controle entradas, saídas, conciliação e análise em uma única área.")
     render_finance_workspace(
@@ -1325,6 +1343,18 @@ elif page == "DAS":
             key="das_guide_upload",
             help="Opcional. O arquivo ficará armazenado junto aos demais documentos do Razync.",
         )
+        if guide is not None:
+            guide_analysis = analyze_das_guide(guide.getvalue(), guide.name)
+            st.markdown("**Leitura assistida da guia**")
+            ga1, ga2, ga3 = st.columns(3)
+            ga1.metric("Competência", guide_analysis["competence"] or "Não encontrada")
+            ga2.metric("Valor provável", brl(guide_analysis["amount"]) if guide_analysis["amount"] is not None else "Não encontrado")
+            ga3.metric("Confiança", guide_analysis["confidence"])
+            if guide_analysis["competence"] and guide_analysis["competence"] != competence:
+                st.warning("A competência identificada no PDF é diferente da competência selecionada. Confira antes de salvar.")
+            for guide_warning in guide_analysis["warnings"]:
+                st.info(guide_warning)
+            st.caption("A leitura é apenas uma sugestão local. Valor, competência e pagamento só são gravados após sua confirmação.")
         notes=st.text_area("Observações",key="das_notes")
         if st.button("Salvar controle do DAS",type="primary",width="stretch"):
             if amount <= 0:
@@ -1401,8 +1431,14 @@ elif page == "Clientes e Fornecedores":
                 notes=st.text_area("Observações")
             save=st.form_submit_button("Salvar contato",type="primary",width="stretch")
             if save:
-                if not name.strip(): st.error("Informe o nome do contato.")
-                else: add_contact(uid,contact_type=typ,name=name.strip(),document=doc.strip(),email=email.strip(),phone=phone.strip(),notes=notes.strip()); st.rerun()
+                document_ok, document_error = cpf_or_cnpj_status(doc)
+                if not name.strip():
+                    st.error("Informe o nome do contato.")
+                elif not document_ok:
+                    st.error(document_error)
+                else:
+                    add_contact(uid,contact_type=typ,name=name.strip(),document=doc.strip(),email=email.strip(),phone=phone.strip(),notes=notes.strip())
+                    st.rerun()
     section("Contatos")
     if not contacts:
         empty_state("Nenhum cliente ou fornecedor", "Adicione seu primeiro contato para organizar quem compra de você e de quem sua empresa compra.", "◇")
@@ -1423,8 +1459,13 @@ elif page == "Empregado":
                 cpf=st.text_input("CPF"); status=st.selectbox("Status",["Ativo","Inativo"]); notes=st.text_area("Observações")
             save=st.form_submit_button("Salvar empregado",type="primary",width="stretch")
             if save:
-                if not name.strip(): st.error("Informe o nome do empregado.")
-                else: add_employee(uid,name=name.strip(),cpf=cpf.strip(),admission_date=admission,salary=salary,status=status,notes=notes.strip()); st.rerun()
+                if not name.strip():
+                    st.error("Informe o nome do empregado.")
+                elif cpf.strip() and not valid_cpf(cpf):
+                    st.error("CPF inválido.")
+                else:
+                    add_employee(uid,name=name.strip(),cpf=cpf.strip(),admission_date=admission,salary=salary,status=status,notes=notes.strip())
+                    st.rerun()
     section("Empregados cadastrados")
     if not employees:
         empty_state("Nenhum empregado cadastrado", "Se o seu MEI possuir empregado, registre os dados básicos aqui para manter essa informação junto da gestão do negócio.", "♙")
@@ -1481,7 +1522,7 @@ elif page == "Documentos":
             placeholder="AAAA-MM",
             key=f"doc_reference_{up.name if up else 'empty'}",
         )
-        valid_reference = not reference.strip() or bool(__import__("re").fullmatch(r"20\\d{2}-(0[1-9]|1[0-2])", reference.strip()))
+        valid_reference = not reference.strip() or valid_competence(reference.strip())
         if not valid_reference:
             st.warning("Use o formato AAAA-MM para a competência, por exemplo 2026-08.")
         if st.button("Salvar documento",type="primary",width="stretch",disabled=up is None or not valid_reference):
@@ -1713,6 +1754,10 @@ elif page == "Primeiros Passos":
 
     section("2. Próximas etapas")
     progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
+    st.caption("Roteiro recomendado para os primeiros minutos no Razync.")
+    for setup_item in first_session_plan(progress):
+        if not setup_item["done"]:
+            st.write(f"○ **{setup_item['title']}** — {setup_item['detail']}")
     step_cards = []
     for step in progress["steps"]:
         state_class = "is-done" if step["done"] else "is-pending"
@@ -1736,7 +1781,13 @@ elif page == "Meu MEI":
     header("Meu MEI","Cadastre os dados usados nos relatórios e alertas.")
     with st.form("profile_form"):
         cnpj=st.text_input("CNPJ",value=str(profile.get("cnpj") or "")); business=st.text_input("Razão social",value=str(profile.get("business_name") or "")); trade=st.text_input("Nome fantasia",value=str(profile.get("trade_name") or "")); activity=st.text_input("Atividade principal",value=str(profile.get("main_activity") or "")); activity_type=st.selectbox("Tipo de atividade",["Serviços","Comércio","Indústria","Misto"],index=["Serviços","Comércio","Indústria","Misto"].index(profile.get("activity_type") if profile.get("activity_type") in ["Serviços","Comércio","Indústria","Misto"] else "Serviços")); opening_date=st.date_input("Data de abertura",value=opening or date.today()); annual_limit=st.number_input("Limite anual personalizado (opcional)",min_value=0.0,value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),step=1000.0); city=st.text_input("Município",value=str(profile.get("city") or "")); state=st.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); phone=st.text_input("Telefone",value=str(profile.get("phone") or "")); municipal=st.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_reg=st.text_input("Inscrição estadual",value=str(profile.get("state_registration") or "")); has_employee=st.checkbox("Possui empregado",value=bool(profile.get("has_employee",False)))
-        if st.form_submit_button("Salvar dados",width="stretch"): save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee); st.success("Dados salvos."); st.rerun()
+        if st.form_submit_button("Salvar dados",width="stretch"):
+            if cnpj.strip() and not valid_cnpj(cnpj):
+                st.error("CNPJ inválido. Confira os 14 dígitos antes de salvar.")
+            else:
+                save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee)
+                st.success("Dados salvos.")
+                st.rerun()
 
 elif page == "Central de Notificações":
     header("Central de Notificações", "Priorize vencimentos, resolva no local certo e leve os prazos para o calendário.")
@@ -1785,7 +1836,7 @@ elif page == "Integrações":
         with target:
             with st.container(border=True):
                 st.markdown(f"**{item['name']}**")
-                st.caption(f"{item['status']} · {item['mode']}")
+                st.caption(f"{integration_maturity(item)} · {item['mode']} · {item['status']}")
                 st.write(item["detail"])
                 if item["page"] and st.button("Abrir recurso", key=f"integration_page_{idx}", width="stretch"):
                     st.session_state["_navigate_to"] = item["page"]
@@ -1803,9 +1854,12 @@ elif page == "Plano e Assinatura":
         st.success("Plano atual: Razync Pro — acesso de desenvolvimento")
     else:
         st.info("Plano atual: Essencial")
-    st.write("✓ Organização financeira e fiscal")
-    st.write("✓ Importação de extrato e NFS-e")
-    st.write("✓ Alertas, relatórios, documentos e backup")
+    plan_name = "Pro" if st.session_state.get("auth_provider") == "github" else "Essencial"
+    plan = PLAN_CATALOG[plan_name]
+    st.caption(plan["description"])
+    for feature in plan["features"]:
+        st.write(f"✓ {feature}")
+    st.caption("Preços não ficam fixos no código; o checkout comercial é configurado por ambiente.")
     config = {"CHECKOUT_PRO_URL": secret_value("CHECKOUT_PRO_URL")}
     payment_url = checkout_url(config, "pro")
     if payment_url:
@@ -1906,6 +1960,16 @@ elif page == "Status do Sistema":
         marker = "✓" if integration["ready"] else "○"
         st.write(f"{marker} **{integration['name']}** — {integration['detail']}")
     st.write("○ **Integrações bancárias diretas** — importação inteligente de arquivo já disponível")
+    section("Prontidão de produção")
+    readiness = production_checklist(
+        persistent_db=runtime["persistent"],
+        auth_ready=is_supabase_auth_configured(),
+        storage_ready=bool(secret_value("SUPABASE_URL") and secret_value("SUPABASE_PUBLISHABLE_KEY")),
+        session_secret=bool(secret_value("SESSION_COOKIE_SECRET")),
+    )
+    for check in readiness:
+        marker = "✓" if check["ok"] else "○"
+        st.write(f"{marker} **{check['item']}** — {check['detail']}")
 
 elif page == "Backup":
     header("Backup","Baixe um pacote dos dados para manter uma cópia independente.")

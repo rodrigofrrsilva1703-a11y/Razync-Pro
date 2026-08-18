@@ -8,7 +8,7 @@ import pandas as pd
 from fiscal_rules import das_status
 
 NAV_GROUPS = {
-    "Visão Geral": ["Dashboard", "Central de Automações", "Assistente Razync"],
+    "Visão Geral": ["Dashboard", "Produtividade", "Conta e Sistema", "Central de Automações", "Assistente Razync"],
     "Financeiro": ["Financeiro", "Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
     "Fiscal MEI": ["Fiscal", "DAS", "DASN-SIMEI", "Obrigações", "Notas Fiscais", "Importar NFS-e", "Relatório Mensal", "Fechamento Mensal"],
     "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos", "Espaço do Contador"],

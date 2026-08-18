@@ -35,7 +35,7 @@ Use somente a chave publicável; nunca configure `service_role` no aplicativo. O
 
 Depois do reinício, abra no Razync Pro:
 
-`Configurações → Status do Sistema`
+`Conta e sistema → Status do sistema`
 
 O banco deve aparecer como `PostgreSQL`, com persistência ativa.
 
@@ -58,19 +58,36 @@ Antes de ampliar o uso comercial, revise periodicamente:
 - LGPD e procedimentos de atendimento ao titular;
 - backups automáticos, restauração e monitoramento de disponibilidade.
 
+A exclusão de usuário do Supabase Auth exige privilégio administrativo e não deve ser executada com `service_role` dentro do Streamlit. Use backend seguro/Edge Function ou processo administrativo autorizado.
+
 ## 5. Documentos
 
 Novos documentos de contas autenticadas são gravados no bucket privado `documents`, em uma pasta exclusiva do usuário. O PostgreSQL mantém metadados e o caminho do arquivo. Arquivos legados continuam disponíveis durante a transição quando aplicável.
 
-## 6. Operação e recuperação
+## 6. Operação, backup e recuperação
 
 - Migrações versionadas ficam em `supabase/migrations`.
 - Execute a suíte de testes antes de qualquer merge ou publicação relevante.
 - Verifique periodicamente os Security e Performance Advisors do provedor.
-- Teste a restauração de backup em ambiente separado.
+- Configure backup automático do banco usando os recursos do provedor e uma política de retenção documentada.
+- Garanta que documentos do Storage façam parte do plano de recuperação.
+- Teste a restauração em ambiente separado de forma periódica.
+- O ZIP de backup do usuário é uma cópia portátil; ele não substitui o backup operacional de banco e Storage.
 - Não execute comandos destrutivos de reset no projeto de produção.
 - Mantenha um plano de rollback para alterações de banco e autenticação.
 
-## 7. Integrações externas
+## 7. Monitoramento
+
+O módulo `monitoring.py` gera eventos operacionais seguros e não deve receber PII, tokens ou conteúdo de documentos. Antes de escalar comercialmente, conecte os logs do ambiente a um serviço de observabilidade e crie alertas para falhas de banco, Auth, Storage, importação e disponibilidade.
+
+Consulte `OPERATIONS_RUNBOOK.md` para procedimento de incidente.
+
+## 8. Integrações externas
 
 A importação de extratos CSV/Excel e de arquivos de NFS-e já funciona sem credenciais bancárias. Integração direta com bancos, envio automatizado de mensagens e emissão direta de NFS-e dependem de provedores/APIs e credenciais específicas; não devem ser apresentadas como conectadas quando não estiverem configuradas.
+
+A interface classifica integrações como **Ativo**, **Assistido** ou **Configurar**, evitando apresentar uma capacidade assistida como integração automática.
+
+## 9. Validação antes da liberação
+
+Execute `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo login real, recuperação de senha, upload/download, isolamento entre contas, tema claro/escuro e teste em celular/tablet/desktop.
