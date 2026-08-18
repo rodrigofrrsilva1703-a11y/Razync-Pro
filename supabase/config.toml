@@ -9,3 +9,6 @@ enabled = true
 
 [storage]
 enabled = true
+
+[functions.delete-account]
+verify_jwt = true
