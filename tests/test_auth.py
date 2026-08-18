@@ -94,9 +94,9 @@ class AuthenticationTests(unittest.TestCase):
 
 class LoginUiRegressionTests(unittest.TestCase):
     def test_app_has_no_development_login_bypass(self):
-        app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text(
-            encoding="utf-8"
-        )
+        root = Path(__file__).resolve().parents[1]
+        app_source = (root / "app.py").read_text(encoding="utf-8")
+        sidebar_source = (root / "sidebar_workspace.py").read_text(encoding="utf-8")
         self.assertNotIn('email = "dev@local"', app_source)
         self.assertNotIn('password = "dev"', app_source)
         self.assertIn('st.form("login_form")', app_source)
@@ -112,13 +112,12 @@ class LoginUiRegressionTests(unittest.TestCase):
         )
         callback_cleared = app_source.index("st.query_params.clear()", callback)
         self.assertLess(session_saved, callback_cleared)
-        self.assertIn('st.button("Sair"', app_source)
-        workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+        self.assertIn('st.button("Sair"', sidebar_source)
+        workflows = root / ".github" / "workflows"
         self.assertEqual(
             {path.name for path in workflows.glob("*.yml")},
             {"ci.yml", "tests.yml"},
         )
-        root = Path(__file__).resolve().parents[1]
         self.assertFalse((root / "preview_access.py").exists())
         self.assertFalse((root / "preview_app.py").exists())
 
