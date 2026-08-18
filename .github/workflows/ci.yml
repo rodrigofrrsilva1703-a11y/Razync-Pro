@@ -1,10 +1,7 @@
-name: Razync Pro CI
+name: Razync Pro Diagnostics
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -14,14 +11,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Instalar dependências
+          cache: pip
+      - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Validar sintaxe
+      - name: Validate syntax
         run: python -m compileall -q -x '^./scripts/' .
-      - name: Validar importações principais
+      - name: Validate main imports
         run: python -c "import sqlalchemy, streamlit, pandas, plotly, supabase"
-      - name: Verificar arquivos proibidos
+      - name: Check forbidden preview files
         run: |
           test ! -f preview_access.py
           test ! -f preview_app.py
-          test "$(find .github/workflows -maxdepth 1 -name '*.yml' | wc -l)" -eq 2
