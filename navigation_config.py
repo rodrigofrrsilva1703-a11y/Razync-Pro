@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-# UX V3: poucas áreas principais. As ferramentas detalhadas continuam disponíveis
-# em "Mais ferramentas", preservando integralmente as rotas existentes.
+# Navegação comercial: poucas áreas principais. Rotas detalhadas permanecem disponíveis
+# internamente para preservar todas as funcionalidades existentes.
 SIDEBAR_LABELS = {
     "Dashboard": "Início",
     "Financeiro": "Financeiro",
     "Fiscal": "Fiscal MEI",
+    "Produtividade": "Produtividade",
+    "Conta e Sistema": "Conta e sistema",
     "Central de Automações": "Automações",
     "Assistente Razync": "Assistente",
     "Movimentações": "Receitas e despesas",
@@ -39,20 +41,21 @@ SIDEBAR_LABELS = {
 SIDEBAR_GROUPS = {
     "Rotina": ["Financeiro", "Fiscal"],
     "Gestão": ["Documentos", "Clientes e Fornecedores"],
+    "Organização": ["Produtividade", "Conta e Sistema"],
 }
 
 SIDEBAR_SECONDARY_GROUPS = {
     "Financeiro detalhado": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
     "Fiscal detalhado": ["DAS", "Notas Fiscais", "Importar NFS-e", "Obrigações", "DASN-SIMEI", "Fechamento Mensal", "Relatório Mensal"],
     "Gestão avançada": ["Empregado", "Espaço do Contador"],
-    "Produtividade": ["Central de Automações", "Central de Notificações", "Assistente Razync"],
-    "Conta e sistema": ["Meu MEI", "Integrações", "Plano e Assinatura", "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
 }
 
 SIDEBAR_ICONS = {
     "Dashboard": ":material/home:",
     "Financeiro": ":material/account_balance_wallet:",
     "Fiscal": ":material/receipt_long:",
+    "Produtividade": ":material/bolt:",
+    "Conta e Sistema": ":material/settings:",
     "Movimentações": ":material/swap_vert:",
     "Recorrências": ":material/event_repeat:",
     "Importar Extrato": ":material/upload_file:",
