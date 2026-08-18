@@ -88,46 +88,139 @@ def reconciliation_summary(transactions: pd.DataFrame, invoices: pd.DataFrame) -
     if invoices.empty:
         emitted = invoices
     else:
-        emitted = invoices[invoices["status"] == "Emitida"] if "status" in invoices else invoices
-    if emitted.empty:
-        pending = emitted
-    else:
-        pending = emitted[~emitted["number"].fillna("").astype(str).str.strip().isin(tx_docs)]
+        emitted = invoices[invoices["status"] == "Emitida"] if "status" in invoices.columns else invoices
+
+    invoice_rows = []
+    if not emitted.empty:
+        for _, row in emitted.iterrows():
+            number = str(row.get("number") or "").strip()
+            reconciled = bool(number and number in tx_docs)
+            invoice_rows.append({
+                "ID": row.get("id"),
+                "Data": row.get("issue_date"),
+                "Nota": number,
+                "Cliente": row.get("customer", ""),
+                "Valor": float(row.get("amount") or 0),
+                "Conciliada": reconciled,
+            })
+
+    duplicated = 0
+    if not transactions.empty:
+        temp = transactions.copy()
+        temp["_desc"] = temp["description"].fillna("").astype(str).str.lower().str.strip()
+        duplicated = int(temp.duplicated(subset=["tx_date", "tx_type", "value", "_desc"], keep=False).sum())
+
+    detail = pd.DataFrame(invoice_rows)
+    pending = detail[~detail["Conciliada"]].copy() if not detail.empty else detail
     return {
-        "total_invoices": len(emitted),
-        "reconciled_invoices": len(emitted) - len(pending),
+        "total_invoices": len(detail),
+        "reconciled_invoices": int(detail["Conciliada"].sum()) if not detail.empty else 0,
         "pending_invoices": pending,
+        "possible_duplicate_transactions": duplicated,
     }
 
 
-def assistant_answer(question: str, transactions: pd.DataFrame, invoices: pd.DataFrame, das_rows: Iterable[dict], annual_limit: float, current_year: int, obligations: Iterable[dict] = (), documents: Iterable[dict] = ()) -> str:
-    question = (question or "").lower().strip()
-    year_tx = transactions[transactions["tx_date"].dt.year == current_year] if not transactions.empty else transactions
+def assistant_answer(
+    question: str,
+    transactions: pd.DataFrame,
+    invoices: pd.DataFrame,
+    das_rows: list[dict],
+    annual_limit: float,
+    year: int,
+    obligations: Iterable[dict] = (),
+    documents: Iterable[dict] = (),
+    today: date | None = None,
+) -> str:
+    q = (question or "").lower().strip()
+    today = today or date.today()
+    if transactions.empty:
+        year_tx = transactions
+    else:
+        year_tx = transactions[transactions["tx_date"].dt.year == year]
     revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if not year_tx.empty else 0.0
     expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
-    if "quanto" in question and ("fatur" in question or "limite" in question):
-        remaining = max(0.0, float(annual_limit or 0) - revenue)
-        return f"Neste ano há R$ {remaining:,.2f} de limite monitorado disponível com base nos registros atuais.".replace(",", "X").replace(".", ",").replace("X", ".")
-    if "maior despesa" in question and not year_tx.empty:
-        expenses = year_tx[year_tx["tx_type"] == "Despesa"]
-        if not expenses.empty:
-            row = expenses.loc[expenses["value"].idxmax()]
-            return f"A maior despesa registrada no ano é {row['description']}, no valor de R$ {float(row['value']):,.2f}.".replace(",", "X").replace(".", ",").replace("X", ".")
-    if "das" in question:
-        overdue = [row for row in das_rows if das_status(row.get("status", "Pendente"), row.get("due_date")) == "Atrasado"]
-        return "Não há DAS em atraso nos registros atuais." if not overdue else f"Há {len(overdue)} competência(s) de DAS em atraso nos registros atuais."
-    if "document" in question:
-        return f"Há {len(list(documents))} documento(s) armazenado(s) atualmente."
-    if "nota" in question:
-        return f"Há {len(invoices)} nota(s) fiscal(is) cadastrada(s)."
-    if "trimestre" in question:
-        if year_tx.empty:
-            return "Ainda não há movimentações suficientes para calcular o trimestre."
-        latest_month = int(year_tx["tx_date"].dt.month.max())
-        quarter = (latest_month - 1) // 3 + 1
-        start = (quarter - 1) * 3 + 1
-        quarter_rows = year_tx[(year_tx["tx_date"].dt.month >= start) & (year_tx["tx_date"].dt.month <= start + 2) & (year_tx["tx_type"] == "Receita")]
-        value = float(quarter_rows["value"].sum()) if not quarter_rows.empty else 0.0
-        return f"O faturamento registrado no {quarter}º trimestre é R$ {value:,.2f}.".replace(",", "X").replace(".", ",").replace("X", ".")
     result = revenue - expense
-    return f"No ano atual, os registros mostram R$ {revenue:,.2f} de receitas, R$ {expense:,.2f} de despesas e resultado de R$ {result:,.2f}.".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def money(v: float) -> str:
+        return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    if "limite" in q or "quanto posso faturar" in q:
+        remaining = max(annual_limit - revenue, 0)
+        return f"Em {year}, o Razync Pro tem {money(revenue)} de receita registrada. O limite monitorado é {money(annual_limit)} e restam {money(remaining)}."
+    if "lucro" in q or "resultado" in q or "sobrou" in q:
+        return f"O resultado estimado de {year} é {money(result)}: {money(revenue)} de receitas menos {money(expense)} de despesas registradas."
+    if ("despesa" in q or "gasto" in q) and "maior despesa" not in q:
+        if year_tx.empty:
+            return f"Ainda não há despesas registradas em {year}."
+        d = year_tx[year_tx["tx_type"] == "Despesa"]
+        if d.empty:
+            return f"Ainda não há despesas registradas em {year}."
+        top = d.groupby("category")["value"].sum().sort_values(ascending=False).head(3)
+        parts = [f"{idx}: {money(val)}" for idx, val in top.items()]
+        return f"As despesas registradas em {year} somam {money(expense)}. Maiores categorias: " + "; ".join(parts) + "."
+    if "das" in q:
+        overdue = [r for r in das_rows if das_status(r.get("status", "Pendente"), r.get("due_date")) == "Atrasado"]
+        pending = [r for r in das_rows if das_status(r.get("status", "Pendente"), r.get("due_date")) == "Pendente"]
+        return f"O controle atual mostra {len(overdue)} DAS em atraso e {len(pending)} pendente(s)."
+    if "nota" in q or "nf" in q:
+        rec = reconciliation_summary(transactions, invoices)
+        return f"Existem {rec['total_invoices']} nota(s) emitida(s) cadastrada(s), sendo {rec['reconciled_invoices']} conciliada(s) com receitas e {len(rec['pending_invoices'])} pendente(s)."
+    if "trimestre" in q:
+        quarter = (today.month - 1) // 3 + 1
+        start_month = (quarter - 1) * 3 + 1
+        if year_tx.empty:
+            quarter_revenue = quarter_expense = 0.0
+        else:
+            quarter_tx = year_tx[
+                (year_tx["tx_date"].dt.month >= start_month)
+                & (year_tx["tx_date"].dt.month <= start_month + 2)
+            ]
+            quarter_revenue = float(quarter_tx[quarter_tx["tx_type"] == "Receita"]["value"].sum())
+            quarter_expense = float(quarter_tx[quarter_tx["tx_type"] == "Despesa"]["value"].sum())
+        return (
+            f"No {quarter}º trimestre de {year}, há {money(quarter_revenue)} em receitas "
+            f"e {money(quarter_expense)} em despesas registradas."
+        )
+    if "maior despesa" in q:
+        expenses = year_tx[year_tx["tx_type"] == "Despesa"] if not year_tx.empty else year_tx
+        if expenses.empty:
+            return f"Ainda não há despesas registradas em {year}."
+        row = expenses.loc[expenses["value"].astype(float).idxmax()]
+        return f"A maior despesa registrada em {year} foi {row['description']}, no valor de {money(float(row['value']))}."
+    if "documento" in q and ("falta" in q or "sem" in q):
+        missing = int(
+            year_tx["document_number"].fillna("").astype(str).str.strip().eq("").sum()
+        ) if not year_tx.empty else 0
+        return f"Existem {missing} lançamento(s) de {year} sem número de documento informado e {len(list(documents))} documento(s) armazenado(s)."
+    if "compare" in q or "mês anterior" in q or "mes anterior" in q:
+        if year_tx.empty:
+            return "Ainda não há dados suficientes para comparar os dois últimos meses."
+        current_month = today.month
+        previous_month = 12 if current_month == 1 else current_month - 1
+        previous_year = year - 1 if current_month == 1 else year
+        current_value = float(year_tx[(year_tx["tx_type"] == "Receita") & (year_tx["tx_date"].dt.month == current_month)]["value"].sum())
+        source = transactions[transactions["tx_date"].dt.year == previous_year] if not transactions.empty else transactions
+        previous_value = float(source[(source["tx_type"] == "Receita") & (source["tx_date"].dt.month == previous_month)]["value"].sum()) if not source.empty else 0.0
+        difference = current_value - previous_value
+        direction = "a mais" if difference >= 0 else "a menos"
+        return f"O mês atual tem {money(current_value)} em receitas, {money(abs(difference))} {direction} que o mês anterior ({money(previous_value)})."
+    if "venc" in q or "prazo" in q:
+        future = []
+        for item in obligations:
+            due = item.get("due_date")
+            if isinstance(due, str):
+                try:
+                    due = date.fromisoformat(due[:10])
+                except ValueError:
+                    due = None
+            if due and due >= today and item.get("status") != "Concluído":
+                future.append((due, item.get("title") or "Obrigação"))
+        if not future:
+            return "Nenhuma obrigação futura personalizada foi encontrada."
+        due, title = sorted(future)[0]
+        return f"O próximo prazo personalizado é {title}, em {due.strftime('%d/%m/%Y')}."
+    if "fatur" in q or "receita" in q:
+        return f"A receita registrada em {year} é {money(revenue)}."
+    return "Posso analisar faturamento, limite do MEI, despesas, resultado, DAS e conciliação de notas usando os dados cadastrados no Razync Pro."
+
+# trigger product restructure
