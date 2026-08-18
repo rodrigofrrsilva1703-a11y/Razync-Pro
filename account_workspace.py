@@ -2,7 +2,19 @@ from __future__ import annotations
 
 import streamlit as st
 
+from account_deletion import AccountDeletionError, delete_account
 from commercial_readiness import PLAN_CATALOG, data_rights_summary
+from monitoring import safe_error
+from session_persistence import clear_persisted_session, persistent_session_controller
+
+
+def _finish_deleted_session() -> None:
+    controller = persistent_session_controller()
+    if controller is not None:
+        clear_persisted_session(controller)
+    for key in list(st.session_state):
+        del st.session_state[key]
+    st.rerun()
 
 
 def render_account_workspace(*, navigate, developer_access: bool) -> None:
@@ -47,3 +59,40 @@ def render_account_workspace(*, navigate, developer_access: bool) -> None:
         with st.container(border=True):
             st.markdown(f"**{item['title']}** · {item['status']}")
             st.caption(item["detail"])
+
+    st.subheader("Excluir conta")
+    access_token = str(st.session_state.get("access_token") or "")
+    if developer_access:
+        st.info("O acesso de desenvolvedor via GitHub não é uma conta de cliente Supabase e não pode ser excluído por esta tela.")
+    elif not access_token:
+        st.warning("Valide sua sessão novamente para disponibilizar a exclusão da conta.")
+    else:
+        with st.expander("Excluir permanentemente minha conta e meus dados"):
+            st.warning(
+                "Esta ação remove os dados do Razync, os documentos privados e a identidade de acesso. "
+                "Faça um backup antes se quiser guardar uma cópia."
+            )
+            confirmation = st.text_input(
+                'Digite exatamente "EXCLUIR MINHA CONTA" para confirmar',
+                key="account_delete_confirmation",
+            )
+            acknowledged = st.checkbox(
+                "Entendo que a exclusão é permanente.",
+                key="account_delete_acknowledged",
+            )
+            ready = confirmation.strip() == "EXCLUIR MINHA CONTA" and acknowledged
+            if st.button(
+                "Excluir minha conta permanentemente",
+                key="account_delete_button",
+                type="primary",
+                width="stretch",
+                disabled=not ready,
+            ):
+                try:
+                    delete_account(access_token)
+                except AccountDeletionError as exc:
+                    safe_error("account_delete_failed", exc, operation="delete_account", backend="supabase_edge")
+                    st.error(str(exc))
+                else:
+                    st.success("Conta excluída. Encerrando a sessão com segurança.")
+                    _finish_deleted_session()

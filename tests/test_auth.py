@@ -116,8 +116,12 @@ class LoginUiRegressionTests(unittest.TestCase):
         workflows = root / ".github" / "workflows"
         self.assertEqual(
             {path.name for path in workflows.glob("*.yml")},
-            {"ci.yml", "tests.yml"},
+            {"ci.yml", "tests.yml", "production-backup.yml"},
         )
+        backup_source = (workflows / "production-backup.yml").read_text(encoding="utf-8")
+        self.assertIn("RAZYNC_BACKUP_DATABASE_URL", backup_source)
+        self.assertIn("RAZYNC_BACKUP_SUPABASE_SECRET_KEY", backup_source)
+        self.assertNotIn("service_role", backup_source.lower())
         self.assertFalse((root / "preview_access.py").exists())
         self.assertFalse((root / "preview_app.py").exists())
 

@@ -27,9 +27,11 @@ DATABASE_URL = "postgresql://USUARIO:SENHA@HOST:5432/BANCO"
 SUPABASE_URL = "https://SEU-PROJETO.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_..."
 SESSION_COOKIE_SECRET = "gere-um-valor-aleatorio-com-pelo-menos-32-caracteres"
+SENTRY_DSN = "https://..." # opcional, para observabilidade externa
+APP_ENVIRONMENT = "production"
 ```
 
-Use somente a chave publicável; nunca configure `service_role` no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”; use um valor aleatório exclusivo e nunca o publique.
+Use somente a chave publicável no Streamlit; nunca configure `service_role` ou secret key administrativa no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”.
 
 4. Salve e reinicie o aplicativo.
 
@@ -39,9 +41,11 @@ Depois do reinício, abra no Razync Pro:
 
 O banco deve aparecer como `PostgreSQL`, com persistência ativa.
 
-## 3. Contas e autenticação
+## 3. Contas, autenticação e exclusão
 
 O ambiente de produção usa Supabase Auth para login, confirmação de e-mail, recuperação de senha e renovação de sessão. Contas legadas podem ser vinculadas à identidade confirmada usando o mesmo e-mail, preservando os dados existentes.
+
+A exclusão de conta é executada pela Edge Function protegida `delete-account`, com JWT obrigatório. Ela remove primeiro os documentos privados, depois o registro interno do usuário (cascateando os dados de negócio) e por último a identidade Supabase Auth. A chave administrativa permanece somente no ambiente seguro da Edge Function.
 
 Enquanto as variáveis de Auth não estiverem configuradas, o aplicativo informa explicitamente que está em modo temporário de desenvolvimento/migração. Esse modo não deve ser usado para clientes reais.
 
@@ -58,27 +62,43 @@ Antes de ampliar o uso comercial, revise periodicamente:
 - LGPD e procedimentos de atendimento ao titular;
 - backups automáticos, restauração e monitoramento de disponibilidade.
 
-A exclusão de usuário do Supabase Auth exige privilégio administrativo e não deve ser executada com `service_role` dentro do Streamlit. Use backend seguro/Edge Function ou processo administrativo autorizado.
-
 ## 5. Documentos
 
 Novos documentos de contas autenticadas são gravados no bucket privado `documents`, em uma pasta exclusiva do usuário. O PostgreSQL mantém metadados e o caminho do arquivo. Arquivos legados continuam disponíveis durante a transição quando aplicável.
 
 ## 6. Operação, backup e recuperação
 
+O projeto possui duas camadas complementares de proteção:
+
+1. **Backup do provedor:** use o backup diário/PITR oferecido pelo plano Supabase quando disponível.
+2. **Backup externo criptografado:** o workflow `.github/workflows/production-backup.yml` gera diariamente um `pg_dump` mais os objetos do bucket `documents`, criptografa o pacote com AES-GCM e publica somente o arquivo cifrado como artifact temporário do GitHub Actions.
+
+Para habilitar o workflow externo, configure estes Repository Secrets no GitHub:
+
+```text
+RAZYNC_BACKUP_DATABASE_URL
+RAZYNC_BACKUP_SUPABASE_URL
+RAZYNC_BACKUP_SUPABASE_SECRET_KEY
+RAZYNC_BACKUP_PASSPHRASE
+```
+
+A secret key de backup fica somente no GitHub Actions e nunca entra no Streamlit ou no repositório. Use uma passphrase longa, exclusiva e guardada fora do GitHub; sem ela o backup criptografado não pode ser restaurado.
+
+Além disso:
+
 - Migrações versionadas ficam em `supabase/migrations`.
 - Execute a suíte de testes antes de qualquer merge ou publicação relevante.
 - Verifique periodicamente os Security e Performance Advisors do provedor.
-- Configure backup automático do banco usando os recursos do provedor e uma política de retenção documentada.
-- Garanta que documentos do Storage façam parte do plano de recuperação.
 - Teste a restauração em ambiente separado de forma periódica.
-- O ZIP de backup do usuário é uma cópia portátil; ele não substitui o backup operacional de banco e Storage.
+- O ZIP de backup do usuário é uma cópia portátil; ele não substitui o backup operacional.
 - Não execute comandos destrutivos de reset no projeto de produção.
 - Mantenha um plano de rollback para alterações de banco e autenticação.
 
-## 7. Monitoramento
+## 7. Monitoramento externo
 
-O módulo `monitoring.py` gera eventos operacionais seguros e não deve receber PII, tokens ou conteúdo de documentos. Antes de escalar comercialmente, conecte os logs do ambiente a um serviço de observabilidade e crie alertas para falhas de banco, Auth, Storage, importação e disponibilidade.
+O módulo `monitoring.py` integra opcionalmente com Sentry quando `SENTRY_DSN` estiver configurado. O SDK é inicializado com `send_default_pii=False`, remove request, usuário, breadcrumbs, extras e contextos customizados antes do envio, e mantém os logs estruturados locais como fallback.
+
+Não envie para observabilidade CPF/CNPJ, nomes, e-mails, telefone, tokens, conteúdo de documentos ou descrições financeiras livres. Configure alertas externos para falhas de banco, Auth, Storage, importação e disponibilidade.
 
 Consulte `OPERATIONS_RUNBOOK.md` para procedimento de incidente.
 
@@ -90,4 +110,4 @@ A interface classifica integrações como **Ativo**, **Assistido** ou **Configur
 
 ## 9. Validação antes da liberação
 
-Execute `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo login real, recuperação de senha, upload/download, isolamento entre contas, tema claro/escuro e teste em celular/tablet/desktop.
+Execute `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo login real, recuperação de senha, upload/download, isolamento entre contas, tema claro/escuro, exclusão de uma conta de teste e teste em celular/tablet/desktop.

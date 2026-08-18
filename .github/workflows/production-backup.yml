@@ -1,0 +1,66 @@
+name: Razync Pro Production Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: read
+
+env:
+  BACKUP_FILE: /tmp/razync-backup.rzenc
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Check backup secrets
+        id: secrets
+        env:
+          DB_URL: ${{ secrets.RAZYNC_BACKUP_DATABASE_URL }}
+          SB_URL: ${{ secrets.RAZYNC_BACKUP_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.RAZYNC_BACKUP_SUPABASE_SECRET_KEY }}
+          PASSPHRASE: ${{ secrets.RAZYNC_BACKUP_PASSPHRASE }}
+        run: |
+          if [ -n "$DB_URL" ] && [ -n "$SB_URL" ] && [ -n "$SB_KEY" ] && [ -n "$PASSPHRASE" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Backup skipped until the four RAZYNC_BACKUP_* repository secrets are configured."
+          fi
+
+      - name: Install backup dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          pip install "supabase==2.31.0" "cryptography==49.0.0"
+
+      - name: Create encrypted database and Storage backup
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          RAZYNC_BACKUP_DATABASE_URL: ${{ secrets.RAZYNC_BACKUP_DATABASE_URL }}
+          RAZYNC_BACKUP_SUPABASE_URL: ${{ secrets.RAZYNC_BACKUP_SUPABASE_URL }}
+          RAZYNC_BACKUP_SUPABASE_SECRET_KEY: ${{ secrets.RAZYNC_BACKUP_SUPABASE_SECRET_KEY }}
+          RAZYNC_BACKUP_PASSPHRASE: ${{ secrets.RAZYNC_BACKUP_PASSPHRASE }}
+          RAZYNC_BACKUP_OUTPUT: /tmp/razync-backup.rzenc
+        run: python scripts/backup_production.py
+
+      - name: Upload encrypted backup artifact
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: razync-pro-backup-${{ github.run_id }}
+          path: /tmp/razync-backup.rzenc
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
