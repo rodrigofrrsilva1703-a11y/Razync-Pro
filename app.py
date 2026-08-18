@@ -69,6 +69,7 @@ from finance_workspace import render_finance_workspace
 from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
 from dashboard_workspace import render_dashboard_workspace
+from sidebar_workspace import render_sidebar
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -109,6 +110,13 @@ def alert_box(level: str, title: str, text: str) -> None:
 
 def navigate_to(destination: str) -> None:
     st.session_state["_navigate_to"] = destination
+    st.rerun()
+
+
+def refresh_snapshot() -> None:
+    st.session_state.pop(_snapshot_key, None)
+    st.session_state.pop(_snapshot_version_key, None)
+    st.toast("Dados atualizados com segurança.")
     st.rerun()
 
 
@@ -695,88 +703,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.sidebar:
-    business_sidebar = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
-    st.markdown(
-        f"""
-        <div class="rz-side-brand">
-          <img src="{BRAND_LOGO_DATA_URI}" alt="Razync Pro">
-          <div>
-            <strong>Razync<em>PRO</em></strong>
-            <span>{escape(str(business_sidebar))}</span>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.container(key="sidebar_navigation"):
-        if st.button(
-            SIDEBAR_LABELS["Dashboard"],
-            key="grouped_nav_dashboard",
-            icon=SIDEBAR_ICONS["Dashboard"],
-            disabled=page == "Dashboard",
-            width="stretch",
-        ):
-            st.session_state["_navigate_to"] = "Dashboard"
-            st.rerun()
-
-        for group_title, destinations in SIDEBAR_GROUPS.items():
-            with st.expander(group_title, expanded=page in destinations):
-                for destination in destinations:
-                    if st.button(
-                        SIDEBAR_LABELS[destination],
-                        key=f"grouped_nav_{destination}",
-                        icon=SIDEBAR_ICONS[destination],
-                        disabled=page == destination,
-                        width="stretch",
-                    ):
-                        st.session_state["_navigate_to"] = destination
-                        st.rerun()
-
-        secondary_pages = [item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages]
-        with st.expander("Mais ferramentas", expanded=page in secondary_pages):
-            for section_name, destinations in SIDEBAR_SECONDARY_GROUPS.items():
-                st.caption(section_name.upper())
-                for destination in destinations:
-                    if st.button(
-                        SIDEBAR_LABELS[destination],
-                        key=f"secondary_nav_{destination}",
-                        icon=SIDEBAR_ICONS[destination],
-                        disabled=page == destination,
-                        width="stretch",
-                    ):
-                        st.session_state["_navigate_to"] = destination
-                        st.rerun()
-
-        setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
-        if setup_progress["percent"] < 100:
-            st.divider()
-            if st.button(
-                f"Configurar meu MEI · {setup_progress['percent']}%",
-                key="sidebar_onboarding",
-                icon=":material/checklist:",
-                disabled=page == "Primeiros Passos",
-                width="stretch",
-            ):
-                st.session_state["_navigate_to"] = "Primeiros Passos"
-                st.rerun()
-
-    st.divider()
-    with st.expander("Conta e preferências"):
-        account_name = str(user.get("name") or "Minha conta")
-        account_email = str(user.get("email") or "").strip()
-        st.markdown(f"**{account_name}**")
-        if account_email:
-            st.markdown(f'<div class="rz-side-account">{escape(account_email)}</div>', unsafe_allow_html=True)
-        st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
-        if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
-            st.session_state.pop(_snapshot_key, None)
-            st.session_state.pop(_snapshot_version_key, None)
-            st.toast("Dados atualizados com segurança.")
-            st.rerun()
-        if st.button("Sair", key="sidebar_logout", width="stretch"):
-            logout_current_user()
+render_sidebar(
+    profile=profile,
+    user=user,
+    transactions=transactions,
+    das_rows=das_rows,
+    documents=docs,
+    page=page,
+    brand_logo_data_uri=BRAND_LOGO_DATA_URI,
+    navigate=navigate_to,
+    refresh_data=refresh_snapshot,
+    logout=logout_current_user,
+)
 
 undo_transaction = st.session_state.get("_undo_transaction")
 if undo_transaction:

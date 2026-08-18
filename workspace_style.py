@@ -14,7 +14,24 @@ def inject_workspace_style() -> None:
             background: var(--rz-soft);
             color: var(--rz-muted);
         }
+
+        [data-testid="stAppViewContainer"] .block-container {
+            max-width: 1380px;
+        }
+
+        @media (max-width: 980px) {
+            [data-testid="stAppViewContainer"] .block-container {
+                padding-left: 1.15rem;
+                padding-right: 1.15rem;
+            }
+        }
+
         @media (max-width: 760px) {
+            [data-testid="stAppViewContainer"] .block-container {
+                padding-top: 1rem;
+                padding-left: .82rem;
+                padding-right: .82rem;
+            }
             [data-testid="stHorizontalBlock"] {
                 gap: .55rem !important;
             }
@@ -34,6 +51,22 @@ def inject_workspace_style() -> None:
             [data-testid="stDataFrame"] {
                 border-radius: 12px;
                 overflow: hidden;
+            }
+            [data-testid="stExpander"] summary {
+                min-height: 2.6rem;
+            }
+            [data-testid="stForm"] {
+                border-radius: 14px;
+            }
+            h1 {
+                font-size: 1.72rem !important;
+                line-height: 1.15 !important;
+            }
+            h2 {
+                font-size: 1.35rem !important;
+            }
+            h3 {
+                font-size: 1.08rem !important;
             }
         }
         </style>
