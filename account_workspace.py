@@ -5,9 +5,19 @@ import streamlit as st
 from account_deletion import AccountDeletionError, delete_account
 from commercial_readiness import PLAN_CATALOG, data_rights_summary
 from monitoring import safe_error
+from session_persistence import clear_persisted_session, persistent_session_controller
 
 
-def render_account_workspace(*, navigate, developer_access: bool, access_token: str = "", on_deleted=None) -> None:
+def _finish_deleted_session() -> None:
+    controller = persistent_session_controller()
+    if controller is not None:
+        clear_persisted_session(controller)
+    for key in list(st.session_state):
+        del st.session_state[key]
+    st.rerun()
+
+
+def render_account_workspace(*, navigate, developer_access: bool) -> None:
     st.caption("CONTA, PRIVACIDADE E SISTEMA")
     st.write("Centralize dados do MEI, segurança, plano, histórico e cópias dos seus dados.")
 
@@ -51,6 +61,7 @@ def render_account_workspace(*, navigate, developer_access: bool, access_token: 
             st.caption(item["detail"])
 
     st.subheader("Excluir conta")
+    access_token = str(st.session_state.get("access_token") or "")
     if developer_access:
         st.info("O acesso de desenvolvedor via GitHub não é uma conta de cliente Supabase e não pode ser excluído por esta tela.")
     elif not access_token:
@@ -84,5 +95,4 @@ def render_account_workspace(*, navigate, developer_access: bool, access_token: 
                     st.error(str(exc))
                 else:
                     st.success("Conta excluída. Encerrando a sessão com segurança.")
-                    if callable(on_deleted):
-                        on_deleted()
+                    _finish_deleted_session()
