@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-# Rotas mais frequentes ficam visíveis. Recursos complementares continuam acessíveis
-# em "Mais ferramentas", sem remover nenhuma funcionalidade do produto.
+# UX V3: poucas áreas principais. As ferramentas detalhadas continuam disponíveis
+# em "Mais ferramentas", preservando integralmente as rotas existentes.
 SIDEBAR_LABELS = {
     "Dashboard": "Início",
+    "Financeiro": "Financeiro",
+    "Fiscal": "Fiscal MEI",
     "Central de Automações": "Automações",
     "Assistente Razync": "Assistente",
     "Movimentações": "Receitas e despesas",
@@ -35,20 +37,22 @@ SIDEBAR_LABELS = {
 }
 
 SIDEBAR_GROUPS = {
-    "Financeiro": ["Movimentações", "Importar Extrato", "Conciliação", "Análise Financeira"],
-    "Fiscal": ["DAS", "Notas Fiscais", "Obrigações", "DASN-SIMEI"],
-    "Gestão": ["Documentos", "Clientes e Fornecedores", "Empregado"],
+    "Rotina": ["Financeiro", "Fiscal"],
+    "Gestão": ["Documentos", "Clientes e Fornecedores"],
 }
 
 SIDEBAR_SECONDARY_GROUPS = {
-    "Financeiro avançado": ["Recorrências", "Fluxo de Caixa"],
-    "Fiscal e relatórios": ["Importar NFS-e", "Fechamento Mensal", "Relatório Mensal"],
-    "Produtividade": ["Central de Automações", "Central de Notificações", "Assistente Razync", "Espaço do Contador"],
+    "Financeiro detalhado": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
+    "Fiscal detalhado": ["DAS", "Notas Fiscais", "Importar NFS-e", "Obrigações", "DASN-SIMEI", "Fechamento Mensal", "Relatório Mensal"],
+    "Gestão avançada": ["Empregado", "Espaço do Contador"],
+    "Produtividade": ["Central de Automações", "Central de Notificações", "Assistente Razync"],
     "Conta e sistema": ["Meu MEI", "Integrações", "Plano e Assinatura", "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
 }
 
 SIDEBAR_ICONS = {
     "Dashboard": ":material/home:",
+    "Financeiro": ":material/account_balance_wallet:",
+    "Fiscal": ":material/receipt_long:",
     "Movimentações": ":material/swap_vert:",
     "Recorrências": ":material/event_repeat:",
     "Importar Extrato": ":material/upload_file:",
