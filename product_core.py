@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from typing import Iterable
 
@@ -133,6 +134,35 @@ def assistant_answer(
 ) -> str:
     q = (question or "").lower().strip()
     today = today or date.today()
+
+    # Assistente Razync IA V1. Root-level Streamlit secrets are exposed as
+    # environment variables. If the provider is unavailable, the deterministic
+    # local assistant below remains the safe fallback.
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if api_key and question and question.strip():
+        try:
+            from ai_assistant import DEFAULT_MODEL, ask_razync_ai, build_safe_business_context
+
+            context = build_safe_business_context(
+                profile={},
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=list(obligations),
+                documents=list(documents),
+                annual_limit=annual_limit,
+                year=year,
+                today=today,
+            )
+            return ask_razync_ai(
+                question,
+                context=context,
+                api_key=api_key,
+                model=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+            )
+        except Exception:
+            pass
+
     if transactions.empty:
         year_tx = transactions
     else:
