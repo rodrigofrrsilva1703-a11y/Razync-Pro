@@ -48,6 +48,7 @@ class AIUsageControlTests(unittest.TestCase):
     def test_twenty_reservations_allowed_and_twenty_first_blocked(self):
         uid = 987654321
         day = date(2099, 1, 1)
+        get_ai_usage(uid, day)  # creates the local contract table when needed
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM ai_daily_usage WHERE user_id = :uid"), {"uid": uid})
         try:
@@ -67,6 +68,7 @@ class AIUsageControlTests(unittest.TestCase):
     def test_failed_provider_reservation_can_be_refunded(self):
         uid = 987654322
         day = date(2099, 1, 2)
+        get_ai_usage(uid, day)
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM ai_daily_usage WHERE user_id = :uid"), {"uid": uid})
         try:
