@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
 from typing import Callable
 
 import pandas as pd
@@ -8,10 +7,11 @@ import streamlit as st
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, OpenAI, RateLimitError
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
+from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
-DEFAULT_DAILY_REQUEST_LIMIT = 30
+DEFAULT_DAILY_REQUEST_LIMIT = 20
 
 SUGGESTED_QUESTIONS = [
     "Quanto ainda posso faturar este ano?",
@@ -38,13 +38,14 @@ def _daily_request_limit() -> int:
         return DEFAULT_DAILY_REQUEST_LIMIT
 
 
-def _usage_state() -> dict:
-    today = date.today().isoformat()
-    state = st.session_state.get("razync_ai_usage")
-    if not isinstance(state, dict) or state.get("date") != today:
-        state = {"date": today, "count": 0}
-        st.session_state["razync_ai_usage"] = state
-    return state
+def _current_user_id() -> int | None:
+    user = st.session_state.get("user")
+    if not isinstance(user, dict):
+        return None
+    try:
+        return int(user.get("id"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
@@ -99,25 +100,35 @@ def render_ai_assistant(
     api_key = _secret("OPENAI_API_KEY")
     model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
     ai_enabled = bool(api_key.strip())
-    usage = _usage_state()
+    user_id = _current_user_id()
     daily_limit = _daily_request_limit()
-    remaining = max(daily_limit - int(usage.get("count", 0) or 0), 0)
+    quota_ready = bool(user_id)
+    usage_count = 0
+
+    if quota_ready:
+        try:
+            usage_count = get_ai_usage(user_id)
+        except AIUsageStoreError:
+            quota_ready = False
 
     status_left, status_right = st.columns([3, 1])
     with status_left:
-        if ai_enabled:
+        if ai_enabled and quota_ready:
             st.success("IA Razync configurada")
             st.caption("A IA recebe somente um resumo agregado dos seus dados. CNPJ, CPF, arquivos e credenciais não são enviados.")
+        elif ai_enabled:
+            st.warning("IA configurada, mas o controle de uso está indisponível")
+            st.caption("Por segurança de custo, o Razync usará a análise local até o controle de quota voltar a responder.")
         else:
             st.info("Modo inteligente local")
             st.caption("OPENAI_API_KEY ainda não foi encontrada nos Secrets. As respostas locais continuam disponíveis.")
     with status_right:
         st.caption(f"Modelo: {model}")
-        if ai_enabled:
-            st.caption(f"Uso nesta sessão hoje: {usage['count']}/{daily_limit}")
+        if ai_enabled and quota_ready:
+            st.caption(f"Uso hoje (UTC): {usage_count}/{daily_limit}")
 
     with st.expander("Diagnóstico da IA", expanded=not ai_enabled):
-        st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI. O teste não consome o limite diário do Assistente.")
+        st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI. O teste não consome a quota diária do Assistente.")
         if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
             with st.spinner("Testando conexão..."):
                 ok, diagnosis = _diagnose_ai(api_key, model)
@@ -156,28 +167,51 @@ def render_ai_assistant(
         st.markdown(question)
 
     with st.chat_message("assistant"):
-        if ai_enabled and remaining > 0:
-            context = build_safe_business_context(
-                profile=profile,
-                transactions=transactions,
-                invoices=invoices,
-                das_rows=das_rows,
-                obligations=obligations,
-                documents=documents,
-                annual_limit=annual_limit,
-                year=current_year,
-            )
+        if ai_enabled and quota_ready and user_id is not None:
             try:
-                with st.spinner("Analisando seus dados..."):
-                    answer = ask_razync_ai(question, context=context, api_key=api_key, model=model)
-                usage["count"] = int(usage.get("count", 0) or 0) + 1
-                st.session_state["razync_ai_usage"] = usage
-            except RazyncAIError as exc:
+                allowed, reserved_count = reserve_ai_request(user_id, daily_limit)
+            except AIUsageStoreError:
+                allowed = False
+                reserved_count = usage_count
+                st.warning("O controle diário da IA não respondeu agora. Usei a análise local para evitar cobranças sem controle.")
+
+            if allowed:
+                context = build_safe_business_context(
+                    profile=profile,
+                    transactions=transactions,
+                    invoices=invoices,
+                    das_rows=das_rows,
+                    obligations=obligations,
+                    documents=documents,
+                    annual_limit=annual_limit,
+                    year=current_year,
+                )
+                try:
+                    with st.spinner("Analisando seus dados..."):
+                        answer = ask_razync_ai(question, context=context, api_key=api_key, model=model)
+                except RazyncAIError as exc:
+                    try:
+                        release_ai_request(user_id)
+                    except AIUsageStoreError:
+                        pass
+                    answer = fallback_answer(question)
+                    st.warning(f"A IA externa não respondeu ({exc}). Usei a análise local do Razync para não interromper seu atendimento.")
+                except Exception:
+                    try:
+                        release_ai_request(user_id)
+                    except AIUsageStoreError:
+                        pass
+                    answer = fallback_answer(question)
+                    st.warning("A IA externa não respondeu agora. Usei a análise local do Razync.")
+            else:
                 answer = fallback_answer(question)
-                st.warning(f"A IA externa não respondeu ({exc}). Usei a análise local do Razync para não interromper seu atendimento.")
+                if reserved_count >= daily_limit:
+                    st.warning(f"A quota diária de {daily_limit} respostas de IA foi atingida. O limite reinicia às 00:00 UTC; usei a análise local do Razync.")
+                else:
+                    st.warning("Não foi possível reservar o uso da IA agora. Usei a análise local do Razync.")
         elif ai_enabled:
             answer = fallback_answer(question)
-            st.warning("O limite diário configurado para a IA nesta sessão foi atingido. Usei a análise local do Razync para evitar novas cobranças.")
+            st.warning("O controle de quota da IA está indisponível. Usei a análise local do Razync para evitar novas cobranças.")
         else:
             answer = fallback_answer(question)
         st.markdown(answer)
