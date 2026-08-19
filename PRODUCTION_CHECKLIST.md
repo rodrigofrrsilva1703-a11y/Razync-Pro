@@ -84,7 +84,11 @@ Execute este checklist no ambiente publicado antes de liberar uma versão comerc
 - [ ] o botão “Testar conexão da IA” retorna sucesso no ambiente publicado.
 - [ ] respostas externas usam `store=False` e somente contexto agregado.
 - [ ] CPF, CNPJ, credenciais, arquivos e descrições brutas não são enviados à IA.
-- [ ] `OPENAI_DAILY_REQUEST_LIMIT` está definido conforme o orçamento desejado.
+- [ ] `OPENAI_DAILY_REQUEST_LIMIT` está definido conforme o orçamento desejado; o padrão seguro é 20 respostas por dia.
+- [ ] a quota é persistida por conta em `ai_daily_usage`, não reinicia ao trocar de navegador ou reiniciar o Streamlit e usa o dia em UTC.
+- [ ] duas sessões simultâneas não conseguem ultrapassar a quota por causa da reserva atômica no PostgreSQL.
+- [ ] falha da OpenAI devolve a reserva e não reduz a quota diária do usuário.
+- [ ] a 21ª tentativa com limite padrão usa o fallback local e não chama a OpenAI.
 - [ ] ao atingir o limite ou ocorrer falha externa, o fallback local continua funcionando.
 
 ## Backup operacional
