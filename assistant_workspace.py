@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Callable
 
 import pandas as pd
@@ -10,6 +11,7 @@ from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_conte
 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
+DEFAULT_DAILY_REQUEST_LIMIT = 30
 
 SUGGESTED_QUESTIONS = [
     "Quanto ainda posso faturar este ano?",
@@ -26,6 +28,23 @@ def _secret(name: str) -> str:
         return str(st.secrets.get(name, "") or "")
     except Exception:
         return ""
+
+
+def _daily_request_limit() -> int:
+    raw = _secret("OPENAI_DAILY_REQUEST_LIMIT")
+    try:
+        return max(1, int(raw)) if raw else DEFAULT_DAILY_REQUEST_LIMIT
+    except (TypeError, ValueError):
+        return DEFAULT_DAILY_REQUEST_LIMIT
+
+
+def _usage_state() -> dict:
+    today = date.today().isoformat()
+    state = st.session_state.get("razync_ai_usage")
+    if not isinstance(state, dict) or state.get("date") != today:
+        state = {"date": today, "count": 0}
+        st.session_state["razync_ai_usage"] = state
+    return state
 
 
 def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
@@ -80,6 +99,9 @@ def render_ai_assistant(
     api_key = _secret("OPENAI_API_KEY")
     model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
     ai_enabled = bool(api_key.strip())
+    usage = _usage_state()
+    daily_limit = _daily_request_limit()
+    remaining = max(daily_limit - int(usage.get("count", 0) or 0), 0)
 
     status_left, status_right = st.columns([3, 1])
     with status_left:
@@ -91,9 +113,11 @@ def render_ai_assistant(
             st.caption("OPENAI_API_KEY ainda não foi encontrada nos Secrets. As respostas locais continuam disponíveis.")
     with status_right:
         st.caption(f"Modelo: {model}")
+        if ai_enabled:
+            st.caption(f"Uso nesta sessão hoje: {usage['count']}/{daily_limit}")
 
     with st.expander("Diagnóstico da IA", expanded=not ai_enabled):
-        st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI.")
+        st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI. O teste não consome o limite diário do Assistente.")
         if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
             with st.spinner("Testando conexão..."):
                 ok, diagnosis = _diagnose_ai(api_key, model)
@@ -132,7 +156,7 @@ def render_ai_assistant(
         st.markdown(question)
 
     with st.chat_message("assistant"):
-        if ai_enabled:
+        if ai_enabled and remaining > 0:
             context = build_safe_business_context(
                 profile=profile,
                 transactions=transactions,
@@ -146,9 +170,14 @@ def render_ai_assistant(
             try:
                 with st.spinner("Analisando seus dados..."):
                     answer = ask_razync_ai(question, context=context, api_key=api_key, model=model)
+                usage["count"] = int(usage.get("count", 0) or 0) + 1
+                st.session_state["razync_ai_usage"] = usage
             except RazyncAIError as exc:
                 answer = fallback_answer(question)
                 st.warning(f"A IA externa não respondeu ({exc}). Usei a análise local do Razync para não interromper seu atendimento.")
+        elif ai_enabled:
+            answer = fallback_answer(question)
+            st.warning("O limite diário configurado para a IA nesta sessão foi atingido. Usei a análise local do Razync para evitar novas cobranças.")
         else:
             answer = fallback_answer(question)
         st.markdown(answer)
