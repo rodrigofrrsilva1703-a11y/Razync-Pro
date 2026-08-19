@@ -19,7 +19,7 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 - Agenda de obrigações e central de notificações
 - Cadastro de clientes, fornecedores e empregado
 - Cofre de documentos em Supabase Storage privado
-- Assistente Razync e Central de Automações
+- Assistente Razync com IA opcional via OpenAI, contexto agregado e fallback local
 - Espaço do contador sem compartilhamento de senha
 - Cadastro completo do MEI
 - Backup e exportações
