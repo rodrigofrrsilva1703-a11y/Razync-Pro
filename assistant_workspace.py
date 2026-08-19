@@ -4,9 +4,12 @@ from typing import Callable
 
 import pandas as pd
 import streamlit as st
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, OpenAI, RateLimitError
 
-from ai_assistant import DEFAULT_MODEL, RazyncAIError, ask_razync_ai, build_safe_business_context
+from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
 
+
+DEFAULT_UI_MODEL = "gpt-5.4-mini"
 
 SUGGESTED_QUESTIONS = [
     "Quanto ainda posso faturar este ano?",
@@ -25,6 +28,43 @@ def _secret(name: str) -> str:
         return ""
 
 
+def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
+    """Run a tiny provider request and return a safe, user-facing diagnosis."""
+    if not api_key.strip():
+        return False, "OPENAI_API_KEY não foi encontrada nos Secrets do Streamlit."
+
+    try:
+        client = OpenAI(api_key=api_key.strip(), timeout=15.0, max_retries=0)
+        response = client.responses.create(
+            model=model.strip() or DEFAULT_UI_MODEL,
+            input="Responda somente com OK.",
+            store=False,
+            max_output_tokens=8,
+        )
+        if not (response.output_text or "").strip():
+            return False, "A OpenAI respondeu, mas não retornou texto. Tente novamente."
+        return True, f"Conexão com a OpenAI funcionando. Modelo validado: {model}."
+    except AuthenticationError:
+        return False, "A chave da OpenAI foi recusada. Gere uma nova API key e atualize OPENAI_API_KEY nos Secrets."
+    except RateLimitError:
+        return False, "A API recusou a chamada por limite de uso ou crédito. Verifique Billing/Usage do projeto da OpenAI."
+    except APITimeoutError:
+        return False, "A conexão com a OpenAI excedeu o tempo limite. Tente novamente em alguns instantes."
+    except APIConnectionError:
+        return False, "O Streamlit não conseguiu alcançar a OpenAI. Verifique a conexão e tente novamente."
+    except APIStatusError as exc:
+        status = int(getattr(exc, "status_code", 0) or 0)
+        if status == 403:
+            return False, f"A chave não tem permissão para usar o modelo {model}. Troque OPENAI_MODEL ou revise o projeto da API."
+        if status == 404:
+            return False, f"O modelo {model} não está disponível para esta chave. Use OPENAI_MODEL = \"{DEFAULT_UI_MODEL}\"."
+        if status == 400:
+            return False, "A OpenAI rejeitou a configuração da chamada. Revise OPENAI_MODEL nos Secrets."
+        return False, f"A OpenAI respondeu com erro HTTP {status or 'desconhecido'}. Revise a configuração da API."
+    except Exception:
+        return False, "Não foi possível validar a IA agora. A análise local do Razync continua disponível."
+
+
 def render_ai_assistant(
     *,
     profile: dict,
@@ -38,20 +78,29 @@ def render_ai_assistant(
     fallback_answer: Callable[[str], str],
 ) -> None:
     api_key = _secret("OPENAI_API_KEY")
-    model = _secret("OPENAI_MODEL") or DEFAULT_MODEL
+    model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
     ai_enabled = bool(api_key.strip())
 
     status_left, status_right = st.columns([3, 1])
     with status_left:
         if ai_enabled:
-            st.success("IA Razync ativa")
+            st.success("IA Razync configurada")
             st.caption("A IA recebe somente um resumo agregado dos seus dados. CNPJ, CPF, arquivos e credenciais não são enviados.")
         else:
             st.info("Modo inteligente local")
-            st.caption("Adicione OPENAI_API_KEY aos Secrets para ativar a IA generativa. As respostas locais continuam disponíveis.")
+            st.caption("OPENAI_API_KEY ainda não foi encontrada nos Secrets. As respostas locais continuam disponíveis.")
     with status_right:
-        if ai_enabled:
-            st.caption(f"Modelo: {model}")
+        st.caption(f"Modelo: {model}")
+
+    with st.expander("Diagnóstico da IA", expanded=not ai_enabled):
+        st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI.")
+        if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
+            with st.spinner("Testando conexão..."):
+                ok, diagnosis = _diagnose_ai(api_key, model)
+            if ok:
+                st.success(diagnosis)
+            else:
+                st.error(diagnosis)
 
     if "razync_ai_messages" not in st.session_state:
         st.session_state["razync_ai_messages"] = [
@@ -97,9 +146,9 @@ def render_ai_assistant(
             try:
                 with st.spinner("Analisando seus dados..."):
                     answer = ask_razync_ai(question, context=context, api_key=api_key, model=model)
-            except RazyncAIError:
+            except RazyncAIError as exc:
                 answer = fallback_answer(question)
-                st.warning("A IA externa não respondeu agora. Usei a análise local do Razync para não interromper seu atendimento.")
+                st.warning(f"A IA externa não respondeu ({exc}). Usei a análise local do Razync para não interromper seu atendimento.")
         else:
             answer = fallback_answer(question)
         st.markdown(answer)
