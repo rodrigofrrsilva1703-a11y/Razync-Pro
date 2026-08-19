@@ -29,6 +29,8 @@ SUPABASE_PUBLISHABLE_KEY = "sb_publishable_..."
 SESSION_COOKIE_SECRET = "gere-um-valor-aleatorio-com-pelo-menos-32-caracteres"
 SENTRY_DSN = "https://..." # opcional, para observabilidade externa
 APP_ENVIRONMENT = "production"
+OPENAI_API_KEY = "sk-proj-..." # opcional, ativa a IA do Assistente Razync
+OPENAI_MODEL = "gpt-5.6-luna" # opcional; modelo com foco em custo
 ```
 
 Use somente a chave publicável no Streamlit; nunca configure `service_role` ou secret key administrativa no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”.
@@ -48,6 +50,17 @@ O ambiente de produção usa Supabase Auth para login, confirmação de e-mail, 
 A exclusão de conta é executada pela Edge Function protegida `delete-account`, com JWT obrigatório. Ela remove primeiro os documentos privados, depois o registro interno do usuário (cascateando os dados de negócio) e por último a identidade Supabase Auth. A chave administrativa permanece somente no ambiente seguro da Edge Function.
 
 Enquanto as variáveis de Auth não estiverem configuradas, o aplicativo informa explicitamente que está em modo temporário de desenvolvimento/migração. Esse modo não deve ser usado para clientes reais.
+
+
+## Assistente Razync com IA
+
+O Assistente Razync usa a OpenAI Responses API somente quando `OPENAI_API_KEY` estiver configurada. Sem a chave, o sistema preserva o assistente local baseado em regras, evitando indisponibilidade do recurso.
+
+A integração envia apenas um contexto agregado calculado a partir do snapshot já carregado na sessão. Não são enviados CNPJ, CPF, telefone, nomes de clientes/fornecedores, números de documentos, arquivos, tokens, credenciais ou conteúdo bruto de documentos. A chamada usa `store=False`.
+
+A chave da OpenAI deve existir somente nos Secrets do ambiente. Nunca a grave no repositório, no navegador ou em logs. O modelo pode ser alterado por `OPENAI_MODEL`; o padrão do produto é `gpt-5.6-luna` para equilibrar qualidade e custo.
+
+O assistente é consultivo: ele não paga DAS, transmite declarações, emite notas ou altera dados por conta própria. Regras fiscais e prazos sujeitos a mudança devem ser confirmados em fonte oficial.
 
 ## 4. Segurança e privacidade
 

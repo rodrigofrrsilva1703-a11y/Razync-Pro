@@ -72,6 +72,7 @@ from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
 from productivity_workspace import render_productivity_workspace
 from account_workspace import render_account_workspace
+from assistant_workspace import render_ai_assistant
 from fiscal_automation import analyze_das_guide
 from validators import valid_cnpj, valid_cpf, cpf_or_cnpj_status, valid_competence
 from commercial_readiness import PLAN_CATALOG, integration_maturity, production_checklist
@@ -1710,14 +1711,27 @@ elif page == "Central de Automações":
             st.session_state["_navigate_to"] = "Backup"; st.rerun()
 
 elif page == "Assistente Razync":
-    header("Assistente Razync","Faça perguntas simples sobre os dados que já estão no sistema.")
-    prompts=["Quanto ainda posso faturar?","Compare este mês com o anterior","Qual foi minha maior despesa?","Quanto faturei no trimestre?","Tenho documentos faltando?","Qual é o próximo vencimento?","Tenho DAS atrasado?","Como estão minhas notas?"]
-    q=st.text_input("Pergunte sobre seu MEI",placeholder="Ex.: Quanto ainda posso faturar neste ano?")
-    choice=st.selectbox("Ou escolha uma pergunta",["Escolha..."]+prompts)
-    if choice!="Escolha...": q=choice
-    if q:
-        st.success(assistant_answer(q, transactions, invoices, das_rows, limit, CURRENT_YEAR, obligations=obligations, documents=docs))
-    st.caption("As respostas usam os registros do Razync Pro e não substituem análise profissional ou consulta aos portais oficiais.")
+    header("Assistente Razync IA", "Converse com uma IA que entende o resumo financeiro e fiscal registrado no seu Razync.")
+    render_ai_assistant(
+        profile=profile,
+        transactions=transactions,
+        invoices=invoices,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=docs,
+        annual_limit=limit,
+        current_year=CURRENT_YEAR,
+        fallback_answer=lambda question: assistant_answer(
+            question,
+            transactions,
+            invoices,
+            das_rows,
+            limit,
+            CURRENT_YEAR,
+            obligations=obligations,
+            documents=docs,
+        ),
+    )
 
 elif page == "Primeiros Passos":
     header("Primeiros Passos", "Configure o Razync Pro para o seu MEI e deixe os alertas, limites e relatórios mais úteis.")
