@@ -11,6 +11,7 @@ from assistant_workspace import (
     DEFAULT_UI_MODEL,
     _daily_request_limit,
     _diagnose_ai,
+    _safe_api_status_metadata,
 )
 from ai_usage_store import get_ai_usage, release_ai_request, reserve_ai_request, utc_usage_date
 from database import DATABASE_URL, engine
@@ -44,11 +45,35 @@ class AIUsageControlTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("OPENAI_API_KEY", message)
 
+    def test_safe_api_metadata_only_exposes_whitelisted_fields(self):
+        class FakeStatusError:
+            param = "max_output_tokens"
+            type = "invalid_request_error"
+            code = "unsupported_value"
+            body = {"message": "secret payload must never be exposed"}
+            message = "secret payload must never be exposed"
+
+        details = _safe_api_status_metadata(FakeStatusError())
+        self.assertIn("parâmetro: max_output_tokens", details)
+        self.assertIn("tipo: invalid_request_error", details)
+        self.assertIn("código: unsupported_value", details)
+        self.assertNotIn("secret payload", details)
+
+    def test_unsafe_api_metadata_is_omitted(self):
+        class FakeStatusError:
+            param = "bad value with spaces and user data"
+            type = "invalid_request_error"
+            code = None
+
+        details = _safe_api_status_metadata(FakeStatusError())
+        self.assertNotIn("bad value", details)
+        self.assertIn("tipo: invalid_request_error", details)
+
     @unittest.skipUnless(str(DATABASE_URL).startswith("sqlite"), "SQLite contract test")
     def test_twenty_reservations_allowed_and_twenty_first_blocked(self):
         uid = 987654321
         day = date(2099, 1, 1)
-        get_ai_usage(uid, day)  # creates the local contract table when needed
+        get_ai_usage(uid, day)
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM ai_daily_usage WHERE user_id = :uid"), {"uid": uid})
         try:
