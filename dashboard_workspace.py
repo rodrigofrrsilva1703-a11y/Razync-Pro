@@ -11,6 +11,7 @@ from fiscal_rules import das_status
 from growth_tools import build_notifications
 from onboarding_tools import onboarding_progress
 from product_core import action_items
+from smart_insights import build_proactive_insights
 from ui_system import alert_card, section
 
 
@@ -115,6 +116,33 @@ def render_dashboard_workspace(
                 st.caption(f"• {note}")
         elif score >= 90:
             st.success("Seu MEI está bem organizado com os dados cadastrados.")
+
+    insights = build_proactive_insights(
+        profile=profile,
+        transactions=transactions,
+        invoices=invoices,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=documents,
+        annual_limit=annual_limit,
+        current_year=current_year,
+        today=today,
+    )
+    section("Insights do Razync", "Sinais automáticos calculados com os dados já carregados. Nenhuma chamada de IA é feita nesta tela.")
+    if not insights:
+        st.info("Adicione mais movimentações e informações fiscais para o Razync identificar tendências automaticamente.")
+    else:
+        for idx, insight in enumerate(insights[:3]):
+            info_col, open_col, ai_col = st.columns([4.8, 1, 1.35])
+            with info_col:
+                alert_card(insight["level"], insight["title"], insight["detail"])
+            with open_col:
+                if st.button("Abrir", key=f"smart_insight_open_{idx}", width="stretch"):
+                    navigate(insight["page"])
+            with ai_col:
+                if st.button("Perguntar à IA", key=f"smart_insight_ai_{idx}", width="stretch"):
+                    st.session_state["razync_ai_pending_question"] = insight["question"]
+                    navigate("Assistente Razync")
 
     section("Acesso rápido", "Entre direto nas duas áreas principais ou registre uma movimentação.")
     q1, q2, q3 = st.columns(3)
