@@ -9,6 +9,8 @@ from typing import Iterable
 import pandas as pd
 from openai import OpenAI
 
+from assistant_skills import build_skill_directive
+
 
 DEFAULT_MODEL = "gpt-5.6-luna"
 
@@ -304,9 +306,14 @@ SEGURANÇA E LIMITES
 def build_ai_prompt(question: str, *, context: dict, conversation: Iterable[dict] | None = None) -> str:
     safe_history = build_safe_conversation_history(conversation, current_question=question)
     history_payload = json.dumps(safe_history, ensure_ascii=False, separators=(",", ":")) if safe_history else "[]"
+    skill_label, skill_directive = build_skill_directive(question)
     return (
         "Pergunta atual do usuário:\n"
         + question.strip()
+        + "\n\nHabilidade selecionada localmente:\n"
+        + skill_label
+        + "\nDiretriz específica desta habilidade:\n"
+        + skill_directive
         + "\n\nMemória curta e sanitizada desta conversa (JSON):\n"
         + history_payload
         + "\n\nContexto agregado e autorizado do Razync (JSON):\n"
