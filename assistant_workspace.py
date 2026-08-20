@@ -9,6 +9,7 @@ import streamlit as st
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, OpenAI, RateLimitError
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
+from ai_provider_router import ProviderChainError, run_provider_chain
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
 from assistant_resources import build_product_context, build_resource_bundle
 from fiscal_rules import annual_limit_for
@@ -116,6 +117,8 @@ def _provider_state() -> dict:
     openai_model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
     gemini_enabled = bool(gemini_api_key.strip())
     openai_enabled = bool(openai_api_key.strip())
+    providers = [name for name, enabled in (("Gemini", gemini_enabled), ("OpenAI", openai_enabled)) if enabled]
+    models = [model for model, enabled in ((gemini_model, gemini_enabled), (openai_model, openai_enabled)) if enabled]
     return {
         "gemini_api_key": gemini_api_key,
         "gemini_model": gemini_model,
@@ -123,9 +126,10 @@ def _provider_state() -> dict:
         "openai_model": openai_model,
         "gemini_enabled": gemini_enabled,
         "openai_enabled": openai_enabled,
-        "ai_enabled": gemini_enabled or openai_enabled,
-        "provider": "Gemini" if gemini_enabled else "OpenAI" if openai_enabled else "Local",
-        "model": gemini_model if gemini_enabled else openai_model if openai_enabled else "Razync local",
+        "ai_enabled": bool(providers),
+        "provider": " → ".join(providers) if providers else "Local",
+        "model": " → ".join(models) if models else "Razync local",
+        "fallback_enabled": len(providers) > 1,
     }
 
 
@@ -219,6 +223,7 @@ def _answer_question(
     fallback_answer: Callable[[str], str] | None = None,
 ) -> dict:
     provider = _provider_state()
+    provider_used = "Local"
     user_id = _current_user_id()
     daily_limit = _daily_request_limit()
     quota_ready = bool(user_id)
@@ -264,45 +269,48 @@ def _answer_question(
                 year=current_year,
             )
             context["razync_product"] = build_product_context(documents, current_page=current_page)
-            try:
-                if provider["gemini_enabled"]:
-                    answer = ask_razync_gemini(
+            attempts = []
+            if provider["gemini_enabled"]:
+                attempts.append((
+                    "Gemini",
+                    lambda: ask_razync_gemini(
                         question,
                         context=context,
                         api_key=provider["gemini_api_key"],
                         model=provider["gemini_model"],
                         conversation=prior_conversation,
-                    )
-                else:
-                    answer = ask_razync_ai(
+                    ),
+                ))
+            if provider["openai_enabled"]:
+                attempts.append((
+                    "OpenAI",
+                    lambda: ask_razync_ai(
                         question,
                         context=context,
                         api_key=provider["openai_api_key"],
                         model=provider["openai_model"],
                         conversation=prior_conversation,
-                    )
-            except GeminiAIError as exc:
+                    ),
+                ))
+            try:
+                answer, provider_used, failed_providers = run_provider_chain(attempts)
+                if failed_providers:
+                    notices.append((
+                        "info",
+                        f"{' e '.join(failed_providers)} não respondeu. O {provider_used} assumiu automaticamente.",
+                    ))
+            except ProviderChainError as exc:
                 try:
                     release_ai_request(user_id)
                 except AIUsageStoreError:
                     pass
                 answer = local_answer()
-                notices.append(("warning", "O Gemini não respondeu. Usei a análise local do Razync."))
-                notices.append(("error", f"Diagnóstico: {exc}"))
-            except RazyncAIError:
-                try:
-                    release_ai_request(user_id)
-                except AIUsageStoreError:
-                    pass
-                answer = local_answer()
-                notices.append(("warning", "A OpenAI não respondeu. Usei a análise local do Razync."))
-            except Exception:
-                try:
-                    release_ai_request(user_id)
-                except AIUsageStoreError:
-                    pass
-                answer = local_answer()
-                notices.append(("warning", "A IA externa não respondeu agora. Usei a análise local do Razync."))
+                provider_used = "Local"
+                attempted = " e ".join(exc.attempted_providers)
+                if attempted:
+                    notices.append(("warning", f"{attempted} não respondeu. Usei a análise local do Razync."))
+                else:
+                    notices.append(("warning", "A IA externa não respondeu agora. Usei a análise local do Razync."))
         else:
             answer = local_answer()
             if reserved_count >= daily_limit:
@@ -317,7 +325,7 @@ def _answer_question(
     return {
         "answer": answer,
         "notices": notices,
-        "provider": provider["provider"],
+        "provider": provider_used,
         "model": provider["model"],
     }
 
@@ -502,7 +510,10 @@ def render_ai_assistant(
     with status_left:
         if provider["ai_enabled"] and quota_ready:
             st.success(f"Copiloto Razync ativo — {provider['provider']}")
-            st.caption("Entende as ferramentas do sistema e recebe apenas contexto empresarial agregado. Arquivos brutos não são enviados ao provedor de IA.")
+            if provider["fallback_enabled"]:
+                st.caption("Fallback automático ativo: se o Gemini não responder, a OpenAI assume sem perder a conversa.")
+            else:
+                st.caption("Entende as ferramentas do sistema e recebe apenas contexto empresarial agregado. Arquivos brutos não são enviados ao provedor de IA.")
         elif provider["ai_enabled"]:
             st.warning("IA configurada, mas o controle de uso está indisponível")
             st.caption("Por segurança, o Razync usa a análise local até o controle voltar a responder.")
@@ -514,6 +525,11 @@ def render_ai_assistant(
         st.caption(f"Modelo: {provider['model']}")
         if provider["ai_enabled"] and quota_ready:
             st.caption(f"Uso hoje (UTC): {usage_count}/{daily_limit}")
+        if st.button("Nova conversa", key="razync_ai_new_chat", width="stretch"):
+            st.session_state.pop("razync_ai_messages", None)
+            st.session_state.pop("razync_ai_last_resources", None)
+            st.session_state.pop("razync_ai_last_resource_question", None)
+            st.rerun()
 
     with st.expander("Diagnóstico da IA", expanded=not provider["ai_enabled"]):
         if provider["gemini_enabled"]:
