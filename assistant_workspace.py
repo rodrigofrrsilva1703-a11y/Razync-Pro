@@ -189,13 +189,15 @@ def render_ai_assistant(
                 try:
                     with st.spinner("Analisando seus dados..."):
                         answer = ask_razync_ai(question, context=context, api_key=api_key, model=model)
-                except RazyncAIError as exc:
+                except RazyncAIError:
                     try:
                         release_ai_request(user_id)
                     except AIUsageStoreError:
                         pass
                     answer = fallback_answer(question)
-                    st.warning(f"A IA externa não respondeu ({exc}). Usei a análise local do Razync para não interromper seu atendimento.")
+                    _, diagnosis = _diagnose_ai(api_key, model)
+                    st.warning("A IA externa não respondeu. Usei a análise local do Razync para não interromper seu atendimento.")
+                    st.error(f"Diagnóstico: {diagnosis}")
                 except Exception:
                     try:
                         release_ai_request(user_id)
