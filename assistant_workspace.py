@@ -9,6 +9,7 @@ import streamlit as st
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, OpenAI, RateLimitError
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
+from assistant_actions import AssistantActionError, execute_assistant_action, plan_assistant_action
 from ai_provider_router import ProviderChainError, run_provider_chain
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
 from assistant_resources import build_product_context, build_resource_bundle
@@ -236,6 +237,53 @@ def _answer_question(
         except AIUsageStoreError:
             quota_ready = False
 
+    pending_action = st.session_state.get("razync_ai_pending_action")
+    action_question = question
+    if isinstance(pending_action, dict) and pending_action.get("missing_fields"):
+        original_request = str(pending_action.get("original_request") or "").strip()
+        if original_request:
+            action_question = f"{original_request}. Informação adicional: {question}"
+
+    action_api_key = ""
+    if provider["openai_enabled"] and quota_ready and usage_count < daily_limit:
+        action_api_key = provider["openai_api_key"]
+    try:
+        action_draft = plan_assistant_action(
+            action_question,
+            api_key=action_api_key,
+            model=provider["openai_model"],
+        )
+    except Exception:
+        action_draft = None
+
+    if action_draft is not None:
+        if action_draft.source == "OpenAI" and user_id is not None:
+            try:
+                allowed, _ = reserve_ai_request(user_id, daily_limit)
+            except AIUsageStoreError:
+                allowed = False
+            if not allowed:
+                action_draft = plan_assistant_action(action_question)
+
+        action_state = action_draft.to_dict()
+        action_state["original_request"] = action_question
+        st.session_state["razync_ai_pending_action"] = action_state
+        if action_draft.ready:
+            answer = (
+                "Entendi e preparei a ação. Confira o resumo abaixo e confirme uma única vez para salvar. "
+                "Nada foi gravado ainda."
+            )
+        else:
+            missing = ", ".join(action_draft.missing_fields)
+            answer = f"Consigo fazer isso. Só preciso de: {missing}. Envie essa informação na próxima mensagem."
+        return {
+            "answer": answer,
+            "notices": [],
+            "provider": action_draft.source,
+            "model": provider["openai_model"] if action_draft.source == "OpenAI" else "Razync local",
+            "action": action_state,
+        }
+
     prior_conversation = list(_ensure_messages()[-6:])
     local_answer = lambda: _fallback_answer(
         question,
@@ -406,6 +454,46 @@ def _render_resources(bundle: dict | None, *, key_prefix: str, current_page: str
                 st.rerun()
 
 
+def _render_pending_action(*, key_prefix: str) -> None:
+    draft = st.session_state.get("razync_ai_pending_action")
+    if not isinstance(draft, dict):
+        return
+
+    with st.container(border=True):
+        st.markdown("**Ação preparada pela IA**")
+        st.write(str(draft.get("summary") or "Confira os dados antes de continuar."))
+        missing = list(draft.get("missing_fields") or [])
+        if missing:
+            st.warning("Falta informar: " + ", ".join(str(item) for item in missing) + ".")
+            if st.button("Cancelar ação", key=f"{key_prefix}_cancel_incomplete", width="stretch"):
+                st.session_state.pop("razync_ai_pending_action", None)
+                st.rerun()
+            return
+
+        st.caption("O Razync só grava depois da sua confirmação. Pagamentos e emissões oficiais nunca são executados aqui.")
+        confirm, cancel = st.columns(2)
+        if confirm.button("Confirmar e salvar", key=f"{key_prefix}_confirm", type="primary", width="stretch"):
+            user_id = _current_user_id()
+            if user_id is None:
+                st.error("Sua sessão expirou. Entre novamente para salvar.")
+                return
+            try:
+                with st.spinner("Salvando com segurança..."):
+                    message = execute_assistant_action(user_id, draft)
+            except AssistantActionError as exc:
+                st.error(str(exc))
+                return
+            st.session_state.pop("razync_ai_pending_action", None)
+            st.session_state.pop("razync_ai_last_resources", None)
+            _ensure_messages().append({"role": "assistant", "content": message})
+            st.success(message)
+            st.rerun()
+        if cancel.button("Cancelar", key=f"{key_prefix}_cancel", width="stretch"):
+            st.session_state.pop("razync_ai_pending_action", None)
+            _ensure_messages().append({"role": "assistant", "content": "Ação cancelada. Nenhum dado foi alterado."})
+            st.rerun()
+
+
 def _store_turn(question: str, answer: str, resources: dict | None = None) -> None:
     messages = _ensure_messages()
     messages.append({"role": "user", "content": question})
@@ -480,6 +568,7 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
         current_page=page,
         navigate=navigate,
     )
+    _render_pending_action(key_prefix="floating_ai_action")
     st.caption("A IA não executa pagamentos, exclusões ou transmissões fiscais sozinha.")
 
 
@@ -572,6 +661,7 @@ def render_ai_assistant(
             key_prefix="full_ai_idle",
             current_page="Assistente Razync",
         )
+        _render_pending_action(key_prefix="full_ai_idle_action")
         st.caption("O copiloto orienta e prepara recursos, mas ações sensíveis continuam exigindo confirmação nas ferramentas do Razync.")
         return
 
@@ -608,4 +698,5 @@ def render_ai_assistant(
 
     _store_turn(question, result["answer"], resources)
     _render_resources(resources, key_prefix="full_ai", current_page="Assistente Razync")
+    _render_pending_action(key_prefix="full_ai_action")
     st.caption("As respostas usam os registros do Razync. Para obrigações oficiais, confirme no portal competente ou com seu contador.")
