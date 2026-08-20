@@ -104,6 +104,10 @@ def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
         return False, "Não foi possível validar a IA agora. A análise local do Razync continua disponível."
 
 
+# Compatibilidade com testes e chamadas internas anteriores ao suporte a múltiplos provedores.
+_diagnose_ai = _diagnose_openai
+
+
 def render_ai_assistant(
     *,
     profile: dict,
