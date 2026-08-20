@@ -201,8 +201,11 @@ def render_ai_assistant(
         if cols[idx % 3].button(question, key=f"ai_suggestion_{idx}", width="stretch"):
             suggested = question
 
+    pending_question = st.session_state.pop("razync_ai_pending_question", None)
     question = st.chat_input("Pergunte ao Assistente Razync...")
-    question = suggested or question
+    question = suggested or pending_question or question
+    if pending_question:
+        st.caption("Insight do Dashboard enviado ao Assistente para análise detalhada.")
     if not question:
         st.caption("O assistente é consultivo e não executa pagamentos, declarações ou alterações sem sua confirmação nas ferramentas do Razync.")
         return
