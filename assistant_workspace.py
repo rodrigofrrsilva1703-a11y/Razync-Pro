@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Callable
 
 import pandas as pd
@@ -9,7 +10,10 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, Authenti
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
+from assistant_resources import build_product_context, build_resource_bundle
+from fiscal_rules import annual_limit_for
 from gemini_provider import DEFAULT_GEMINI_MODEL, GeminiAIError, ask_razync_gemini, diagnose_gemini
+from product_core import assistant_answer
 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
@@ -17,12 +21,12 @@ DEFAULT_DAILY_REQUEST_LIMIT = 20
 _SAFE_API_META = re.compile(r"^[A-Za-z0-9_.:\-/]{1,96}$")
 
 SUGGESTED_QUESTIONS = [
-    "Quanto ainda posso faturar este ano?",
-    "Como está meu resultado financeiro?",
-    "Quais despesas mais pesam no meu negócio?",
-    "Tenho DAS ou obrigações em atraso?",
-    "Como estão minhas notas fiscais?",
-    "O que devo organizar primeiro?",
+    "Como está meu negócio hoje?",
+    "O que mais está pesando nas despesas?",
+    "O que preciso resolver primeiro?",
+    "Onde cadastro uma nova receita?",
+    "Quais documentos tenho salvos?",
+    "Gere meu relatório financeiro em PDF",
 ]
 
 
@@ -52,7 +56,6 @@ def _current_user_id() -> int | None:
 
 
 def _safe_api_status_metadata(exc: APIStatusError) -> str:
-    """Return only whitelisted provider metadata; never include body/message/payload."""
     labels = (("parâmetro", "param"), ("tipo", "type"), ("código", "code"))
     parts: list[str] = []
     for label, attr in labels:
@@ -66,7 +69,6 @@ def _safe_api_status_metadata(exc: APIStatusError) -> str:
 
 
 def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
-    """Run a tiny OpenAI request and return a safe, user-facing diagnosis."""
     if not api_key.strip():
         return False, "OPENAI_API_KEY não foi encontrada nos Secrets do Streamlit."
 
@@ -107,6 +109,372 @@ def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
 _diagnose_ai = _diagnose_openai
 
 
+def _provider_state() -> dict:
+    gemini_api_key = _secret("GEMINI_API_KEY")
+    gemini_model = _secret("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+    openai_api_key = _secret("OPENAI_API_KEY")
+    openai_model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
+    gemini_enabled = bool(gemini_api_key.strip())
+    openai_enabled = bool(openai_api_key.strip())
+    return {
+        "gemini_api_key": gemini_api_key,
+        "gemini_model": gemini_model,
+        "openai_api_key": openai_api_key,
+        "openai_model": openai_model,
+        "gemini_enabled": gemini_enabled,
+        "openai_enabled": openai_enabled,
+        "ai_enabled": gemini_enabled or openai_enabled,
+        "provider": "Gemini" if gemini_enabled else "OpenAI" if openai_enabled else "Local",
+        "model": gemini_model if gemini_enabled else openai_model if openai_enabled else "Razync local",
+    }
+
+
+def _ensure_messages() -> list[dict]:
+    if "razync_ai_messages" not in st.session_state:
+        st.session_state["razync_ai_messages"] = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Olá! Sou o copiloto do Razync. Posso ajudar a usar o sistema, analisar seu financeiro e fiscal, "
+                    "encontrar documentos, preparar relatórios e indicar a ferramenta certa para cada tarefa."
+                ),
+            }
+        ]
+    return st.session_state["razync_ai_messages"]
+
+
+def _opening_date(profile: dict) -> date | None:
+    value = profile.get("opening_date")
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _session_snapshot(user_id: int) -> tuple[dict, pd.DataFrame, pd.DataFrame, list[dict], list[dict], list[dict], float, int] | None:
+    snapshot = st.session_state.get(f"_mei_snapshot_{user_id}")
+    if not isinstance(snapshot, dict):
+        return None
+    profile = dict(snapshot.get("profile") or {})
+    transactions = pd.DataFrame(snapshot.get("transactions") or [])
+    if transactions.empty:
+        transactions = pd.DataFrame(columns=[
+            "id", "tx_date", "tx_type", "description", "category", "value", "document_number", "counterparty", "payment_method"
+        ])
+    else:
+        transactions["tx_date"] = pd.to_datetime(transactions["tx_date"], errors="coerce")
+    invoices = pd.DataFrame(snapshot.get("invoices") or [])
+    if not invoices.empty and "issue_date" in invoices.columns:
+        invoices["issue_date"] = pd.to_datetime(invoices["issue_date"], errors="coerce")
+    das_rows = list(snapshot.get("das") or [])
+    obligations = list(snapshot.get("obligations") or [])
+    documents = list(snapshot.get("documents") or [])
+    current_year = date.today().year
+    annual_limit = annual_limit_for(_opening_date(profile), current_year, profile.get("annual_limit"))
+    return profile, transactions, invoices, das_rows, obligations, documents, annual_limit, current_year
+
+
+def _fallback_answer(
+    question: str,
+    *,
+    transactions: pd.DataFrame,
+    invoices: pd.DataFrame,
+    das_rows: list[dict],
+    obligations: list[dict],
+    documents: list[dict],
+    annual_limit: float,
+    current_year: int,
+    fallback_answer: Callable[[str], str] | None,
+) -> str:
+    if fallback_answer is not None:
+        return fallback_answer(question)
+    return assistant_answer(
+        question,
+        transactions,
+        invoices,
+        das_rows,
+        annual_limit,
+        current_year,
+        obligations=obligations,
+        documents=documents,
+    )
+
+
+def _answer_question(
+    question: str,
+    *,
+    profile: dict,
+    transactions: pd.DataFrame,
+    invoices: pd.DataFrame,
+    das_rows: list[dict],
+    obligations: list[dict],
+    documents: list[dict],
+    annual_limit: float,
+    current_year: int,
+    current_page: str | None,
+    fallback_answer: Callable[[str], str] | None = None,
+) -> dict:
+    provider = _provider_state()
+    user_id = _current_user_id()
+    daily_limit = _daily_request_limit()
+    quota_ready = bool(user_id)
+    notices: list[tuple[str, str]] = []
+    usage_count = 0
+
+    if quota_ready:
+        try:
+            usage_count = get_ai_usage(user_id)
+        except AIUsageStoreError:
+            quota_ready = False
+
+    prior_conversation = list(_ensure_messages()[-6:])
+    local_answer = lambda: _fallback_answer(
+        question,
+        transactions=transactions,
+        invoices=invoices,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=documents,
+        annual_limit=annual_limit,
+        current_year=current_year,
+        fallback_answer=fallback_answer,
+    )
+
+    if provider["ai_enabled"] and quota_ready and user_id is not None:
+        try:
+            allowed, reserved_count = reserve_ai_request(user_id, daily_limit)
+        except AIUsageStoreError:
+            allowed = False
+            reserved_count = usage_count
+            notices.append(("warning", "O controle diário da IA não respondeu. Usei a análise local do Razync."))
+
+        if allowed:
+            context = build_safe_business_context(
+                profile=profile,
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=obligations,
+                documents=documents,
+                annual_limit=annual_limit,
+                year=current_year,
+            )
+            context["razync_product"] = build_product_context(documents, current_page=current_page)
+            try:
+                if provider["gemini_enabled"]:
+                    answer = ask_razync_gemini(
+                        question,
+                        context=context,
+                        api_key=provider["gemini_api_key"],
+                        model=provider["gemini_model"],
+                        conversation=prior_conversation,
+                    )
+                else:
+                    answer = ask_razync_ai(
+                        question,
+                        context=context,
+                        api_key=provider["openai_api_key"],
+                        model=provider["openai_model"],
+                        conversation=prior_conversation,
+                    )
+            except GeminiAIError as exc:
+                try:
+                    release_ai_request(user_id)
+                except AIUsageStoreError:
+                    pass
+                answer = local_answer()
+                notices.append(("warning", "O Gemini não respondeu. Usei a análise local do Razync."))
+                notices.append(("error", f"Diagnóstico: {exc}"))
+            except RazyncAIError:
+                try:
+                    release_ai_request(user_id)
+                except AIUsageStoreError:
+                    pass
+                answer = local_answer()
+                notices.append(("warning", "A OpenAI não respondeu. Usei a análise local do Razync."))
+            except Exception:
+                try:
+                    release_ai_request(user_id)
+                except AIUsageStoreError:
+                    pass
+                answer = local_answer()
+                notices.append(("warning", "A IA externa não respondeu agora. Usei a análise local do Razync."))
+        else:
+            answer = local_answer()
+            if reserved_count >= daily_limit:
+                notices.append(("warning", f"A quota diária de {daily_limit} respostas externas foi atingida. Usei a análise local."))
+            else:
+                notices.append(("warning", "Não foi possível reservar o uso da IA agora. Usei a análise local."))
+    else:
+        answer = local_answer()
+        if provider["ai_enabled"] and not quota_ready:
+            notices.append(("warning", "O controle de quota está indisponível. Usei a análise local do Razync."))
+
+    return {
+        "answer": answer,
+        "notices": notices,
+        "provider": provider["provider"],
+        "model": provider["model"],
+    }
+
+
+def _prepare_resources(
+    question: str,
+    *,
+    profile: dict,
+    transactions: pd.DataFrame,
+    invoices: pd.DataFrame,
+    das_rows: list[dict],
+    obligations: list[dict],
+    documents: list[dict],
+    current_year: int,
+) -> dict:
+    user_id = _current_user_id()
+    if user_id is None:
+        return {"route": None, "route_label": None, "downloads": [], "note": None}
+    try:
+        return build_resource_bundle(
+            question,
+            user_id=user_id,
+            profile=profile,
+            transactions=transactions,
+            invoices=invoices,
+            das_rows=das_rows,
+            obligations=obligations,
+            documents=documents,
+            year=current_year,
+            access_token=str(st.session_state.get("access_token") or ""),
+            refresh_token=str(st.session_state.get("refresh_token") or ""),
+        )
+    except Exception:
+        return {
+            "route": None,
+            "route_label": None,
+            "downloads": [],
+            "note": "Não consegui preparar os recursos do sistema agora, mas a conversa continua disponível.",
+        }
+
+
+def _render_notices(notices: list[tuple[str, str]]) -> None:
+    for level, text in notices:
+        if level == "error":
+            st.error(text)
+        elif level == "warning":
+            st.warning(text)
+        else:
+            st.info(text)
+
+
+def _render_resources(bundle: dict | None, *, key_prefix: str, current_page: str | None = None, navigate=None) -> None:
+    if not bundle:
+        return
+    note = bundle.get("note")
+    if note:
+        st.info(note)
+    downloads = list(bundle.get("downloads") or [])
+    if downloads:
+        st.caption("Arquivos preparados pelo Razync")
+        for idx, asset in enumerate(downloads):
+            st.download_button(
+                str(asset.get("label") or "Baixar arquivo"),
+                asset.get("data") or b"",
+                file_name=str(asset.get("file_name") or "arquivo"),
+                mime=str(asset.get("mime") or "application/octet-stream"),
+                key=f"{key_prefix}_download_{idx}",
+                width="stretch",
+            )
+    route = bundle.get("route")
+    route_label = bundle.get("route_label")
+    if route and route != current_page:
+        if st.button(str(route_label or f"Abrir {route}"), key=f"{key_prefix}_route", width="stretch"):
+            if navigate is not None:
+                navigate(route)
+            else:
+                st.session_state["_navigate_to"] = route
+                st.rerun()
+
+
+def _store_turn(question: str, answer: str, resources: dict | None = None) -> None:
+    messages = _ensure_messages()
+    messages.append({"role": "user", "content": question})
+    messages.append({"role": "assistant", "content": answer})
+    if len(messages) > 24:
+        st.session_state["razync_ai_messages"] = messages[-24:]
+    st.session_state["razync_ai_last_resources"] = resources or {}
+    st.session_state["razync_ai_last_resource_question"] = question
+
+
+def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
+    try:
+        user_id = int(user.get("id"))
+    except (TypeError, ValueError):
+        return
+    snapshot = _session_snapshot(user_id)
+    if snapshot is None:
+        st.caption("O copiloto ficará disponível após os dados do Razync carregarem.")
+        return
+    profile, transactions, invoices, das_rows, obligations, documents, annual_limit, current_year = snapshot
+    messages = _ensure_messages()
+
+    st.markdown("**Razync Copiloto**")
+    st.caption("Converse sobre cadastro, financeiro, fiscal, documentos, relatórios ou qualquer ferramenta do sistema.")
+
+    with st.container(key="floating_ai_messages"):
+        for message in messages[-6:]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+    with st.form("floating_ai_chat_form", clear_on_submit=True):
+        question = st.text_input(
+            "Mensagem",
+            placeholder="Ex.: Gere meu relatório financeiro ou onde cadastro uma despesa?",
+            label_visibility="collapsed",
+        )
+        sent = st.form_submit_button("Enviar", type="primary", width="stretch")
+
+    if sent and question.strip():
+        question = question.strip()
+        with st.spinner("Pensando..."):
+            result = _answer_question(
+                question,
+                profile=profile,
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=obligations,
+                documents=documents,
+                annual_limit=annual_limit,
+                current_year=current_year,
+                current_page=page,
+            )
+            resources = _prepare_resources(
+                question,
+                profile=profile,
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=obligations,
+                documents=documents,
+                current_year=current_year,
+            )
+        _store_turn(question, result["answer"], resources)
+        _render_notices(result["notices"])
+        with st.chat_message("assistant"):
+            st.markdown(result["answer"])
+
+    _render_resources(
+        st.session_state.get("razync_ai_last_resources"),
+        key_prefix="floating_ai",
+        current_page=page,
+        navigate=navigate,
+    )
+    st.caption("A IA não executa pagamentos, exclusões ou transmissões fiscais sozinha.")
+
+
 def render_ai_assistant(
     *,
     profile: dict,
@@ -119,22 +487,11 @@ def render_ai_assistant(
     current_year: int,
     fallback_answer: Callable[[str], str],
 ) -> None:
-    gemini_api_key = _secret("GEMINI_API_KEY")
-    gemini_model = _secret("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
-    openai_api_key = _secret("OPENAI_API_KEY")
-    openai_model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
-
-    gemini_enabled = bool(gemini_api_key.strip())
-    openai_enabled = bool(openai_api_key.strip())
-    ai_enabled = gemini_enabled or openai_enabled
-    provider = "Gemini" if gemini_enabled else "OpenAI" if openai_enabled else "Local"
-    model = gemini_model if gemini_enabled else openai_model if openai_enabled else "Razync local"
-
+    provider = _provider_state()
     user_id = _current_user_id()
     daily_limit = _daily_request_limit()
     quota_ready = bool(user_id)
     usage_count = 0
-
     if quota_ready:
         try:
             usage_count = get_ai_usage(user_id)
@@ -143,37 +500,34 @@ def render_ai_assistant(
 
     status_left, status_right = st.columns([3, 1])
     with status_left:
-        if ai_enabled and quota_ready:
-            st.success(f"IA Razync configurada — {provider}")
-            st.caption("A IA recebe somente um resumo agregado dos seus dados. CNPJ, CPF, arquivos e credenciais não são enviados.")
-            if gemini_enabled:
-                st.caption("No nível gratuito do Gemini, o provedor pode usar conteúdo para melhorar seus produtos; o Razync envia apenas contexto agregado e sem identificadores diretos.")
-        elif ai_enabled:
+        if provider["ai_enabled"] and quota_ready:
+            st.success(f"Copiloto Razync ativo — {provider['provider']}")
+            st.caption("Entende as ferramentas do sistema e recebe apenas contexto empresarial agregado. Arquivos brutos não são enviados ao provedor de IA.")
+        elif provider["ai_enabled"]:
             st.warning("IA configurada, mas o controle de uso está indisponível")
-            st.caption("Por segurança de custo e quota, o Razync usará a análise local até o controle voltar a responder.")
+            st.caption("Por segurança, o Razync usa a análise local até o controle voltar a responder.")
         else:
             st.info("Modo inteligente local")
-            st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY nos Secrets para ativar uma IA externa. As respostas locais continuam disponíveis.")
+            st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY para ativar a IA externa. As ferramentas locais continuam funcionando.")
     with status_right:
-        st.caption(f"Provedor: {provider}")
-        st.caption(f"Modelo: {model}")
-        if ai_enabled and quota_ready:
+        st.caption(f"Provedor: {provider['provider']}")
+        st.caption(f"Modelo: {provider['model']}")
+        if provider["ai_enabled"] and quota_ready:
             st.caption(f"Uso hoje (UTC): {usage_count}/{daily_limit}")
 
-    with st.expander("Diagnóstico da IA", expanded=not ai_enabled):
-        if gemini_enabled:
-            st.caption("Este teste faz uma chamada mínima ao Gemini e não envia dados do seu MEI. O teste não consome a quota diária interna do Assistente.")
-        elif openai_enabled:
-            st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI. O teste não consome a quota diária interna do Assistente.")
+    with st.expander("Diagnóstico da IA", expanded=not provider["ai_enabled"]):
+        if provider["gemini_enabled"]:
+            st.caption("O teste não envia dados do MEI e não consome a quota interna do Assistente.")
+        elif provider["openai_enabled"]:
+            st.caption("O teste não envia dados do MEI e não consome a quota interna do Assistente.")
         else:
             st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY nos Secrets para testar uma conexão externa.")
-
         if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
             with st.spinner("Testando conexão..."):
-                if gemini_enabled:
-                    ok, diagnosis = diagnose_gemini(gemini_api_key, gemini_model)
-                elif openai_enabled:
-                    ok, diagnosis = _diagnose_openai(openai_api_key, openai_model)
+                if provider["gemini_enabled"]:
+                    ok, diagnosis = diagnose_gemini(provider["gemini_api_key"], provider["gemini_model"])
+                elif provider["openai_enabled"]:
+                    ok, diagnosis = _diagnose_openai(provider["openai_api_key"], provider["openai_model"])
                 else:
                     ok, diagnosis = False, "Nenhuma API externa foi configurada."
             if ok:
@@ -181,116 +535,61 @@ def render_ai_assistant(
             else:
                 st.error(diagnosis)
 
-    if "razync_ai_messages" not in st.session_state:
-        st.session_state["razync_ai_messages"] = [
-            {
-                "role": "assistant",
-                "content": "Olá! Sou o Assistente Razync. Posso analisar os dados que já estão no seu sistema e explicar sua situação financeira e fiscal em linguagem simples.",
-            }
-        ]
-
-    for message in st.session_state["razync_ai_messages"][-10:]:
+    messages = _ensure_messages()
+    for message in messages[-12:]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    st.caption("Sugestões")
+    st.caption("Você pode perguntar livremente. O copiloto entende tanto os números quanto as ferramentas do Razync.")
     cols = st.columns(3)
     suggested = None
-    for idx, question in enumerate(SUGGESTED_QUESTIONS):
-        if cols[idx % 3].button(question, key=f"ai_suggestion_{idx}", width="stretch"):
-            suggested = question
+    for idx, question_text in enumerate(SUGGESTED_QUESTIONS):
+        if cols[idx % 3].button(question_text, key=f"ai_suggestion_{idx}", width="stretch"):
+            suggested = question_text
 
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
-    question = st.chat_input("Pergunte ao Assistente Razync...")
-    question = suggested or pending_question or question
-    if pending_question:
-        st.caption("Insight do Dashboard enviado ao Assistente para análise detalhada.")
+    typed_question = st.chat_input("Pergunte qualquer coisa sobre seu negócio ou sobre o Razync...")
+    question = suggested or pending_question or typed_question
     if not question:
-        st.caption("O assistente é consultivo e não executa pagamentos, declarações ou alterações sem sua confirmação nas ferramentas do Razync.")
+        _render_resources(
+            st.session_state.get("razync_ai_last_resources"),
+            key_prefix="full_ai_idle",
+            current_page="Assistente Razync",
+        )
+        st.caption("O copiloto orienta e prepara recursos, mas ações sensíveis continuam exigindo confirmação nas ferramentas do Razync.")
         return
 
-    prior_conversation = list(st.session_state["razync_ai_messages"][-6:])
-    st.session_state["razync_ai_messages"].append({"role": "user", "content": question})
+    question = question.strip()
     with st.chat_message("user"):
         st.markdown(question)
-
     with st.chat_message("assistant"):
-        if ai_enabled and quota_ready and user_id is not None:
-            try:
-                allowed, reserved_count = reserve_ai_request(user_id, daily_limit)
-            except AIUsageStoreError:
-                allowed = False
-                reserved_count = usage_count
-                st.warning("O controle diário da IA não respondeu agora. Usei a análise local para evitar uso externo sem controle.")
+        with st.spinner(f"Analisando com {provider['provider']}..."):
+            result = _answer_question(
+                question,
+                profile=profile,
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=obligations,
+                documents=documents,
+                annual_limit=annual_limit,
+                current_year=current_year,
+                current_page="Assistente Razync",
+                fallback_answer=fallback_answer,
+            )
+            resources = _prepare_resources(
+                question,
+                profile=profile,
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=obligations,
+                documents=documents,
+                current_year=current_year,
+            )
+        _render_notices(result["notices"])
+        st.markdown(result["answer"])
 
-            if allowed:
-                context = build_safe_business_context(
-                    profile=profile,
-                    transactions=transactions,
-                    invoices=invoices,
-                    das_rows=das_rows,
-                    obligations=obligations,
-                    documents=documents,
-                    annual_limit=annual_limit,
-                    year=current_year,
-                )
-                try:
-                    with st.spinner(f"Analisando seus dados com {provider}..."):
-                        if gemini_enabled:
-                            answer = ask_razync_gemini(
-                                question,
-                                context=context,
-                                api_key=gemini_api_key,
-                                model=gemini_model,
-                                conversation=prior_conversation,
-                            )
-                        else:
-                            answer = ask_razync_ai(
-                                question,
-                                context=context,
-                                api_key=openai_api_key,
-                                model=openai_model,
-                                conversation=prior_conversation,
-                            )
-                except GeminiAIError as exc:
-                    try:
-                        release_ai_request(user_id)
-                    except AIUsageStoreError:
-                        pass
-                    answer = fallback_answer(question)
-                    st.warning("O Gemini não respondeu. Usei a análise local do Razync para não interromper seu atendimento.")
-                    st.error(f"Diagnóstico: {exc}")
-                except RazyncAIError:
-                    try:
-                        release_ai_request(user_id)
-                    except AIUsageStoreError:
-                        pass
-                    answer = fallback_answer(question)
-                    _, diagnosis = _diagnose_openai(openai_api_key, openai_model)
-                    st.warning("A OpenAI não respondeu. Usei a análise local do Razync para não interromper seu atendimento.")
-                    st.error(f"Diagnóstico: {diagnosis}")
-                except Exception:
-                    try:
-                        release_ai_request(user_id)
-                    except AIUsageStoreError:
-                        pass
-                    answer = fallback_answer(question)
-                    st.warning("A IA externa não respondeu agora. Usei a análise local do Razync.")
-            else:
-                answer = fallback_answer(question)
-                if reserved_count >= daily_limit:
-                    st.warning(f"A quota diária de {daily_limit} respostas de IA foi atingida. O limite reinicia às 00:00 UTC; usei a análise local do Razync.")
-                else:
-                    st.warning("Não foi possível reservar o uso da IA agora. Usei a análise local do Razync.")
-        elif ai_enabled:
-            answer = fallback_answer(question)
-            st.warning("O controle de quota da IA está indisponível. Usei a análise local do Razync para evitar uso externo sem controle.")
-        else:
-            answer = fallback_answer(question)
-        st.markdown(answer)
-
-    st.session_state["razync_ai_messages"].append({"role": "assistant", "content": answer})
-    if len(st.session_state["razync_ai_messages"]) > 20:
-        st.session_state["razync_ai_messages"] = st.session_state["razync_ai_messages"][-20:]
-
-    st.caption("As respostas usam os registros do Razync e podem conter interpretações. Para obrigações oficiais, confirme no portal competente ou com seu contador.")
+    _store_turn(question, result["answer"], resources)
+    _render_resources(resources, key_prefix="full_ai", current_page="Assistente Razync")
+    st.caption("As respostas usam os registros do Razync. Para obrigações oficiais, confirme no portal competente ou com seu contador.")
