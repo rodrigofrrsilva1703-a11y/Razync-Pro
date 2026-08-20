@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from typing import Iterable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from ai_assistant import INSTRUCTIONS, RazyncAIError
+from ai_assistant import INSTRUCTIONS, RazyncAIError, build_ai_prompt
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
@@ -30,7 +31,7 @@ def _request_gemini(*, api_key: str, model: str, prompt: str, max_output_tokens:
         "generationConfig": {
             "candidateCount": 1,
             "maxOutputTokens": int(max_output_tokens),
-            "temperature": 0.2,
+            "temperature": 0.25,
         },
     }
     request = Request(
@@ -98,19 +99,15 @@ def ask_razync_gemini(
     context: dict,
     api_key: str,
     model: str = DEFAULT_GEMINI_MODEL,
+    conversation: Iterable[dict] | None = None,
 ) -> str:
     if not question or not question.strip():
         raise ValueError("A pergunta não pode ficar vazia.")
 
-    prompt = (
-        "Pergunta do usuário:\n"
-        + question.strip()
-        + "\n\nContexto agregado e autorizado do Razync (JSON):\n"
-        + json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-    )
+    prompt = build_ai_prompt(question, context=context, conversation=conversation)
     return _request_gemini(
         api_key=api_key,
         model=model,
         prompt=prompt,
-        max_output_tokens=700,
+        max_output_tokens=1100,
     )
