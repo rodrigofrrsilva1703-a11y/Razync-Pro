@@ -32,6 +32,36 @@ class AssistantActionPlanningTests(unittest.TestCase):
         self.assertEqual(draft.payload["tx_date"], "2026-08-19")
         self.assertEqual(draft.payload["category"], "Serviços")
 
+    def test_understands_colloquial_expense_command(self):
+        draft = plan_assistant_action(
+            "Coloca uma despesa de 42 reais com almoço hoje",
+            today=date(2026, 8, 20),
+        )
+        self.assertIsNotNone(draft)
+        self.assertTrue(draft.ready)
+        self.assertEqual(draft.payload["tx_type"], "Despesa")
+        self.assertEqual(draft.payload["value"], 42.0)
+        self.assertEqual(draft.payload["description"], "almoço")
+
+    def test_understands_create_revenue_command(self):
+        draft = plan_assistant_action(
+            "Cria um lançamento de receita de R$ 250 por serviço no pix",
+            today=date(2026, 8, 20),
+        )
+        self.assertIsNotNone(draft)
+        self.assertTrue(draft.ready)
+        self.assertEqual(draft.payload["tx_type"], "Receita")
+        self.assertEqual(draft.payload["payment_method"], "PIX")
+
+    def test_understands_short_invoice_name(self):
+        draft = plan_assistant_action(
+            "Cadastra a NF-e 88 no valor de R$ 300 referente a instalação",
+            today=date(2026, 8, 20),
+        )
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.action_type, "invoice")
+        self.assertTrue(draft.ready)
+
     def test_plans_invoice_without_confusing_number_with_amount(self):
         draft = plan_assistant_action(
             "Cadastre a nota 123 do cliente Ana no valor de R$ 1.500,00 referente a consultoria",
@@ -70,3 +100,4 @@ class AssistantActionPlanningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
