@@ -5,11 +5,12 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
+from assistant_workspace import render_floating_ai_assistant
 from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
 from onboarding_tools import onboarding_progress
 
 
-def _render_floating_assistant(page: str, navigate) -> None:
+def _render_floating_assistant(page: str, user: dict, navigate) -> None:
     if page == "Assistente Razync":
         return
 
@@ -22,33 +23,46 @@ def _render_floating_assistant(page: str, navigate) -> None:
             bottom: 1.25rem;
             z-index: 100000;
             width: auto !important;
-            max-width: min(360px, calc(100vw - 2rem));
+            max-width: min(430px, calc(100vw - 2rem));
         }
         .st-key-floating_ai_shortcut > div {
             width: auto !important;
         }
         .st-key-floating_ai_shortcut [data-testid="stPopover"] > button {
-            min-height: 3rem;
-            padding: .68rem 1rem;
-            border: 1px solid color-mix(in srgb, var(--rz-primary) 38%, var(--rz-border)) !important;
+            min-height: 3.15rem;
+            padding: .72rem 1.08rem;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 42%, var(--rz-border)) !important;
             border-radius: 999px !important;
             color: white !important;
             background: linear-gradient(135deg, var(--rz-primary), #2563eb) !important;
-            box-shadow: 0 12px 30px rgba(2, 132, 199, .28) !important;
-            font-weight: 700 !important;
+            box-shadow: 0 14px 34px rgba(2, 132, 199, .30) !important;
+            font-weight: 750 !important;
         }
         .st-key-floating_ai_shortcut [data-testid="stPopover"] > button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 15px 34px rgba(2, 132, 199, .34) !important;
+            box-shadow: 0 17px 38px rgba(2, 132, 199, .36) !important;
+        }
+        .st-key-floating_ai_messages {
+            max-height: 310px;
+            overflow-y: auto;
+            padding-right: .2rem;
+        }
+        .st-key-floating_ai_messages [data-testid="stChatMessage"] {
+            padding-top: .35rem;
+            padding-bottom: .35rem;
         }
         @media (max-width: 700px) {
             .st-key-floating_ai_shortcut {
                 right: .8rem;
                 bottom: .8rem;
+                max-width: calc(100vw - 1.6rem);
             }
             .st-key-floating_ai_shortcut [data-testid="stPopover"] > button {
-                min-height: 2.72rem;
-                padding: .55rem .8rem;
+                min-height: 2.82rem;
+                padding: .58rem .84rem;
+            }
+            .st-key-floating_ai_messages {
+                max-height: 250px;
             }
         }
         </style>
@@ -57,22 +71,10 @@ def _render_floating_assistant(page: str, navigate) -> None:
     )
 
     with st.container(key="floating_ai_shortcut"):
-        with st.popover("✨ Falar com a IA"):
-            st.markdown("**Assistente Razync**")
-            st.caption("Pergunte sobre financeiro, DAS, notas, prazos ou o que organizar primeiro.")
-            quick_question = st.text_input(
-                "Sua pergunta",
-                key="floating_ai_question",
-                placeholder="Ex.: Como está meu resultado este mês?",
-                label_visibility="collapsed",
-            )
-            if st.button("Perguntar", key="floating_ai_send", type="primary", width="stretch"):
-                if quick_question.strip():
-                    st.session_state["razync_ai_pending_question"] = quick_question.strip()
-                    navigate("Assistente Razync")
-                else:
-                    st.warning("Digite uma pergunta para continuar.")
-            if st.button("Abrir Assistente", key="floating_ai_open", width="stretch"):
+        with st.popover("✨ Falar com o Razync"):
+            render_floating_ai_assistant(user=user, page=page, navigate=navigate)
+            st.divider()
+            if st.button("Abrir conversa completa", key="floating_ai_open_full", width="stretch"):
                 navigate("Assistente Razync")
 
 
@@ -166,4 +168,4 @@ def render_sidebar(
             if st.button("Sair", key="sidebar_logout", width="stretch"):
                 logout()
 
-    _render_floating_assistant(page, navigate)
+    _render_floating_assistant(page, user, navigate)
