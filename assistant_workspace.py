@@ -75,7 +75,6 @@ def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
             model=model.strip() or DEFAULT_UI_MODEL,
             input="Responda somente com OK.",
             store=False,
-            max_output_tokens=8,
         )
         if not (response.output_text or "").strip():
             return False, "A OpenAI respondeu, mas não retornou texto. Tente novamente."
