@@ -9,6 +9,7 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, Authenti
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
+from gemini_provider import DEFAULT_GEMINI_MODEL, GeminiAIError, ask_razync_gemini, diagnose_gemini
 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
@@ -64,8 +65,8 @@ def _safe_api_status_metadata(exc: APIStatusError) -> str:
     return " · ".join(parts)
 
 
-def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
-    """Run a tiny provider request and return a safe, user-facing diagnosis."""
+def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
+    """Run a tiny OpenAI request and return a safe, user-facing diagnosis."""
     if not api_key.strip():
         return False, "OPENAI_API_KEY não foi encontrada nos Secrets do Streamlit."
 
@@ -115,9 +116,17 @@ def render_ai_assistant(
     current_year: int,
     fallback_answer: Callable[[str], str],
 ) -> None:
-    api_key = _secret("OPENAI_API_KEY")
-    model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
-    ai_enabled = bool(api_key.strip())
+    gemini_api_key = _secret("GEMINI_API_KEY")
+    gemini_model = _secret("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+    openai_api_key = _secret("OPENAI_API_KEY")
+    openai_model = _secret("OPENAI_MODEL") or DEFAULT_UI_MODEL
+
+    gemini_enabled = bool(gemini_api_key.strip())
+    openai_enabled = bool(openai_api_key.strip())
+    ai_enabled = gemini_enabled or openai_enabled
+    provider = "Gemini" if gemini_enabled else "OpenAI" if openai_enabled else "Local"
+    model = gemini_model if gemini_enabled else openai_model if openai_enabled else "Razync local"
+
     user_id = _current_user_id()
     daily_limit = _daily_request_limit()
     quota_ready = bool(user_id)
@@ -132,24 +141,38 @@ def render_ai_assistant(
     status_left, status_right = st.columns([3, 1])
     with status_left:
         if ai_enabled and quota_ready:
-            st.success("IA Razync configurada")
+            st.success(f"IA Razync configurada — {provider}")
             st.caption("A IA recebe somente um resumo agregado dos seus dados. CNPJ, CPF, arquivos e credenciais não são enviados.")
+            if gemini_enabled:
+                st.caption("No nível gratuito do Gemini, o provedor pode usar conteúdo para melhorar seus produtos; o Razync envia apenas contexto agregado e sem identificadores diretos.")
         elif ai_enabled:
             st.warning("IA configurada, mas o controle de uso está indisponível")
-            st.caption("Por segurança de custo, o Razync usará a análise local até o controle de quota voltar a responder.")
+            st.caption("Por segurança de custo e quota, o Razync usará a análise local até o controle voltar a responder.")
         else:
             st.info("Modo inteligente local")
-            st.caption("OPENAI_API_KEY ainda não foi encontrada nos Secrets. As respostas locais continuam disponíveis.")
+            st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY nos Secrets para ativar uma IA externa. As respostas locais continuam disponíveis.")
     with status_right:
+        st.caption(f"Provedor: {provider}")
         st.caption(f"Modelo: {model}")
         if ai_enabled and quota_ready:
             st.caption(f"Uso hoje (UTC): {usage_count}/{daily_limit}")
 
     with st.expander("Diagnóstico da IA", expanded=not ai_enabled):
-        st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI. O teste não consome a quota diária do Assistente.")
+        if gemini_enabled:
+            st.caption("Este teste faz uma chamada mínima ao Gemini e não envia dados do seu MEI. O teste não consome a quota diária interna do Assistente.")
+        elif openai_enabled:
+            st.caption("Este teste faz uma chamada mínima à OpenAI e não envia dados do seu MEI. O teste não consome a quota diária interna do Assistente.")
+        else:
+            st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY nos Secrets para testar uma conexão externa.")
+
         if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
             with st.spinner("Testando conexão..."):
-                ok, diagnosis = _diagnose_ai(api_key, model)
+                if gemini_enabled:
+                    ok, diagnosis = diagnose_gemini(gemini_api_key, gemini_model)
+                elif openai_enabled:
+                    ok, diagnosis = _diagnose_openai(openai_api_key, openai_model)
+                else:
+                    ok, diagnosis = False, "Nenhuma API externa foi configurada."
             if ok:
                 st.success(diagnosis)
             else:
@@ -191,7 +214,7 @@ def render_ai_assistant(
             except AIUsageStoreError:
                 allowed = False
                 reserved_count = usage_count
-                st.warning("O controle diário da IA não respondeu agora. Usei a análise local para evitar cobranças sem controle.")
+                st.warning("O controle diário da IA não respondeu agora. Usei a análise local para evitar uso externo sem controle.")
 
             if allowed:
                 context = build_safe_business_context(
@@ -205,16 +228,37 @@ def render_ai_assistant(
                     year=current_year,
                 )
                 try:
-                    with st.spinner("Analisando seus dados..."):
-                        answer = ask_razync_ai(question, context=context, api_key=api_key, model=model)
+                    with st.spinner(f"Analisando seus dados com {provider}..."):
+                        if gemini_enabled:
+                            answer = ask_razync_gemini(
+                                question,
+                                context=context,
+                                api_key=gemini_api_key,
+                                model=gemini_model,
+                            )
+                        else:
+                            answer = ask_razync_ai(
+                                question,
+                                context=context,
+                                api_key=openai_api_key,
+                                model=openai_model,
+                            )
+                except GeminiAIError as exc:
+                    try:
+                        release_ai_request(user_id)
+                    except AIUsageStoreError:
+                        pass
+                    answer = fallback_answer(question)
+                    st.warning("O Gemini não respondeu. Usei a análise local do Razync para não interromper seu atendimento.")
+                    st.error(f"Diagnóstico: {exc}")
                 except RazyncAIError:
                     try:
                         release_ai_request(user_id)
                     except AIUsageStoreError:
                         pass
                     answer = fallback_answer(question)
-                    _, diagnosis = _diagnose_ai(api_key, model)
-                    st.warning("A IA externa não respondeu. Usei a análise local do Razync para não interromper seu atendimento.")
+                    _, diagnosis = _diagnose_openai(openai_api_key, openai_model)
+                    st.warning("A OpenAI não respondeu. Usei a análise local do Razync para não interromper seu atendimento.")
                     st.error(f"Diagnóstico: {diagnosis}")
                 except Exception:
                     try:
@@ -231,7 +275,7 @@ def render_ai_assistant(
                     st.warning("Não foi possível reservar o uso da IA agora. Usei a análise local do Razync.")
         elif ai_enabled:
             answer = fallback_answer(question)
-            st.warning("O controle de quota da IA está indisponível. Usei a análise local do Razync para evitar novas cobranças.")
+            st.warning("O controle de quota da IA está indisponível. Usei a análise local do Razync para evitar uso externo sem controle.")
         else:
             answer = fallback_answer(question)
         st.markdown(answer)
