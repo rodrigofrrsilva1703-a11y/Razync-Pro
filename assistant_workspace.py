@@ -104,7 +104,6 @@ def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
         return False, "Não foi possível validar a IA agora. A análise local do Razync continua disponível."
 
 
-# Compatibilidade com testes e chamadas internas anteriores ao suporte a múltiplos provedores.
 _diagnose_ai = _diagnose_openai
 
 
@@ -210,6 +209,7 @@ def render_ai_assistant(
         st.caption("O assistente é consultivo e não executa pagamentos, declarações ou alterações sem sua confirmação nas ferramentas do Razync.")
         return
 
+    prior_conversation = list(st.session_state["razync_ai_messages"][-6:])
     st.session_state["razync_ai_messages"].append({"role": "user", "content": question})
     with st.chat_message("user"):
         st.markdown(question)
@@ -242,6 +242,7 @@ def render_ai_assistant(
                                 context=context,
                                 api_key=gemini_api_key,
                                 model=gemini_model,
+                                conversation=prior_conversation,
                             )
                         else:
                             answer = ask_razync_ai(
@@ -249,6 +250,7 @@ def render_ai_assistant(
                                 context=context,
                                 api_key=openai_api_key,
                                 model=openai_model,
+                                conversation=prior_conversation,
                             )
                 except GeminiAIError as exc:
                     try:
