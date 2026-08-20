@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Callable
 
 import pandas as pd
@@ -12,6 +13,7 @@ from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
 DEFAULT_DAILY_REQUEST_LIMIT = 20
+_SAFE_API_META = re.compile(r"^[A-Za-z0-9_.:\-/]{1,96}$")
 
 SUGGESTED_QUESTIONS = [
     "Quanto ainda posso faturar este ano?",
@@ -48,6 +50,20 @@ def _current_user_id() -> int | None:
         return None
 
 
+def _safe_api_status_metadata(exc: APIStatusError) -> str:
+    """Return only whitelisted provider metadata; never include body/message/payload."""
+    labels = (("parâmetro", "param"), ("tipo", "type"), ("código", "code"))
+    parts: list[str] = []
+    for label, attr in labels:
+        raw = getattr(exc, attr, None)
+        if raw is None:
+            continue
+        value = str(raw).strip()
+        if value and _SAFE_API_META.fullmatch(value):
+            parts.append(f"{label}: {value}")
+    return " · ".join(parts)
+
+
 def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
     """Run a tiny provider request and return a safe, user-facing diagnosis."""
     if not api_key.strip():
@@ -79,7 +95,10 @@ def _diagnose_ai(api_key: str, model: str) -> tuple[bool, str]:
         if status == 404:
             return False, f"O modelo {model} não está disponível para esta chave. Use OPENAI_MODEL = \"{DEFAULT_UI_MODEL}\"."
         if status == 400:
-            return False, "A OpenAI rejeitou a configuração da chamada. Revise OPENAI_MODEL nos Secrets."
+            details = _safe_api_status_metadata(exc)
+            if details:
+                return False, f"A OpenAI rejeitou um parâmetro da chamada ({details})."
+            return False, "A OpenAI rejeitou a configuração da chamada, mas não informou um parâmetro seguro para exibir."
         return False, f"A OpenAI respondeu com erro HTTP {status or 'desconhecido'}. Revise a configuração da API."
     except Exception:
         return False, "Não foi possível validar a IA agora. A análise local do Razync continua disponível."
