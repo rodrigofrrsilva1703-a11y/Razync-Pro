@@ -97,7 +97,7 @@ def suggest_route(question: str) -> tuple[str | None, str | None]:
         (("fluxo de caixa", "saldo acumulado"), "Fluxo de Caixa"),
         (("análise financeira", "analise financeira", "margem", "despesas por categoria"), "Análise Financeira"),
         (("recorrência", "recorrencia", "recorrente"), "Recorrências"),
-        (("movimentação", "movimentacao", "lançamento", "lancamento", "registrar receita", "registrar despesa"), "Movimentações"),
+        (("movimentação", "movimentacao", "lançamento", "lancamento", "registrar receita", "registrar despesa", "cadastrar receita", "cadastrar despesa", "cadastro uma nova receita", "cadastro uma nova despesa", "nova receita", "nova despesa"), "Movimentações"),
         (("financeiro", "resultado financeiro"), "Financeiro"),
         (("importar nfs", "importar nota"), "Importar NFS-e"),
         (("nota fiscal", "nfse", "nfs-e"), "Notas Fiscais"),
