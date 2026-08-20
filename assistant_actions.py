@@ -17,9 +17,13 @@ TRANSACTION_CATEGORIES = (
 PAYMENT_METHODS = ("PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro")
 INVOICE_TYPES = ("Serviço", "Venda/Comércio")
 _ACTION_VERBS = (
-    "adicione", "adicionar", "anote", "anotar", "cadastre", "cadastrar",
-    "inclua", "incluir", "lance", "lançar", "registre", "registrar",
-    "gastei", "paguei", "comprei", "recebi", "vendi",
+    "adicione", "adiciona", "adicionar", "anote", "anota", "anotar",
+    "cadastre", "cadastra", "cadastrar", "coloque", "coloca", "colocar",
+    "crie", "cria", "criar", "faça", "faca", "faz", "inclua", "inclui",
+    "incluir", "insira", "insere", "inserir", "lance", "lança", "lanca",
+    "lançar", "lancar", "registre", "registra", "registrar", "salve",
+    "salva", "salvar", "gastei", "paguei", "comprei", "recebi", "vendi",
+    "entrou", "saiu",
 )
 _GUIDANCE_PREFIXES = ("como ", "onde ", "posso ", "quero saber", "me explique", "qual ")
 
@@ -63,9 +67,13 @@ def _intent(question: str) -> str | None:
     if not _looks_operational(question):
         return None
     text = _plain(question)
-    if re.search(r"\b(nota fiscal|nfse|nfs-e|nota\s+(?:n[ºo.]?\s*)?\w+)", text):
+    if re.search(r"\b(nota fiscal|nfse|nfs-e|nf-e|nota\s+(?:n[ºo.]?\s*)?\w+)", text):
         return "invoice"
-    if any(term in text for term in ("receita", "despesa", "gastei", "paguei", "comprei", "recebi", "vendi", "entrada", "saida")):
+    if any(term in text for term in (
+        "receita", "despesa", "gastei", "paguei", "comprei", "recebi",
+        "vendi", "entrada", "saida", "lançamento", "lancamento",
+        "movimentação", "movimentacao", "entrou", "saiu",
+    )):
         return "transaction"
     return None
 
@@ -113,9 +121,9 @@ def _parse_date(value: str, today: date) -> date:
 
 def _transaction_type(text: str) -> str:
     plain = _plain(text)
-    if any(term in plain for term in ("despesa", "gastei", "paguei", "comprei", "saida")):
+    if any(term in plain for term in ("despesa", "gastei", "paguei", "comprei", "saida", "saiu")):
         return "Despesa"
-    if any(term in plain for term in ("receita", "recebi", "vendi", "entrada")):
+    if any(term in plain for term in ("receita", "recebi", "vendi", "entrada", "entrou")):
         return "Receita"
     return ""
 
@@ -154,8 +162,10 @@ def _payment_method(text: str) -> str:
 
 
 def _extract_description(question: str, *, fallback: str) -> str:
-    match = re.search(r"(?:referente\s+(?:a|ao)|por|de)\s+(.+)", question, flags=re.I)
+    match = re.search(r"(?:referente\s+(?:a|ao)|com|por)\s+(.+)", question, flags=re.I)
     description = (match.group(1) if match else fallback).strip(" .,-")
+    description = re.sub(r"^r\$?\s*\d+(?:\.\d{3})*(?:,\d{1,2})?\s*", "", description, flags=re.I)
+    description = re.sub(r"\b(?:no\s+valor\s+de|valor\s+de)\s+r?\$?\s*\d+(?:\.\d{3})*(?:,\d{1,2})?\b", "", description, flags=re.I)
     description = re.sub(r"\b(?:hoje|ontem)\b", "", description, flags=re.I)
     description = re.sub(r"\b(?:no|via|pelo)\s+(?:pix|cart[aã]o|boleto|dinheiro|transfer[eê]ncia)\b", "", description, flags=re.I)
     description = re.sub(r"\s+", " ", description).strip(" .,-")
@@ -389,3 +399,4 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any]) -> str:
         raise
     except Exception as exc:
         raise AssistantActionError("Não foi possível salvar a ação agora.") from exc
+
