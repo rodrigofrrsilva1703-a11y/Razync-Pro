@@ -9,11 +9,15 @@ import streamlit as st
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, OpenAI, RateLimitError
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
-from assistant_actions import AssistantActionError, execute_assistant_action, plan_assistant_action
+from assistant_actions import (
+    AssistantActionError, execute_assistant_action, plan_assistant_action,
+    plan_document_action, revise_action_draft, undo_assistant_action,
+)
 from ai_provider_router import ProviderChainError, run_provider_chain
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
 from assistant_resources import build_product_context, build_resource_bundle
 from fiscal_rules import annual_limit_for
+from document_intelligence import analyze_document
 from gemini_provider import DEFAULT_GEMINI_MODEL, GeminiAIError, ask_razync_gemini, diagnose_gemini
 from product_core import assistant_answer
 
@@ -29,6 +33,9 @@ SUGGESTED_QUESTIONS = [
     "Cadastrar uma nota",
     "Ver minhas prioridades",
     "Gerar relatório financeiro",
+    "Criar uma despesa mensal",
+    "Criar um lembrete",
+    "Cadastrar um cliente",
 ]
 
 
@@ -581,24 +588,76 @@ def _render_pending_action(*, key_prefix: str) -> None:
         missing = list(draft.get("missing_fields") or [])
         if missing:
             st.warning("Falta informar: " + ", ".join(str(item) for item in missing) + ".")
-            if st.button("Cancelar ação", key=f"{key_prefix}_cancel_incomplete", width="stretch"):
-                st.session_state.pop("razync_ai_pending_action", None)
-                st.rerun()
-            return
+
+        action_type = str(draft.get("action_type") or "")
+        payload = dict(draft.get("payload") or {})
+        with st.expander("Revisar ou corrigir dados", expanded=bool(missing)):
+            with st.form(f"{key_prefix}_edit_form"):
+                updates: dict = {}
+                if action_type in {"transaction", "recurring_transaction"}:
+                    updates["tx_type"] = st.selectbox(
+                        "Tipo", ["Receita", "Despesa"],
+                        index=0 if payload.get("tx_type") == "Receita" else 1,
+                        key=f"{key_prefix}_tx_type",
+                    )
+                    updates["description"] = st.text_input("Descrição", value=str(payload.get("description") or ""), key=f"{key_prefix}_description")
+                    updates["value"] = st.number_input("Valor", min_value=0.0, value=float(payload.get("value") or 0), step=10.0, key=f"{key_prefix}_value")
+                    updates["category"] = st.text_input("Categoria", value=str(payload.get("category") or "Outros"), key=f"{key_prefix}_category")
+                    updates["payment_method"] = st.selectbox(
+                        "Pagamento", ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"],
+                        index=["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"].index(payload.get("payment_method")) if payload.get("payment_method") in ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"] else 5,
+                        key=f"{key_prefix}_payment",
+                    )
+                    date_key = "tx_date" if action_type == "transaction" else "next_date"
+                    updates[date_key] = st.text_input("Data (AAAA-MM-DD)", value=str(payload.get(date_key) or ""), key=f"{key_prefix}_date")
+                    if action_type == "recurring_transaction":
+                        frequencies = ["Semanal", "Mensal", "Anual"]
+                        updates["frequency"] = st.selectbox("Frequência", frequencies, index=frequencies.index(payload.get("frequency")) if payload.get("frequency") in frequencies else 1, key=f"{key_prefix}_frequency")
+                elif action_type == "invoice":
+                    updates["number"] = st.text_input("Número da nota", value=str(payload.get("number") or ""), key=f"{key_prefix}_number")
+                    updates["customer"] = st.text_input("Cliente", value=str(payload.get("customer") or ""), key=f"{key_prefix}_customer")
+                    updates["description"] = st.text_input("Descrição", value=str(payload.get("description") or ""), key=f"{key_prefix}_description")
+                    updates["amount"] = st.number_input("Valor", min_value=0.0, value=float(payload.get("amount") or 0), step=10.0, key=f"{key_prefix}_amount")
+                    updates["issue_date"] = st.text_input("Data (AAAA-MM-DD)", value=str(payload.get("issue_date") or ""), key=f"{key_prefix}_date")
+                elif action_type == "obligation":
+                    updates["title"] = st.text_input("Lembrete", value=str(payload.get("title") or ""), key=f"{key_prefix}_title")
+                    updates["due_date"] = st.text_input("Vencimento (AAAA-MM-DD)", value=str(payload.get("due_date") or ""), key=f"{key_prefix}_date")
+                    updates["category"] = st.text_input("Categoria", value=str(payload.get("category") or "Administrativo"), key=f"{key_prefix}_category")
+                    updates["notes"] = st.text_area("Observações", value=str(payload.get("notes") or ""), key=f"{key_prefix}_notes")
+                elif action_type == "contact":
+                    contact_types = ["Cliente", "Fornecedor", "Contato"]
+                    updates["contact_type"] = st.selectbox("Tipo", contact_types, index=contact_types.index(payload.get("contact_type")) if payload.get("contact_type") in contact_types else 2, key=f"{key_prefix}_contact_type")
+                    updates["name"] = st.text_input("Nome", value=str(payload.get("name") or ""), key=f"{key_prefix}_name")
+                    updates["document"] = st.text_input("CPF ou CNPJ", value=str(payload.get("document") or ""), key=f"{key_prefix}_document")
+                    updates["email"] = st.text_input("E-mail", value=str(payload.get("email") or ""), key=f"{key_prefix}_email")
+                    updates["phone"] = st.text_input("Telefone", value=str(payload.get("phone") or ""), key=f"{key_prefix}_phone")
+                reviewed = st.form_submit_button("Atualizar prévia", width="stretch")
+            if reviewed:
+                try:
+                    revised = revise_action_draft(draft, updates)
+                except AssistantActionError as exc:
+                    st.error(str(exc))
+                else:
+                    revised_state = revised.to_dict()
+                    revised_state["original_request"] = draft.get("original_request", "")
+                    st.session_state["razync_ai_pending_action"] = revised_state
+                    st.rerun()
 
         st.caption("O Razync só grava depois da sua confirmação. Pagamentos e emissões oficiais nunca são executados aqui.")
         confirm, cancel = st.columns(2)
-        if confirm.button("Confirmar e salvar", key=f"{key_prefix}_confirm", type="primary", width="stretch"):
+        if confirm.button("Confirmar e salvar", key=f"{key_prefix}_confirm", type="primary", width="stretch", disabled=bool(missing)):
             user_id = _current_user_id()
             if user_id is None:
                 st.error("Sua sessão expirou. Entre novamente para salvar.")
                 return
             try:
                 with st.spinner("Salvando com segurança..."):
-                    message = execute_assistant_action(user_id, draft)
+                    receipt = execute_assistant_action(user_id, draft, return_receipt=True)
             except AssistantActionError as exc:
                 st.error(str(exc))
                 return
+            message = str(receipt.get("message") or "Ação concluída.")
+            st.session_state["razync_ai_last_receipt"] = receipt
             st.session_state.pop("razync_ai_pending_action", None)
             st.session_state.pop("razync_ai_last_resources", None)
             _ensure_messages().append({"role": "assistant", "content": message})
@@ -607,6 +666,55 @@ def _render_pending_action(*, key_prefix: str) -> None:
         if cancel.button("Cancelar", key=f"{key_prefix}_cancel", width="stretch"):
             st.session_state.pop("razync_ai_pending_action", None)
             _ensure_messages().append({"role": "assistant", "content": "Ação cancelada. Nenhum dado foi alterado."})
+            st.rerun()
+
+
+def _render_last_action_undo(*, key_prefix: str) -> None:
+    receipt = st.session_state.get("razync_ai_last_receipt")
+    if not isinstance(receipt, dict):
+        return
+    with st.container(border=True):
+        st.caption("Última alteração feita pela IA nesta sessão")
+        if st.button("Desfazer última ação", key=f"{key_prefix}_undo", width="stretch"):
+            user_id = _current_user_id()
+            if user_id is None:
+                st.error("Sua sessão expirou. Entre novamente.")
+                return
+            try:
+                message = undo_assistant_action(user_id, receipt)
+            except AssistantActionError as exc:
+                st.error(str(exc))
+                return
+            st.session_state.pop("razync_ai_last_receipt", None)
+            _ensure_messages().append({"role": "assistant", "content": message})
+            st.success(message)
+            st.rerun()
+
+
+def _render_document_intake(*, key_prefix: str) -> None:
+    with st.expander("Ler nota, comprovante ou DAS"):
+        uploaded = st.file_uploader(
+            "Envie um PDF para a IA preparar os dados",
+            type=["pdf"], key=f"{key_prefix}_document_upload",
+            help="A leitura é feita localmente e nada é salvo sem sua confirmação.",
+        )
+        if uploaded is not None and st.button("Analisar documento", key=f"{key_prefix}_analyze_document", width="stretch"):
+            try:
+                analysis = analyze_document(uploaded.getvalue(), uploaded.type or "application/pdf", uploaded.name)
+                draft = plan_document_action(analysis, uploaded.name)
+            except Exception:
+                st.error("Não foi possível analisar este arquivo. Confira se o PDF está válido.")
+                return
+            if analysis.get("warning"):
+                st.warning(str(analysis["warning"]))
+            if draft is None:
+                st.info("O documento foi lido, mas faltaram dados para preparar uma ação. Tente um PDF com texto pesquisável.")
+                return
+            state = draft.to_dict()
+            state["original_request"] = f"Documento {uploaded.name}"
+            st.session_state["razync_ai_pending_action"] = state
+            st.session_state["razync_ai_document_analysis"] = analysis
+            st.success(f"Documento analisado com confiança {analysis.get('confidence', 'Baixa')}. Confira a prévia antes de salvar.")
             st.rerun()
 
 
@@ -690,6 +798,8 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
         navigate=navigate,
     )
     _render_pending_action(key_prefix="floating_ai_action")
+    _render_document_intake(key_prefix="floating_ai")
+    _render_last_action_undo(key_prefix="floating_ai")
     st.markdown('<div class="rz-ai-safety">🔒 Você confirma antes de qualquer informação ser salva.</div>', unsafe_allow_html=True)
 
 
@@ -741,6 +851,8 @@ def render_ai_assistant(
             st.session_state.pop("razync_ai_messages", None)
             st.session_state.pop("razync_ai_last_resources", None)
             st.session_state.pop("razync_ai_last_resource_question", None)
+            st.session_state.pop("razync_ai_pending_action", None)
+            st.session_state.pop("razync_ai_last_receipt", None)
             st.rerun()
 
     with st.expander("Diagnóstico da IA", expanded=not provider["ai_enabled"]):
@@ -785,6 +897,8 @@ def render_ai_assistant(
             current_page="Assistente Razync",
         )
         _render_pending_action(key_prefix="full_ai_idle_action")
+        _render_document_intake(key_prefix="full_ai_idle")
+        _render_last_action_undo(key_prefix="full_ai_idle")
         st.caption("O copiloto orienta e prepara recursos, mas ações sensíveis continuam exigindo confirmação nas ferramentas do Razync.")
         return
 
@@ -823,5 +937,7 @@ def render_ai_assistant(
     _store_turn(question, result["answer"], resources)
     _render_resources(resources, key_prefix="full_ai", current_page="Assistente Razync")
     _render_pending_action(key_prefix="full_ai_action")
+    _render_document_intake(key_prefix="full_ai")
+    _render_last_action_undo(key_prefix="full_ai")
     st.caption("As respostas usam os registros do Razync. Para obrigações oficiais, confirme no portal competente ou com seu contador.")
 
