@@ -4,8 +4,9 @@ import json
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from openai import OpenAI
 
@@ -26,6 +27,7 @@ _ACTION_VERBS = (
     "entrou", "saiu",
 )
 _GUIDANCE_PREFIXES = ("como ", "onde ", "posso ", "quero saber", "me explique", "qual ")
+_BUSINESS_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,11 @@ class ActionDraft:
 
 class AssistantActionError(RuntimeError):
     """Safe error raised when an operational action cannot be prepared or saved."""
+
+
+def _business_today() -> date:
+    """Return the business date independently from the Streamlit server timezone."""
+    return datetime.now(_BUSINESS_TIMEZONE).date()
 
 
 def _plain(value: str) -> str:
@@ -345,7 +352,7 @@ def plan_assistant_action(
     model: str = "gpt-5.4-mini",
     today: date | None = None,
 ) -> ActionDraft | None:
-    today = today or date.today()
+    today = today or _business_today()
     intent = _intent(question)
     if intent is None:
         return None
@@ -372,7 +379,7 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any]) -> str:
 
     try:
         if action_type == "transaction":
-            normalized = _normalize_draft({"action_type": action_type, **payload, "date": payload.get("tx_date")}, today=date.today(), source="validated")
+            normalized = _normalize_draft({"action_type": action_type, **payload, "date": payload.get("tx_date")}, today=_business_today(), source="validated")
             if not normalized.ready:
                 raise AssistantActionError("Confira os dados do lançamento antes de salvar.")
             safe = normalized.payload
@@ -386,7 +393,7 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any]) -> str:
                 "date": payload.get("issue_date"),
                 "value": payload.get("amount"),
                 **payload,
-            }, today=date.today(), source="validated")
+            }, today=_business_today(), source="validated")
             if not normalized.ready:
                 raise AssistantActionError("Confira os dados da nota antes de salvar.")
             safe = normalized.payload
