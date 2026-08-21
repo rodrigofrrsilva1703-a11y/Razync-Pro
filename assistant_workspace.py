@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from html import escape
 from datetime import date
 from typing import Callable
 
@@ -38,92 +39,111 @@ SUGGESTED_QUESTIONS = [
     "Cadastrar um cliente",
 ]
 
+FLOATING_QUICK_ACTIONS = (
+    ("− Despesa", "Registrar uma despesa"),
+    ("+ Receita", "Registrar uma receita"),
+    ("▤ Nota", "Cadastrar uma nota"),
+)
+
+SUGGESTED_ACTIONS = (
+    ("Analisar", "Analisar meu negócio"),
+    ("Prioridades", "Ver minhas prioridades"),
+    ("Relatório", "Gerar relatório financeiro"),
+    ("Nova despesa", "Registrar uma despesa"),
+    ("Nova receita", "Registrar uma receita"),
+    ("Cadastrar nota", "Cadastrar uma nota"),
+    ("Despesa mensal", "Criar uma despesa mensal"),
+    ("Criar lembrete", "Criar um lembrete"),
+    ("Novo cliente", "Cadastrar um cliente"),
+)
+
 
 def _inject_assistant_style() -> None:
     st.markdown(
         """
         <style>
         [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) {
-            width: min(440px, calc(100vw - 1.25rem));
-            max-height: min(720px, calc(100vh - 5.5rem));
-            padding: 0 !important;
-            overflow: hidden;
-            border: 1px solid color-mix(in srgb, var(--rz-primary) 24%, var(--rz-border));
-            border-radius: 18px;
-            background: var(--rz-surface);
-            box-shadow: 0 24px 70px rgba(2, 27, 43, .22);
+            width: min(460px, calc(100vw - 1.25rem)); max-height: min(760px, calc(100vh - 4.75rem));
+            padding: 0 !important; overflow-x: hidden; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: var(--rz-border) transparent;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 28%, var(--rz-border));
+            border-radius: 22px; background: var(--rz-surface);
+            box-shadow: 0 28px 80px rgba(2,27,43,.24), 0 5px 18px rgba(2,27,43,.08);
         }
-        [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div {
-            padding: .9rem !important;
-        }
+        [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div { padding: 0 .95rem .9rem !important; }
         .rz-ai-shell-marker { display: none; }
         .rz-ai-head {
-            display: flex; align-items: center; gap: .72rem;
-            padding: .2rem .1rem .78rem; border-bottom: 1px solid var(--rz-border);
-            margin-bottom: .72rem;
+            position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .78rem;
+            padding: .9rem .05rem .78rem; margin-bottom: .72rem; border-bottom: 1px solid var(--rz-border);
+            background: color-mix(in srgb, var(--rz-surface) 94%, transparent); backdrop-filter: blur(14px);
         }
-        .rz-ai-head-icon {
-            width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center;
-            border-radius: 13px; color: white; font-size: 1.05rem; font-weight: 850;
-            background: linear-gradient(145deg, var(--rz-primary), #087fa7);
-            box-shadow: 0 9px 22px rgba(8, 185, 239, .22);
+        .rz-ai-head-icon, .rz-ai-page-icon {
+            display: grid; place-items: center; color: #fff; font-weight: 900; letter-spacing: -.04em;
+            background: linear-gradient(145deg, #081927 5%, var(--rz-primary) 72%, #29d4ff);
+            box-shadow: 0 10px 26px color-mix(in srgb, var(--rz-primary) 28%, transparent);
         }
-        .rz-ai-head strong { display: block; color: var(--rz-text); font-size: .98rem; letter-spacing: -.015em; }
-        .rz-ai-head span { display: flex; align-items: center; gap: .35rem; color: var(--rz-muted); font-size: .71rem; margin-top: .12rem; }
+        .rz-ai-head-icon { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 14px; font-size: 1rem; }
+        .rz-ai-head-copy { min-width: 0; flex: 1; }
+        .rz-ai-head strong { display: block; color: var(--rz-text); font-size: 1rem; letter-spacing: -.02em; }
+        .rz-ai-head span { display: flex; align-items: center; gap: .4rem; color: var(--rz-muted); font-size: .72rem; margin-top: .13rem; }
+        .rz-ai-head-badge { padding: .28rem .48rem; border-radius: 999px; color: var(--rz-primary); background: var(--rz-primary-soft); font-size: .62rem; font-weight: 800; letter-spacing: .04em; }
         .rz-ai-online { width: 7px; height: 7px; border-radius: 50%; background: #18a66a; box-shadow: 0 0 0 3px rgba(24,166,106,.12); }
-        .rz-ai-examples { color: var(--rz-muted); font-size: .69rem; line-height: 1.45; margin: -.15rem .1rem .55rem; }
-        .rz-ai-safety {
-            display: flex; align-items: center; gap: .4rem; color: var(--rz-muted);
-            font-size: .66rem; padding: .62rem .1rem .05rem; border-top: 1px solid var(--rz-border);
-            margin-top: .65rem;
+        .rz-ai-examples { color: var(--rz-muted); font-size: .72rem; line-height: 1.5; margin: -.15rem .12rem .68rem; }
+        .rz-ai-safety { display: flex; align-items: center; gap: .4rem; color: var(--rz-muted); font-size: .67rem; padding: .72rem .12rem .08rem; border-top: 1px solid var(--rz-border); margin-top: .72rem; }
+        .st-key-floating_ai_quick_actions { margin: -.1rem 0 .62rem; }
+        .st-key-floating_ai_quick_actions [data-testid="stButton"] button,
+        .st-key-full_ai_quick_actions [data-testid="stButton"] button {
+            border-color: var(--rz-border); background: var(--rz-surface); color: var(--rz-text);
+            font-weight: 700; box-shadow: 0 3px 12px rgba(2,27,43,.035); transition: .16s ease;
         }
-        .st-key-floating_ai_messages {
-            max-height: min(330px, 40vh) !important; padding: .05rem .12rem .3rem !important;
-            scrollbar-width: thin; scrollbar-color: var(--rz-border) transparent;
-        }
-        .st-key-floating_ai_messages [data-testid="stChatMessage"] {
-            border: 1px solid var(--rz-border); border-radius: 14px; padding: .65rem .72rem;
-            margin: .42rem 0; background: var(--rz-soft); box-shadow: none;
-        }
-        .st-key-floating_ai_messages [aria-label="Chat message from user"] {
-            margin-left: 2.1rem; background: var(--rz-primary-soft);
-            border-color: color-mix(in srgb, var(--rz-primary) 26%, var(--rz-border));
-        }
-        .st-key-floating_ai_messages [aria-label="Chat message from assistant"] { margin-right: 1rem; }
-        .st-key-floating_ai_messages [data-testid="stChatMessageAvatarUser"],
-        .st-key-floating_ai_messages [data-testid="stChatMessageAvatarAssistant"] { transform: scale(.82); transform-origin: top center; }
-        .st-key-floating_ai_messages [data-testid="stMarkdownContainer"] p { font-size: .82rem; line-height: 1.5; }
-        .st-key-floating_ai_composer { margin-top: .35rem; }
-        .st-key-floating_ai_composer [data-testid="stChatInput"] {
-            border: 1px solid var(--rz-border); border-radius: 12px; background: var(--rz-surface);
-            box-shadow: 0 0 0 0 transparent; overflow: hidden;
-        }
-        .st-key-floating_ai_composer [data-testid="stChatInput"] > div,
-        .st-key-floating_ai_composer [data-testid="stChatInput"] textarea {
-            background: var(--rz-surface) !important; color: var(--rz-text) !important;
-        }
-        .st-key-floating_ai_composer [data-testid="stChatInput"]:focus-within {
-            border-color: var(--rz-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rz-primary) 14%, transparent);
-        }
-        .st-key-floating_ai_composer [data-testid="stChatInput"] textarea { min-height: 2.75rem !important; }
-        .st-key-floating_ai_composer [data-testid="stChatInputSubmitButton"] {
-            color: var(--rz-primary) !important; background: var(--rz-soft) !important;
-        }
-        .rz-ai-page-intro {
-            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-            padding: 1rem 1.1rem; margin: .1rem 0 1rem; border: 1px solid var(--rz-border);
-            border-radius: 16px; background: linear-gradient(135deg, var(--rz-surface), var(--rz-soft));
-            box-shadow: var(--rz-shadow-soft);
-        }
-        .rz-ai-page-intro strong { display: block; font-size: 1.08rem; color: var(--rz-text); }
-        .rz-ai-page-intro span { color: var(--rz-muted); font-size: .79rem; }
+        .st-key-floating_ai_quick_actions [data-testid="stButton"] button { min-height: 2.15rem; padding: .34rem .35rem; border-radius: 10px; background: var(--rz-soft); font-size: .7rem; }
+        .st-key-floating_ai_quick_actions [data-testid="stButton"] button:hover,
+        .st-key-full_ai_quick_actions [data-testid="stButton"] button:hover { border-color: var(--rz-primary); color: var(--rz-primary); background: var(--rz-primary-soft); transform: translateY(-1px); }
+        .st-key-floating_ai_messages { max-height: min(320px, 38vh) !important; padding: .08rem .14rem .36rem !important; scrollbar-width: thin; scrollbar-color: var(--rz-border) transparent; }
+        .st-key-floating_ai_messages [data-testid="stChatMessage"] { border: 1px solid var(--rz-border); border-radius: 16px; padding: .66rem .74rem; margin: .46rem 0; background: var(--rz-soft); box-shadow: 0 3px 12px rgba(2,27,43,.035); }
+        .st-key-floating_ai_messages [aria-label="Chat message from user"] { margin-left: 2.6rem; background: linear-gradient(135deg, var(--rz-primary-soft), color-mix(in srgb, var(--rz-primary-soft) 76%, var(--rz-surface))); border-color: color-mix(in srgb, var(--rz-primary) 26%, var(--rz-border)); }
+        .st-key-floating_ai_messages [aria-label="Chat message from assistant"] { margin-right: 1.35rem; }
+        .st-key-floating_ai_messages [data-testid="stChatMessageAvatarUser"], .st-key-floating_ai_messages [data-testid="stChatMessageAvatarAssistant"] { transform: scale(.78); transform-origin: top center; }
+        .st-key-floating_ai_messages [data-testid="stMarkdownContainer"] p { font-size: .82rem; line-height: 1.55; }
+        .st-key-floating_ai_composer { margin-top: .45rem; }
+        .st-key-floating_ai_composer [data-testid="stChatInput"], .st-key-full_ai_composer [data-testid="stChatInput"] { border: 1px solid var(--rz-border); border-radius: 15px; background: var(--rz-surface); box-shadow: 0 7px 22px rgba(2,27,43,.06); overflow: hidden; }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] > div, .st-key-floating_ai_composer [data-testid="stChatInput"] textarea, .st-key-full_ai_composer [data-testid="stChatInput"] > div, .st-key-full_ai_composer [data-testid="stChatInput"] textarea { background: var(--rz-surface) !important; color: var(--rz-text) !important; }
+        .st-key-floating_ai_composer [data-testid="stChatInput"]:focus-within, .st-key-full_ai_composer [data-testid="stChatInput"]:focus-within { border-color: var(--rz-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rz-primary) 14%, transparent); }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] textarea { min-height: 2.9rem !important; font-size: .82rem !important; }
+        .st-key-floating_ai_composer [data-testid="stChatInputSubmitButton"], .st-key-full_ai_composer [data-testid="stChatInputSubmitButton"] { color: #fff !important; background: var(--rz-primary) !important; border-radius: 10px !important; }
+        .rz-ai-page-intro { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.3rem 1.4rem; margin: .1rem 0 1rem; border: 1px solid color-mix(in srgb, var(--rz-primary) 22%, var(--rz-border)); border-radius: 20px; background: linear-gradient(125deg, var(--rz-surface) 5%, var(--rz-primary-soft) 100%); box-shadow: 0 12px 34px rgba(2,27,43,.07); }
+        .rz-ai-page-intro::after { content: ""; position: absolute; width: 180px; height: 180px; right: -55px; top: -90px; border-radius: 50%; background: color-mix(in srgb, var(--rz-primary) 13%, transparent); }
+        .rz-ai-page-title { display: flex; align-items: center; gap: .9rem; position: relative; z-index: 1; }
+        .rz-ai-page-icon { width: 48px; height: 48px; border-radius: 15px; }
+        .rz-ai-page-intro strong { display: block; font-size: 1.18rem; color: var(--rz-text); letter-spacing: -.025em; }
+        .rz-ai-page-intro span { color: var(--rz-muted); font-size: .8rem; }
+        .rz-ai-page-status { position: relative; z-index: 1; display: flex; align-items: center; gap: .45rem; padding: .45rem .68rem; border-radius: 999px; background: var(--rz-surface); border: 1px solid var(--rz-border); color: var(--rz-text); font-size: .7rem; font-weight: 700; }
+        .st-key-full_ai_toolbar { border: 1px solid var(--rz-border); border-radius: 15px; padding: .72rem .82rem .25rem; background: var(--rz-surface); margin-bottom: .8rem; }
+        .rz-ai-provider-line { display: flex; align-items: center; gap: .55rem; color: var(--rz-text); font-size: .78rem; font-weight: 720; }
+        .rz-ai-provider-line small { color: var(--rz-muted); font-size: .69rem; font-weight: 500; }
+        .rz-ai-provider-dot { width: 8px; height: 8px; border-radius: 50%; background: #18a66a; box-shadow: 0 0 0 4px rgba(24,166,106,.1); }
+        .st-key-full_ai_messages { min-height: 230px; max-height: min(540px, 56vh); overflow-y: auto; padding: 1rem 1.05rem !important; margin: .2rem 0 .85rem; border: 1px solid var(--rz-border); border-radius: 20px; background: linear-gradient(180deg, var(--rz-soft), var(--rz-surface)); scrollbar-width: thin; scrollbar-color: var(--rz-border) transparent; }
+        .st-key-full_ai_messages [data-testid="stChatMessage"] { width: min(86%, 760px); padding: .8rem .9rem; margin: .55rem 0; border: 1px solid var(--rz-border); border-radius: 17px; background: var(--rz-surface); box-shadow: 0 4px 16px rgba(2,27,43,.04); }
+        .st-key-full_ai_messages [aria-label="Chat message from user"] { margin-left: auto; background: var(--rz-primary-soft); border-color: color-mix(in srgb, var(--rz-primary) 28%, var(--rz-border)); }
+        .st-key-full_ai_messages [aria-label="Chat message from assistant"] { margin-right: auto; }
+        .st-key-full_ai_messages [data-testid="stMarkdownContainer"] p { line-height: 1.62; }
+        .rz-ai-quick-title { margin: .25rem 0 .42rem; color: var(--rz-muted); font-size: .7rem; font-weight: 760; letter-spacing: .04em; text-transform: uppercase; }
+        .st-key-full_ai_quick_actions [data-testid="stButton"] button { min-height: 2.55rem; border-radius: 12px; font-size: .76rem; }
+        .st-key-full_ai_composer { margin: .72rem 0 .3rem; }
+        .st-key-full_ai_composer [data-testid="stChatInput"] textarea { min-height: 3.15rem !important; }
+        .rz-ai-composer-help { color: var(--rz-muted); font-size: .68rem; text-align: center; margin: .2rem 0 .75rem; }
         @media (max-width: 700px) {
-            [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) { width: calc(100vw - 1rem); max-height: calc(100vh - 4.5rem); border-radius: 15px; }
-            [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div { padding: .72rem !important; }
-            .st-key-floating_ai_messages { max-height: 36vh !important; }
+            [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) { width: calc(100vw - .75rem); max-height: calc(100vh - 4rem); border-radius: 18px; }
+            [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div { padding: 0 .72rem .72rem !important; }
+            .st-key-floating_ai_messages { max-height: 34vh !important; }
             .st-key-floating_ai_messages [aria-label="Chat message from user"] { margin-left: 1rem; }
             .st-key-floating_ai_messages [aria-label="Chat message from assistant"] { margin-right: .5rem; }
-            .rz-ai-page-intro { align-items: flex-start; flex-direction: column; }
+            .rz-ai-head-badge { display: none; }
+            .rz-ai-page-intro { align-items: flex-start; flex-direction: column; padding: 1.05rem; }
+            .rz-ai-page-status { align-self: flex-start; }
+            .st-key-full_ai_messages { padding: .72rem !important; min-height: 190px; max-height: 52vh; border-radius: 16px; }
+            .st-key-full_ai_messages [data-testid="stChatMessage"] { width: 96%; padding: .7rem .75rem; }
+            .st-key-full_ai_quick_actions [data-testid="stButton"] button { min-height: 2.35rem; padding: .3rem .4rem; font-size: .69rem; }
         }
         </style>
         """,
@@ -138,9 +158,10 @@ def _render_assistant_header(*, compact: bool) -> None:
             <span class="rz-ai-shell-marker"></span>
             <div class="rz-ai-head">
               <div class="rz-ai-head-icon">RZ</div>
-              <div><strong>Assistente Razync</strong><span><i class="rz-ai-online"></i>Online · pronto para ajudar</span></div>
+              <div class="rz-ai-head-copy"><strong>Assistente Razync</strong><span><i class="rz-ai-online"></i>Online · pronto para ajudar</span></div>
+              <div class="rz-ai-head-badge">IA</div>
             </div>
-            <div class="rz-ai-examples">Pergunte sobre seu negócio ou peça para registrar uma receita, despesa ou nota.</div>
+            <div class="rz-ai-examples">Converse sobre seu negócio ou escolha uma ação rápida.</div>
             """,
             unsafe_allow_html=True,
         )
@@ -148,8 +169,11 @@ def _render_assistant_header(*, compact: bool) -> None:
         st.markdown(
             """
             <div class="rz-ai-page-intro">
-              <div><strong>Assistente Razync</strong><span>Converse, analise seu negócio ou prepare lançamentos em poucos segundos.</span></div>
-              <div><span><i class="rz-ai-online" style="display:inline-block;margin-right:.4rem"></i>Online</span></div>
+              <div class="rz-ai-page-title">
+                <div class="rz-ai-page-icon">RZ</div>
+                <div><strong>Assistente Razync</strong><span>Analise, organize e execute tarefas com confirmação.</span></div>
+              </div>
+              <div class="rz-ai-page-status"><i class="rz-ai-online"></i> Disponível agora</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -735,6 +759,10 @@ def _provider_caption(result: dict) -> str:
     return f"Resposta processada por {provider}."
 
 
+def _chat_avatar(role: str) -> str:
+    return ":material/person:" if role == "user" else ":material/auto_awesome:"
+
+
 def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
     _inject_assistant_style()
     try:
@@ -750,17 +778,25 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
 
     _render_assistant_header(compact=True)
 
+    quick_question = None
+    with st.container(key="floating_ai_quick_actions"):
+        quick_cols = st.columns(3)
+        for idx, (label, prompt) in enumerate(FLOATING_QUICK_ACTIONS):
+            if quick_cols[idx].button(label, key=f"floating_ai_quick_{idx}", width="stretch"):
+                quick_question = prompt
+
     with st.container(key="floating_ai_messages"):
         for message in messages[-6:]:
-            with st.chat_message(message["role"]):
+            with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
                 st.markdown(message["content"])
 
     with st.container(key="floating_ai_composer"):
-        question = st.chat_input("Digite seu pedido...", key="floating_ai_chat_input")
+        typed_question = st.chat_input("Digite seu pedido...", key="floating_ai_chat_input")
+    question = quick_question or typed_question
 
     if question and question.strip():
         question = question.strip()
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar=_chat_avatar("user")):
             st.markdown(question)
         with st.spinner("Pensando..."):
             result = _answer_question(
@@ -787,7 +823,7 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
             )
         _store_turn(question, result["answer"], resources)
         _render_notices(result["notices"])
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=_chat_avatar("assistant")):
             st.markdown(result["answer"])
             st.caption(_provider_caption(result))
 
@@ -828,32 +864,32 @@ def render_ai_assistant(
         except AIUsageStoreError:
             quota_ready = False
 
-    status_left, status_right = st.columns([3, 1])
-    with status_left:
-        if provider["ai_enabled"] and quota_ready:
-            st.success(f"Copiloto Razync ativo — {provider['provider']}")
-            if provider["fallback_enabled"]:
-                st.caption("Fallback automático ativo: se o Gemini não responder, a OpenAI assume sem perder a conversa.")
+    with st.container(key="full_ai_toolbar"):
+        status_left, status_right = st.columns([4, 1])
+        with status_left:
+            if provider["ai_enabled"] and quota_ready:
+                provider_name = escape(str(provider["provider"]))
+                model_name = escape(str(provider["model"]))
+                st.markdown(
+                    f'<div class="rz-ai-provider-line"><i class="rz-ai-provider-dot"></i><span>{provider_name}<br><small>{model_name} · {usage_count}/{daily_limit} respostas hoje</small></span></div>',
+                    unsafe_allow_html=True,
+                )
+                if provider["fallback_enabled"]:
+                    st.caption("Continuidade automática ativa entre os provedores.")
+                else:
+                    st.caption("Seus arquivos brutos não são enviados ao provedor de IA.")
+            elif provider["ai_enabled"]:
+                st.markdown('<div class="rz-ai-provider-line"><i class="rz-ai-provider-dot" style="background:#e4a11b"></i><span>Modo seguro local<br><small>O controle de uso externo está temporariamente indisponível.</small></span></div>', unsafe_allow_html=True)
             else:
-                st.caption("Entende as ferramentas do sistema e recebe apenas contexto empresarial agregado. Arquivos brutos não são enviados ao provedor de IA.")
-        elif provider["ai_enabled"]:
-            st.warning("IA configurada, mas o controle de uso está indisponível")
-            st.caption("Por segurança, o Razync usa a análise local até o controle voltar a responder.")
-        else:
-            st.info("Modo inteligente local")
-            st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY para ativar a IA externa. As ferramentas locais continuam funcionando.")
-    with status_right:
-        st.caption(f"Provedor: {provider['provider']}")
-        st.caption(f"Modelo: {provider['model']}")
-        if provider["ai_enabled"] and quota_ready:
-            st.caption(f"Uso hoje (UTC): {usage_count}/{daily_limit}")
-        if st.button("Nova conversa", key="razync_ai_new_chat", width="stretch"):
-            st.session_state.pop("razync_ai_messages", None)
-            st.session_state.pop("razync_ai_last_resources", None)
-            st.session_state.pop("razync_ai_last_resource_question", None)
-            st.session_state.pop("razync_ai_pending_action", None)
-            st.session_state.pop("razync_ai_last_receipt", None)
-            st.rerun()
+                st.markdown('<div class="rz-ai-provider-line"><i class="rz-ai-provider-dot" style="background:#78909c"></i><span>Inteligência local Razync<br><small>Análises e automações essenciais continuam disponíveis.</small></span></div>', unsafe_allow_html=True)
+        with status_right:
+            if st.button("Nova conversa", key="razync_ai_new_chat", icon=":material/edit_square:", width="stretch"):
+                st.session_state.pop("razync_ai_messages", None)
+                st.session_state.pop("razync_ai_last_resources", None)
+                st.session_state.pop("razync_ai_last_resource_question", None)
+                st.session_state.pop("razync_ai_pending_action", None)
+                st.session_state.pop("razync_ai_last_receipt", None)
+                st.rerun()
 
     with st.expander("Diagnóstico da IA", expanded=not provider["ai_enabled"]):
         if provider["gemini_enabled"]:
@@ -876,19 +912,23 @@ def render_ai_assistant(
                 st.error(diagnosis)
 
     messages = _ensure_messages()
-    for message in messages[-12:]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    with st.container(key="full_ai_messages"):
+        for message in messages[-12:]:
+            with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
+                st.markdown(message["content"])
 
-    st.caption("Você pode perguntar livremente. O copiloto entende tanto os números quanto as ferramentas do Razync.")
-    cols = st.columns(3)
+    st.markdown('<div class="rz-ai-quick-title">Ações rápidas</div>', unsafe_allow_html=True)
     suggested = None
-    for idx, question_text in enumerate(SUGGESTED_QUESTIONS):
-        if cols[idx % 3].button(question_text, key=f"ai_suggestion_{idx}", width="stretch"):
-            suggested = question_text
+    with st.container(key="full_ai_quick_actions"):
+        cols = st.columns(3)
+        for idx, (label, prompt) in enumerate(SUGGESTED_ACTIONS):
+            if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
+                suggested = prompt
 
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
-    typed_question = st.chat_input("Pergunte qualquer coisa sobre seu negócio ou sobre o Razync...")
+    with st.container(key="full_ai_composer"):
+        typed_question = st.chat_input("Escreva o que você precisa...", key="full_ai_chat_input")
+    st.markdown('<div class="rz-ai-composer-help">Enter para enviar · nenhuma alteração é salva sem sua confirmação</div>', unsafe_allow_html=True)
     question = suggested or pending_question or typed_question
     if not question:
         _render_resources(
@@ -903,9 +943,9 @@ def render_ai_assistant(
         return
 
     question = question.strip()
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=_chat_avatar("user")):
         st.markdown(question)
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=_chat_avatar("assistant")):
         with st.spinner(f"Analisando com {provider['provider']}..."):
             result = _answer_question(
                 question,
