@@ -17,7 +17,10 @@ def test_v7_chat_is_isolated_from_streamlit_widgets():
     assert 'st.form' not in host
 
 
-def test_v7_is_not_connected_to_production_sidebar_yet():
+def test_v7_is_connected_to_sidebar_without_popover():
     sidebar = Path("sidebar_workspace.py").read_text(encoding="utf-8")
-    assert "render_isolated_chat_v7" not in sidebar
-    assert "floating_chat_v7_host" not in sidebar
+    assert "render_isolated_chat_v7" in sidebar
+    assert "floating_chat_v7_host" in sidebar
+    assert 'key="floating_ai_v7_shell"' in sidebar
+    assert 'key="floating_ai_launcher"' in sidebar
+    assert "st.popover" not in sidebar
