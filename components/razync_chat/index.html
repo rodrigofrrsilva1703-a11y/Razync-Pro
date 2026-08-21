@@ -48,7 +48,13 @@ function render(args){
   if(key!==lastRenderKey){thread.innerHTML="";if(messages.length===0&&!loading){const empty=document.createElement("div");empty.className="empty";empty.textContent="Olá! Posso ajudar com cadastros, financeiro, documentos, relatórios e outras ferramentas do Razync.";thread.appendChild(empty)}else{messages.slice(-30).forEach(m=>addRow(m&&m.role==="user"?"user":"assistant",m&&m.content?m.content:""));if(loading)addTyping()}thread.scrollTop=thread.scrollHeight;lastRenderKey=key}
   frameHeight(window.innerWidth<=420?500:540);
 }
-function submit(){const text=input.value.trim();if(!text||loading)return;notify({action:"send",text:text,event_id:eventId()});input.value="";autoSize()}
+function submit(){
+  const text=input.value.trim();if(!text||loading)return;
+  loading=true;send.disabled=true;input.disabled=true;
+  const empty=thread.querySelector(".empty");if(empty)empty.remove();
+  addRow("user",text);addTyping();thread.scrollTop=thread.scrollHeight;
+  input.value="";autoSize();notify({action:"send",text:text,event_id:eventId()});
+}
 function autoSize(){input.style.height="28px";input.style.height=Math.min(input.scrollHeight,84)+"px"}
 send.addEventListener("click",submit);input.addEventListener("input",autoSize);input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submit()}});
 document.getElementById("close").addEventListener("click",()=>notify({action:"close",event_id:eventId()}));
