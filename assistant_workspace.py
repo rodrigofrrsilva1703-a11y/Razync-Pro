@@ -813,8 +813,6 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
 
     if question and question.strip():
         question = question.strip()
-        with st.chat_message("user", avatar=_chat_avatar("user")):
-            st.markdown(question)
         with st.spinner("Pensando..."):
             result = _answer_question(
                 question,
@@ -839,10 +837,10 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
                 current_year=current_year,
             )
         _store_turn(question, result["answer"], resources)
-        _render_notices(result["notices"])
-        with st.chat_message("assistant", avatar=_chat_avatar("assistant")):
-            st.markdown(result["answer"])
+        st.session_state["razync_ai_flash_notices"] = result["notices"]
+        st.rerun()
 
+    _render_notices(st.session_state.pop("razync_ai_flash_notices", []))
     _render_resources(
         st.session_state.get("razync_ai_last_resources"),
         key_prefix="floating_ai",
@@ -945,6 +943,7 @@ def render_ai_assistant(
         typed_question = st.chat_input("Escreva o que você precisa...", key="full_ai_chat_input")
     st.markdown('<div class="rz-ai-composer-help">Enter para enviar · nenhuma alteração é salva sem sua confirmação</div>', unsafe_allow_html=True)
     question = suggested or pending_question or typed_question
+    _render_notices(st.session_state.pop("razync_ai_flash_notices", []))
     if not question:
         _render_resources(
             st.session_state.get("razync_ai_last_resources"),
@@ -958,41 +957,32 @@ def render_ai_assistant(
         return
 
     question = question.strip()
-    with st.chat_message("user", avatar=_chat_avatar("user")):
-        st.markdown(question)
-    with st.chat_message("assistant", avatar=_chat_avatar("assistant")):
-        with st.spinner(f"Analisando com {provider['provider']}..."):
-            result = _answer_question(
-                question,
-                profile=profile,
-                transactions=transactions,
-                invoices=invoices,
-                das_rows=das_rows,
-                obligations=obligations,
-                documents=documents,
-                annual_limit=annual_limit,
-                current_year=current_year,
-                current_page="Assistente Razync",
-                fallback_answer=fallback_answer,
-            )
-            resources = _prepare_resources(
-                question,
-                profile=profile,
-                transactions=transactions,
-                invoices=invoices,
-                das_rows=das_rows,
-                obligations=obligations,
-                documents=documents,
-                current_year=current_year,
-            )
-        _render_notices(result["notices"])
-        st.markdown(result["answer"])
-        st.caption(_provider_caption(result))
+    with st.spinner(f"Analisando com {provider['provider']}..."):
+        result = _answer_question(
+            question,
+            profile=profile,
+            transactions=transactions,
+            invoices=invoices,
+            das_rows=das_rows,
+            obligations=obligations,
+            documents=documents,
+            annual_limit=annual_limit,
+            current_year=current_year,
+            current_page="Assistente Razync",
+            fallback_answer=fallback_answer,
+        )
+        resources = _prepare_resources(
+            question,
+            profile=profile,
+            transactions=transactions,
+            invoices=invoices,
+            das_rows=das_rows,
+            obligations=obligations,
+            documents=documents,
+            current_year=current_year,
+        )
 
     _store_turn(question, result["answer"], resources)
-    _render_resources(resources, key_prefix="full_ai", current_page="Assistente Razync")
-    _render_pending_action(key_prefix="full_ai_action")
-    _render_document_intake(key_prefix="full_ai")
-    _render_last_action_undo(key_prefix="full_ai")
-    st.caption("As respostas usam os registros do Razync. Para obrigações oficiais, confirme no portal competente ou com seu contador.")
+    st.session_state["razync_ai_flash_notices"] = result["notices"]
+    st.rerun()
 
