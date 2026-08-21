@@ -132,6 +132,32 @@ def _inject_assistant_style() -> None:
         .st-key-full_ai_composer { margin: .72rem 0 .3rem; }
         .st-key-full_ai_composer [data-testid="stChatInput"] textarea { min-height: 3.15rem !important; }
         .rz-ai-composer-help { color: var(--rz-muted); font-size: .68rem; text-align: center; margin: .2rem 0 .75rem; }
+
+        /* Conversa minimalista: estrutura inspirada em mensageiros móveis. */
+        [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) {
+            width: min(410px, calc(100vw - .8rem)); max-height: min(690px, calc(100vh - 4.25rem));
+            border-radius: 14px; border-color: var(--rz-border); box-shadow: 0 18px 52px rgba(2,27,43,.2);
+        }
+        [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div { padding: 0 !important; }
+        .rz-ai-head { margin: 0; padding: .72rem .85rem; border: 0; gap: .65rem; background: linear-gradient(135deg, #071a2a, #0a607c); backdrop-filter: none; }
+        .rz-ai-head-icon { width: 38px; height: 38px; flex-basis: 38px; border-radius: 50%; font-size: .82rem; background: var(--rz-primary); box-shadow: none; }
+        .rz-ai-head strong { color: #fff; font-size: .94rem; }
+        .rz-ai-head span { color: rgba(255,255,255,.76); font-size: .68rem; margin-top: .06rem; }
+        .rz-ai-head-badge, .rz-ai-examples, .st-key-floating_ai_quick_actions { display: none !important; }
+        .st-key-floating_ai_messages { min-height: 310px; max-height: min(430px, 48vh) !important; margin: 0 !important; padding: .72rem .7rem !important; background-color: var(--rz-soft); background-image: radial-gradient(color-mix(in srgb, var(--rz-muted) 10%, transparent) .7px, transparent .7px); background-size: 13px 13px; }
+        .st-key-floating_ai_messages [data-testid="stChatMessage"], .st-key-full_ai_messages [data-testid="stChatMessage"] { width: fit-content; max-width: 84%; min-width: 3.2rem; border: 0; border-radius: 11px; padding: .48rem .62rem; margin: .34rem 0; background: var(--rz-surface); box-shadow: 0 1px 2px rgba(2,27,43,.12); }
+        .st-key-floating_ai_messages [aria-label="Chat message from user"], .st-key-full_ai_messages [aria-label="Chat message from user"] { margin-left: auto; margin-right: 0; background: color-mix(in srgb, var(--rz-primary-soft) 86%, var(--rz-surface)); }
+        .st-key-floating_ai_messages [aria-label="Chat message from assistant"], .st-key-full_ai_messages [aria-label="Chat message from assistant"] { margin-left: 0; margin-right: auto; }
+        .st-key-floating_ai_messages [data-testid="stChatMessageAvatarUser"], .st-key-floating_ai_messages [data-testid="stChatMessageAvatarAssistant"], .st-key-full_ai_messages [data-testid="stChatMessageAvatarUser"], .st-key-full_ai_messages [data-testid="stChatMessageAvatarAssistant"] { display: none !important; }
+        .st-key-floating_ai_messages [data-testid="stMarkdownContainer"] p { font-size: .8rem; line-height: 1.46; }
+        .st-key-floating_ai_composer { margin: 0; padding: .55rem .62rem; background: var(--rz-surface); border-top: 1px solid var(--rz-border); }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] { border-radius: 999px; background: var(--rz-soft); box-shadow: none; }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] > div, .st-key-floating_ai_composer [data-testid="stChatInput"] textarea { background: var(--rz-soft) !important; }
+        .st-key-floating_ai_composer [data-testid="stChatInputSubmitButton"] { border-radius: 50% !important; }
+        .rz-ai-safety { justify-content: center; margin: 0; padding: .42rem .6rem .5rem; border: 0; background: var(--rz-surface); font-size: .61rem; }
+        .st-key-full_ai_messages { background-color: var(--rz-soft); background-image: radial-gradient(color-mix(in srgb, var(--rz-muted) 9%, transparent) .7px, transparent .7px); background-size: 13px 13px; border-radius: 14px; }
+        .rz-ai-page-intro { padding: .8rem 1rem; border-radius: 14px; background: var(--rz-surface); box-shadow: none; }
+        .rz-ai-page-intro::after { display: none; }
         @media (max-width: 700px) {
             [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) { width: calc(100vw - .75rem); max-height: calc(100vh - 4rem); border-radius: 18px; }
             [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div { padding: 0 .72rem .72rem !important; }
@@ -158,10 +184,8 @@ def _render_assistant_header(*, compact: bool) -> None:
             <span class="rz-ai-shell-marker"></span>
             <div class="rz-ai-head">
               <div class="rz-ai-head-icon">RZ</div>
-              <div class="rz-ai-head-copy"><strong>Assistente Razync</strong><span><i class="rz-ai-online"></i>Online · pronto para ajudar</span></div>
-              <div class="rz-ai-head-badge">IA</div>
+              <div class="rz-ai-head-copy"><strong>Razync</strong><span><i class="rz-ai-online"></i>online</span></div>
             </div>
-            <div class="rz-ai-examples">Converse sobre seu negócio ou escolha uma ação rápida.</div>
             """,
             unsafe_allow_html=True,
         )
@@ -778,21 +802,14 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
 
     _render_assistant_header(compact=True)
 
-    quick_question = None
-    with st.container(key="floating_ai_quick_actions"):
-        quick_cols = st.columns(3)
-        for idx, (label, prompt) in enumerate(FLOATING_QUICK_ACTIONS):
-            if quick_cols[idx].button(label, key=f"floating_ai_quick_{idx}", width="stretch"):
-                quick_question = prompt
-
     with st.container(key="floating_ai_messages"):
         for message in messages[-6:]:
             with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
                 st.markdown(message["content"])
 
     with st.container(key="floating_ai_composer"):
-        typed_question = st.chat_input("Digite seu pedido...", key="floating_ai_chat_input")
-    question = quick_question or typed_question
+        typed_question = st.chat_input("Mensagem", key="floating_ai_chat_input")
+    question = typed_question
 
     if question and question.strip():
         question = question.strip()
@@ -825,7 +842,6 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
         _render_notices(result["notices"])
         with st.chat_message("assistant", avatar=_chat_avatar("assistant")):
             st.markdown(result["answer"])
-            st.caption(_provider_caption(result))
 
     _render_resources(
         st.session_state.get("razync_ai_last_resources"),
@@ -834,9 +850,8 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
         navigate=navigate,
     )
     _render_pending_action(key_prefix="floating_ai_action")
-    _render_document_intake(key_prefix="floating_ai")
     _render_last_action_undo(key_prefix="floating_ai")
-    st.markdown('<div class="rz-ai-safety">🔒 Você confirma antes de qualquer informação ser salva.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="rz-ai-safety">As alterações só são salvas com sua confirmação.</div>', unsafe_allow_html=True)
 
 
 def render_ai_assistant(
@@ -917,13 +932,13 @@ def render_ai_assistant(
             with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
                 st.markdown(message["content"])
 
-    st.markdown('<div class="rz-ai-quick-title">Ações rápidas</div>', unsafe_allow_html=True)
     suggested = None
-    with st.container(key="full_ai_quick_actions"):
-        cols = st.columns(3)
-        for idx, (label, prompt) in enumerate(SUGGESTED_ACTIONS):
-            if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
-                suggested = prompt
+    with st.expander("Sugestões"):
+        with st.container(key="full_ai_quick_actions"):
+            cols = st.columns(3)
+            for idx, (label, prompt) in enumerate(SUGGESTED_ACTIONS):
+                if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
+                    suggested = prompt
 
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
     with st.container(key="full_ai_composer"):
