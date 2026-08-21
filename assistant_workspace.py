@@ -23,13 +23,127 @@ DEFAULT_DAILY_REQUEST_LIMIT = 20
 _SAFE_API_META = re.compile(r"^[A-Za-z0-9_.:\-/]{1,96}$")
 
 SUGGESTED_QUESTIONS = [
-    "Como está meu negócio hoje?",
-    "O que mais está pesando nas despesas?",
-    "O que preciso resolver primeiro?",
-    "Onde cadastro uma nova receita?",
-    "Quais documentos tenho salvos?",
-    "Gere meu relatório financeiro em PDF",
+    "Analisar meu negócio",
+    "Registrar uma despesa",
+    "Registrar uma receita",
+    "Cadastrar uma nota",
+    "Ver minhas prioridades",
+    "Gerar relatório financeiro",
 ]
+
+
+def _inject_assistant_style() -> None:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) {
+            width: min(440px, calc(100vw - 1.25rem));
+            max-height: min(720px, calc(100vh - 5.5rem));
+            padding: 0 !important;
+            overflow: hidden;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 24%, var(--rz-border));
+            border-radius: 18px;
+            background: var(--rz-surface);
+            box-shadow: 0 24px 70px rgba(2, 27, 43, .22);
+        }
+        [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div {
+            padding: .9rem !important;
+        }
+        .rz-ai-shell-marker { display: none; }
+        .rz-ai-head {
+            display: flex; align-items: center; gap: .72rem;
+            padding: .2rem .1rem .78rem; border-bottom: 1px solid var(--rz-border);
+            margin-bottom: .72rem;
+        }
+        .rz-ai-head-icon {
+            width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center;
+            border-radius: 13px; color: white; font-size: 1.05rem; font-weight: 850;
+            background: linear-gradient(145deg, var(--rz-primary), #087fa7);
+            box-shadow: 0 9px 22px rgba(8, 185, 239, .22);
+        }
+        .rz-ai-head strong { display: block; color: var(--rz-text); font-size: .98rem; letter-spacing: -.015em; }
+        .rz-ai-head span { display: flex; align-items: center; gap: .35rem; color: var(--rz-muted); font-size: .71rem; margin-top: .12rem; }
+        .rz-ai-online { width: 7px; height: 7px; border-radius: 50%; background: #18a66a; box-shadow: 0 0 0 3px rgba(24,166,106,.12); }
+        .rz-ai-examples { color: var(--rz-muted); font-size: .69rem; line-height: 1.45; margin: -.15rem .1rem .55rem; }
+        .rz-ai-safety {
+            display: flex; align-items: center; gap: .4rem; color: var(--rz-muted);
+            font-size: .66rem; padding: .62rem .1rem .05rem; border-top: 1px solid var(--rz-border);
+            margin-top: .65rem;
+        }
+        .st-key-floating_ai_messages {
+            max-height: min(330px, 40vh) !important; padding: .05rem .12rem .3rem !important;
+            scrollbar-width: thin; scrollbar-color: var(--rz-border) transparent;
+        }
+        .st-key-floating_ai_messages [data-testid="stChatMessage"] {
+            border: 1px solid var(--rz-border); border-radius: 14px; padding: .65rem .72rem;
+            margin: .42rem 0; background: var(--rz-soft); box-shadow: none;
+        }
+        .st-key-floating_ai_messages [aria-label="Chat message from user"] {
+            margin-left: 2.1rem; background: var(--rz-primary-soft);
+            border-color: color-mix(in srgb, var(--rz-primary) 26%, var(--rz-border));
+        }
+        .st-key-floating_ai_messages [aria-label="Chat message from assistant"] { margin-right: 1rem; }
+        .st-key-floating_ai_messages [data-testid="stChatMessageAvatarUser"],
+        .st-key-floating_ai_messages [data-testid="stChatMessageAvatarAssistant"] { transform: scale(.82); transform-origin: top center; }
+        .st-key-floating_ai_messages [data-testid="stMarkdownContainer"] p { font-size: .82rem; line-height: 1.5; }
+        .st-key-floating_ai_composer [data-testid="stForm"] {
+            border: 0 !important; padding: 0 !important; margin-top: .35rem;
+            background: transparent !important; box-shadow: none !important;
+        }
+        .st-key-floating_ai_composer [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: .45rem !important; }
+        .st-key-floating_ai_composer [data-testid="column"]:first-child { flex: 1 1 auto !important; min-width: 0 !important; }
+        .st-key-floating_ai_composer [data-testid="column"]:last-child { flex: 0 0 88px !important; min-width: 88px !important; }
+        .st-key-floating_ai_composer input { min-height: 2.7rem !important; }
+        .st-key-floating_ai_composer [data-testid="stFormSubmitButton"] button {
+            min-height: 2.7rem !important; border-radius: 10px !important;
+            background: var(--rz-primary) !important; color: white !important; border-color: var(--rz-primary) !important;
+        }
+        .st-key-floating_ai_composer [data-testid="stFormSubmitButton"] button p { color: white !important; }
+        .rz-ai-page-intro {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            padding: 1rem 1.1rem; margin: .1rem 0 1rem; border: 1px solid var(--rz-border);
+            border-radius: 16px; background: linear-gradient(135deg, var(--rz-surface), var(--rz-soft));
+            box-shadow: var(--rz-shadow-soft);
+        }
+        .rz-ai-page-intro strong { display: block; font-size: 1.08rem; color: var(--rz-text); }
+        .rz-ai-page-intro span { color: var(--rz-muted); font-size: .79rem; }
+        @media (max-width: 700px) {
+            [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) { width: calc(100vw - 1rem); max-height: calc(100vh - 4.5rem); border-radius: 15px; }
+            [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) > div { padding: .72rem !important; }
+            .st-key-floating_ai_messages { max-height: 36vh !important; }
+            .st-key-floating_ai_messages [aria-label="Chat message from user"] { margin-left: 1rem; }
+            .st-key-floating_ai_messages [aria-label="Chat message from assistant"] { margin-right: .5rem; }
+            .rz-ai-page-intro { align-items: flex-start; flex-direction: column; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_assistant_header(*, compact: bool) -> None:
+    if compact:
+        st.markdown(
+            """
+            <span class="rz-ai-shell-marker"></span>
+            <div class="rz-ai-head">
+              <div class="rz-ai-head-icon">RZ</div>
+              <div><strong>Assistente Razync</strong><span><i class="rz-ai-online"></i>Online · pronto para ajudar</span></div>
+            </div>
+            <div class="rz-ai-examples">Pergunte sobre seu negócio ou peça para registrar uma receita, despesa ou nota.</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <div class="rz-ai-page-intro">
+              <div><strong>Assistente Razync</strong><span>Converse, analise seu negócio ou prepare lançamentos em poucos segundos.</span></div>
+              <div><span><i class="rz-ai-online" style="display:inline-block;margin-right:.4rem"></i>Online</span></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def _secret(name: str) -> str:
@@ -140,8 +254,7 @@ def _ensure_messages() -> list[dict]:
             {
                 "role": "assistant",
                 "content": (
-                    "Olá! Sou o copiloto do Razync. Posso ajudar a usar o sistema, analisar seu financeiro e fiscal, "
-                    "encontrar documentos, preparar relatórios e indicar a ferramenta certa para cada tarefa."
+                    "Olá! Como posso ajudar? Posso analisar seu negócio ou preparar receitas, despesas e notas para sua confirmação."
                 ),
             }
         ]
@@ -512,6 +625,7 @@ def _provider_caption(result: dict) -> str:
 
 
 def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
+    _inject_assistant_style()
     try:
         user_id = int(user.get("id"))
     except (TypeError, ValueError):
@@ -523,21 +637,22 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
     profile, transactions, invoices, das_rows, obligations, documents, annual_limit, current_year = snapshot
     messages = _ensure_messages()
 
-    st.markdown("**Razync Copiloto**")
-    st.caption("Converse sobre cadastro, financeiro, fiscal, documentos, relatórios ou qualquer ferramenta do sistema.")
+    _render_assistant_header(compact=True)
 
     with st.container(key="floating_ai_messages"):
         for message in messages[-6:]:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-    with st.form("floating_ai_chat_form", clear_on_submit=True):
-        question = st.text_input(
-            "Mensagem",
-            placeholder="Ex.: Gere meu relatório financeiro ou onde cadastro uma despesa?",
-            label_visibility="collapsed",
-        )
-        sent = st.form_submit_button("Enviar", type="primary", width="stretch")
+    with st.container(key="floating_ai_composer"):
+        with st.form("floating_ai_chat_form", clear_on_submit=True):
+            message_col, send_col = st.columns([5, 1])
+            question = message_col.text_input(
+                "Mensagem",
+                placeholder="Digite seu pedido...",
+                label_visibility="collapsed",
+            )
+            sent = send_col.form_submit_button("Enviar", type="primary", width="stretch")
 
     if sent and question.strip():
         question = question.strip()
@@ -579,7 +694,7 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
         navigate=navigate,
     )
     _render_pending_action(key_prefix="floating_ai_action")
-    st.caption("A IA não executa pagamentos, exclusões ou transmissões fiscais sozinha.")
+    st.markdown('<div class="rz-ai-safety">🔒 Você confirma antes de qualquer informação ser salva.</div>', unsafe_allow_html=True)
 
 
 def render_ai_assistant(
@@ -594,6 +709,8 @@ def render_ai_assistant(
     current_year: int,
     fallback_answer: Callable[[str], str],
 ) -> None:
+    _inject_assistant_style()
+    _render_assistant_header(compact=False)
     provider = _provider_state()
     user_id = _current_user_id()
     daily_limit = _daily_request_limit()
