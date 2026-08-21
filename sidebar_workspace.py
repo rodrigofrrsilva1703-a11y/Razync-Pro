@@ -10,13 +10,23 @@ from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SID
 from onboarding_tools import onboarding_progress
 
 
+_FLOATING_OPEN_KEY = "razync_floating_open"
+
+
 def _render_floating_assistant(page: str, user: dict, navigate) -> None:
     if page == "Assistente Razync":
         return
 
-    with st.container(key="floating_ai_shortcut"):
-        with st.popover("✦ Razync IA"):
+    is_open = bool(st.session_state.get(_FLOATING_OPEN_KEY, False))
+    if is_open:
+        with st.container(key="floating_ai_panel"):
             render_floating_assistant(user=user, page=page, navigate=navigate)
+        return
+
+    with st.container(key="floating_ai_launcher"):
+        if st.button("✦ Razync IA", key="floating_ai_launcher_btn"):
+            st.session_state[_FLOATING_OPEN_KEY] = True
+            st.rerun()
 
 
 def render_sidebar(
@@ -32,8 +42,6 @@ def render_sidebar(
     refresh_data,
     logout,
 ) -> None:
-    # Aplicado em todas as telas autenticadas para remover o chrome do Streamlit
-    # e manter o botão do copiloto consistente no produto inteiro.
     inject_floating_assistant_styles()
 
     business_sidebar = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
