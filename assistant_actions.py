@@ -516,9 +516,9 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_rece
                 raise AssistantActionError("Confira os dados do lançamento antes de salvar.")
             safe = normalized.payload
             safe["tx_date"] = date.fromisoformat(safe["tx_date"])
-            before = {int(row["id"]) for row in list_transactions(int(user_id))}
+            before = {int(row["id"]) for row in list_transactions(int(user_id))} if return_receipt else set()
             add_transaction(int(user_id), **safe)
-            record_id = next((int(row["id"]) for row in list_transactions(int(user_id)) if int(row["id"]) not in before), None)
+            record_id = next((int(row["id"]) for row in list_transactions(int(user_id)) if int(row["id"]) not in before), None) if return_receipt else None
             message = "Lançamento salvo. O Dashboard e os relatórios já serão atualizados."
             return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
@@ -533,9 +533,9 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_rece
                 raise AssistantActionError("Confira os dados da nota antes de salvar.")
             safe = normalized.payload
             safe["issue_date"] = date.fromisoformat(safe["issue_date"])
-            before = {int(row["id"]) for row in list_invoices(int(user_id))}
+            before = {int(row["id"]) for row in list_invoices(int(user_id))} if return_receipt else set()
             add_invoice(int(user_id), **safe)
-            record_id = next((int(row["id"]) for row in list_invoices(int(user_id)) if int(row["id"]) not in before), None)
+            record_id = next((int(row["id"]) for row in list_invoices(int(user_id)) if int(row["id"]) not in before), None) if return_receipt else None
             message = "Nota cadastrada no Razync. Isso não emite a NFS-e no portal oficial."
             return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
@@ -546,9 +546,9 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_rece
             safe = normalized.payload
             safe["next_date"] = date.fromisoformat(safe["next_date"])
             safe["end_date"] = date.fromisoformat(safe["end_date"]) if safe.get("end_date") else None
-            before = {int(row["id"]) for row in list_recurring_transactions(int(user_id))}
+            before = {int(row["id"]) for row in list_recurring_transactions(int(user_id))} if return_receipt else set()
             add_recurring_transaction(int(user_id), **safe)
-            record_id = next((int(row["id"]) for row in list_recurring_transactions(int(user_id)) if int(row["id"]) not in before), None)
+            record_id = next((int(row["id"]) for row in list_recurring_transactions(int(user_id)) if int(row["id"]) not in before), None) if return_receipt else None
             message = "Automação recorrente criada. O Razync fará os lançamentos nas datas programadas."
             return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
@@ -558,9 +558,9 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_rece
                 raise AssistantActionError("Confira o lembrete antes de salvar.")
             safe = normalized.payload
             safe["due_date"] = date.fromisoformat(safe["due_date"])
-            before = {int(row["id"]) for row in list_obligations(int(user_id))}
+            before = {int(row["id"]) for row in list_obligations(int(user_id))} if return_receipt else set()
             add_obligation(int(user_id), **safe)
-            record_id = next((int(row["id"]) for row in list_obligations(int(user_id)) if int(row["id"]) not in before), None)
+            record_id = next((int(row["id"]) for row in list_obligations(int(user_id)) if int(row["id"]) not in before), None) if return_receipt else None
             message = "Lembrete salvo na agenda de obrigações."
             return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
@@ -568,9 +568,9 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_rece
             normalized = revise_action_draft(draft)
             if not normalized.ready:
                 raise AssistantActionError("Informe o nome do contato antes de salvar.")
-            before = {int(row["id"]) for row in list_contacts(int(user_id))}
+            before = {int(row["id"]) for row in list_contacts(int(user_id))} if return_receipt else set()
             add_contact(int(user_id), **normalized.payload)
-            record_id = next((int(row["id"]) for row in list_contacts(int(user_id)) if int(row["id"]) not in before), None)
+            record_id = next((int(row["id"]) for row in list_contacts(int(user_id)) if int(row["id"]) not in before), None) if return_receipt else None
             message = "Contato cadastrado com sucesso."
             return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
