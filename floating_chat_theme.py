@@ -7,57 +7,47 @@ def inject_floating_assistant_styles() -> None:
     st.markdown(
         """
         <style>
-        #MainMenu,
-        footer,
-        header[data-testid="stHeader"],
-        [data-testid="stToolbar"],
-        [data-testid="stDecoration"],
-        [data-testid="stStatusWidget"],
-        [data-testid="stAppDeployButton"],
-        [data-testid="stToolbarActions"] {
+        #MainMenu, footer, header[data-testid="stHeader"], [data-testid="stToolbar"],
+        [data-testid="stDecoration"], [data-testid="stStatusWidget"],
+        [data-testid="stAppDeployButton"], [data-testid="stToolbarActions"] {
             display: none !important;
             visibility: hidden !important;
         }
 
-        /* Launcher compacto, inspirado em mensageiros. */
         .st-key-floating_ai_launcher {
             position: fixed !important;
-            right: 1rem !important;
-            bottom: 1rem !important;
+            right: .9rem !important;
+            bottom: .9rem !important;
             z-index: 999990 !important;
             width: auto !important;
         }
-        .st-key-floating_ai_launcher > div { width: auto !important; }
         .st-key-floating_ai_launcher [data-testid="stButton"] button {
-            min-height: 44px !important;
-            padding: .5rem .82rem !important;
+            min-height: 42px !important;
+            padding: .48rem .78rem !important;
             border: 0 !important;
             border-radius: 999px !important;
             color: #fff !important;
             background: #087ea4 !important;
-            box-shadow: 0 8px 24px rgba(2, 49, 69, .18) !important;
-            font-size: .78rem !important;
+            box-shadow: 0 8px 22px rgba(2,49,69,.18) !important;
+            font-size: .76rem !important;
             font-weight: 700 !important;
         }
 
-        /* Painel pequeno, com proporção de side-chat e sem espaço morto. */
         .st-key-floating_ai_panel {
-            --rz-chat-w: 360px;
-            --rz-chat-h: min(560px, calc(100vh - 1.5rem));
             position: fixed !important;
-            right: .75rem !important;
-            bottom: .75rem !important;
+            right: .8rem !important;
+            bottom: .8rem !important;
             z-index: 999995 !important;
-            width: min(var(--rz-chat-w), calc(100vw - 1.5rem)) !important;
-            height: var(--rz-chat-h) !important;
-            min-height: 390px !important;
+            width: min(350px, calc(100vw - 1.2rem)) !important;
+            height: min(500px, calc(100vh - 1.2rem)) !important;
+            min-height: 380px !important;
             margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
-            border: 1px solid color-mix(in srgb, var(--rz-border) 88%, transparent) !important;
+            border: 1px solid var(--rz-border) !important;
             border-radius: 14px !important;
             background: var(--rz-surface) !important;
-            box-shadow: 0 18px 52px rgba(2, 27, 43, .20), 0 2px 8px rgba(2, 27, 43, .05) !important;
+            box-shadow: 0 18px 50px rgba(2,27,43,.18), 0 2px 8px rgba(2,27,43,.05) !important;
         }
         .st-key-floating_ai_panel > div,
         .st-key-floating_ai_panel > div > [data-testid="stVerticalBlock"] {
@@ -68,59 +58,58 @@ def inject_floating_assistant_styles() -> None:
             overflow: hidden !important;
         }
 
-        /* Header semelhante a painéis do Copilot: fino, funcional, sem enfeites. */
-        .rz-floating-head {
-            height: 52px !important;
+        .rz-chat-head {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 50px !important;
             display: flex !important;
             align-items: center !important;
-            gap: .58rem !important;
-            padding: .5rem .65rem !important;
+            gap: .55rem !important;
+            padding: .48rem .62rem !important;
             border-bottom: 1px solid var(--rz-border) !important;
             background: var(--rz-surface) !important;
+            z-index: 3 !important;
         }
-        .rz-floating-avatar {
+        .rz-chat-avatar {
             width: 30px !important;
             height: 30px !important;
-            flex: 0 0 30px !important;
             display: grid !important;
             place-items: center !important;
+            flex: 0 0 30px !important;
             border-radius: 9px !important;
             color: #fff !important;
             background: #087ea4 !important;
-            font-size: .6rem !important;
+            font-size: .58rem !important;
             font-weight: 850 !important;
-            letter-spacing: -.03em !important;
         }
-        .rz-floating-head-copy { min-width: 0 !important; flex: 1 !important; }
-        .rz-floating-head-copy strong {
+        .rz-chat-title strong {
             display: block !important;
             color: var(--rz-text) !important;
-            font-size: .82rem !important;
-            font-weight: 750 !important;
-            letter-spacing: -.01em !important;
+            font-size: .8rem !important;
+            line-height: 1.1 !important;
         }
-        .rz-floating-head-copy span {
+        .rz-chat-title span {
             display: flex !important;
             align-items: center !important;
-            gap: .3rem !important;
-            margin-top: .04rem !important;
+            gap: .28rem !important;
+            margin-top: .12rem !important;
             color: var(--rz-muted) !important;
-            font-size: .58rem !important;
+            font-size: .57rem !important;
         }
-        .rz-floating-online {
+        .rz-chat-title span i {
             width: 5px !important;
             height: 5px !important;
             border-radius: 50% !important;
             background: #20b26b !important;
-            box-shadow: none !important;
         }
-        .rz-floating-ai-badge { display: none !important; }
 
         .st-key-floating_ai_close {
             position: absolute !important;
-            top: .43rem !important;
-            right: .42rem !important;
-            z-index: 6 !important;
+            top: .42rem !important;
+            right: .38rem !important;
+            z-index: 7 !important;
             width: 30px !important;
         }
         .st-key-floating_ai_close [data-testid="stButton"] button {
@@ -134,25 +123,29 @@ def inject_floating_assistant_styles() -> None:
             color: var(--rz-muted) !important;
             background: transparent !important;
             box-shadow: none !important;
-            font-size: .9rem !important;
+            font-size: .88rem !important;
         }
         .st-key-floating_ai_close [data-testid="stButton"] button:hover {
             color: var(--rz-text) !important;
             background: var(--rz-soft) !important;
         }
 
-        /* A conversa ocupa o painel; só ela rola. */
         .st-key-floating_ai_thread {
-            height: calc(var(--rz-chat-h) - 108px) !important;
+            position: absolute !important;
+            top: 50px !important;
+            right: 0 !important;
+            bottom: 58px !important;
+            left: 0 !important;
+            height: auto !important;
             min-height: 0 !important;
             margin: 0 !important;
-            padding: .72rem .66rem .5rem !important;
+            padding: .68rem .68rem .55rem !important;
             overflow-x: hidden !important;
             overflow-y: auto !important;
             overscroll-behavior: contain !important;
             background: var(--rz-surface) !important;
             scrollbar-width: thin !important;
-            scrollbar-color: color-mix(in srgb, var(--rz-muted) 26%, transparent) transparent !important;
+            scrollbar-color: color-mix(in srgb, var(--rz-muted) 25%, transparent) transparent !important;
         }
         .st-key-floating_ai_thread::-webkit-scrollbar { width: 4px !important; }
         .st-key-floating_ai_thread::-webkit-scrollbar-track { background: transparent !important; }
@@ -161,98 +154,97 @@ def inject_floating_assistant_styles() -> None:
             background: color-mix(in srgb, var(--rz-muted) 24%, transparent) !important;
         }
         .st-key-floating_ai_thread > div,
-        .st-key-floating_ai_thread [data-testid="stVerticalBlock"] { overflow: visible !important; }
+        .st-key-floating_ai_thread [data-testid="stVerticalBlock"] {
+            overflow: visible !important;
+        }
 
-        /* Assistente sem card pesado; usuário em bolha simples. */
-        .st-key-floating_ai_thread [data-testid="stChatMessage"] {
-            width: auto !important;
-            min-width: 0 !important;
-            margin: .1rem 0 .62rem !important;
-            padding: 0 !important;
-            border: 0 !important;
-            border-radius: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
+        .rz-chat-messages {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: .52rem !important;
+            width: 100% !important;
         }
-        .st-key-floating_ai_thread [aria-label="Chat message from user"] {
-            width: fit-content !important;
-            max-width: 78% !important;
-            margin-left: auto !important;
-            padding: .48rem .62rem !important;
-            border-radius: 13px 13px 4px 13px !important;
-            color: var(--rz-text) !important;
-            background: color-mix(in srgb, var(--rz-primary-soft) 84%, var(--rz-surface)) !important;
+        .rz-msg {
+            display: flex !important;
+            width: 100% !important;
         }
-        .st-key-floating_ai_thread [aria-label="Chat message from assistant"] {
-            max-width: 94% !important;
-            margin-right: auto !important;
-            padding: .12rem .1rem !important;
-        }
-        .st-key-floating_ai_thread [data-testid*="Avatar"] { display: none !important; }
-        .st-key-floating_ai_thread [data-testid="stMarkdownContainer"] p {
-            margin: 0 0 .42rem !important;
+        .rz-msg > div {
+            max-width: 88% !important;
             color: var(--rz-text) !important;
             font-size: .76rem !important;
-            line-height: 1.48 !important;
-        }
-        .st-key-floating_ai_thread [data-testid="stMarkdownContainer"] p:last-child { margin-bottom: 0 !important; }
-        .st-key-floating_ai_thread [data-testid="stMarkdownContainer"] ul,
-        .st-key-floating_ai_thread [data-testid="stMarkdownContainer"] ol {
-            margin: .3rem 0 .4rem .95rem !important;
-            padding: 0 !important;
-            font-size: .75rem !important;
             line-height: 1.45 !important;
+            overflow-wrap: anywhere !important;
         }
-        .st-key-floating_ai_thread [data-testid="stSpinner"] {
+        .rz-msg p { margin: 0 0 .38rem !important; }
+        .rz-msg p:last-child { margin-bottom: 0 !important; }
+        .rz-msg-assistant { justify-content: flex-start !important; }
+        .rz-msg-assistant > div {
+            padding: .1rem .08rem !important;
+            background: transparent !important;
+        }
+        .rz-msg-user { justify-content: flex-end !important; }
+        .rz-msg-user > div {
+            padding: .46rem .6rem !important;
+            border-radius: 13px 13px 4px 13px !important;
+            background: color-mix(in srgb, var(--rz-primary-soft) 84%, var(--rz-surface)) !important;
+        }
+        .rz-typing > div {
+            display: flex !important;
+            gap: .24rem !important;
+            align-items: center !important;
             min-height: 20px !important;
-            margin: .12rem 0 !important;
-            padding: 0 !important;
+        }
+        .rz-typing span {
+            width: 5px !important;
+            height: 5px !important;
+            border-radius: 50% !important;
+            background: var(--rz-muted) !important;
+            animation: rzTyping 1.2s infinite ease-in-out !important;
+        }
+        .rz-typing span:nth-child(2) { animation-delay: .14s !important; }
+        .rz-typing span:nth-child(3) { animation-delay: .28s !important; }
+        @keyframes rzTyping {
+            0%, 60%, 100% { opacity: .28; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-2px); }
+        }
+
+        .st-key-floating_ai_thread [data-testid="stSpinner"] {
+            margin: .35rem 0 !important;
+            min-height: 20px !important;
         }
         .st-key-floating_ai_thread [data-testid="stSpinner"] p {
             color: var(--rz-muted) !important;
-            font-size: .68rem !important;
+            font-size: .66rem !important;
         }
-
-        /* Recursos ficam compactos e dentro do histórico. */
         .st-key-floating_ai_thread .stAlert {
-            padding: .5rem .58rem !important;
-            border-radius: 9px !important;
-            font-size: .7rem !important;
+            padding: .45rem .5rem !important;
+            border-radius: 8px !important;
+            font-size: .68rem !important;
         }
         .st-key-floating_ai_thread [data-testid="stDownloadButton"] button,
         .st-key-floating_ai_thread [data-testid="stButton"] button {
-            min-height: 32px !important;
-            padding: .35rem .55rem !important;
+            min-height: 31px !important;
+            padding: .32rem .5rem !important;
             border-radius: 8px !important;
-            font-size: .68rem !important;
+            font-size: .66rem !important;
             box-shadow: none !important;
         }
-        .st-key-floating_ai_thread [data-testid="stExpander"] {
-            border-radius: 9px !important;
-            border-color: var(--rz-border) !important;
-        }
 
-        /* Composer tipo WhatsApp/Copilot: uma linha limpa no rodapé. */
         .st-key-floating_ai_composer {
-            height: 56px !important;
+            position: absolute !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            height: 58px !important;
             margin: 0 !important;
-            padding: .42rem .55rem !important;
+            padding: .48rem .56rem !important;
             border-top: 1px solid var(--rz-border) !important;
             background: var(--rz-surface) !important;
             overflow: hidden !important;
-        }
-        .st-key-floating_ai_composer [data-testid="stForm"] {
-            margin: 0 !important;
-            padding: 0 !important;
-            border: 0 !important;
-            background: transparent !important;
-        }
-        .st-key-floating_ai_composer [data-testid="stForm"] > div {
-            margin: 0 !important;
-            padding: 0 !important;
+            z-index: 4 !important;
         }
         .st-key-floating_ai_composer [data-testid="stHorizontalBlock"] {
-            gap: .36rem !important;
+            gap: .34rem !important;
             align-items: center !important;
         }
         .st-key-floating_ai_composer [data-testid="stTextInput"] { margin: 0 !important; }
@@ -265,12 +257,12 @@ def inject_floating_assistant_styles() -> None:
         }
         .st-key-floating_ai_composer [data-testid="stTextInput"] input {
             min-height: 38px !important;
-            padding: 0 .65rem !important;
+            padding: 0 .62rem !important;
             color: var(--rz-text) !important;
             background: transparent !important;
-            font-size: .75rem !important;
+            font-size: .74rem !important;
         }
-        .st-key-floating_ai_composer [data-testid="stFormSubmitButton"] button {
+        .st-key-floating_ai_composer [data-testid="stButton"] button {
             width: 40px !important;
             min-width: 40px !important;
             height: 40px !important;
@@ -281,20 +273,19 @@ def inject_floating_assistant_styles() -> None:
             color: #fff !important;
             background: #0aa8d4 !important;
             box-shadow: none !important;
-            font-size: .82rem !important;
+            font-size: .8rem !important;
         }
-        .rz-floating-foot { display: none !important; }
 
         @media (max-width: 700px) {
-            .st-key-floating_ai_launcher { right: .55rem !important; bottom: .55rem !important; }
             .st-key-floating_ai_panel {
-                --rz-chat-h: min(66vh, 540px);
                 right: .45rem !important;
                 bottom: .45rem !important;
-                width: min(350px, calc(100vw - .9rem)) !important;
+                width: min(340px, calc(100vw - .9rem)) !important;
+                height: min(480px, calc(100vh - .9rem)) !important;
                 min-height: 360px !important;
                 border-radius: 13px !important;
             }
+            .st-key-floating_ai_launcher { right: .55rem !important; bottom: .55rem !important; }
         }
         </style>
         """,
