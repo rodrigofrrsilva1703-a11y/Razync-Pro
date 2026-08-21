@@ -12,6 +12,7 @@ from assistant_workspace import (
 from components.razync_chat import razync_chat
 
 _LAST_EVENT_KEY = "razync_chat_v7_last_event"
+_OPEN_KEY = "razync_floating_open"
 
 
 def _public_messages(messages: list[dict]) -> list[dict[str, str]]:
@@ -25,11 +26,7 @@ def _public_messages(messages: list[dict]) -> list[dict[str, str]]:
 
 
 def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
-    """Render experimental do chat V7.
-
-    Este host não é chamado pela sidebar de produção. Ele existe para validar
-    o componente isolado antes de qualquer integração ao fluxo principal.
-    """
+    """Renderiza o chat V7 usando um Custom Component isolado."""
     try:
         user_id = int(user.get("id"))
     except (TypeError, ValueError):
@@ -60,10 +57,12 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
 
     action = str(event.get("action") or "").strip().lower()
     if action == "open_full":
+        st.session_state[_OPEN_KEY] = False
         navigate("Assistente Razync")
         return
     if action == "close":
-        return
+        st.session_state[_OPEN_KEY] = False
+        st.rerun()
     if action != "send":
         return
 
