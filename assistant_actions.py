@@ -8,15 +8,13 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from openai import OpenAI
-
-
 TRANSACTION_CATEGORIES = (
     "Serviços", "Vendas", "Materiais", "Aluguel", "Transporte",
     "Taxas", "Marketing", "Pró-labore/Retirada", "Outros",
 )
 PAYMENT_METHODS = ("PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro")
 INVOICE_TYPES = ("Serviço", "Venda/Comércio")
+RECURRENCE_FREQUENCIES = ("Semanal", "Mensal", "Anual")
 _ACTION_VERBS = (
     "adicione", "adiciona", "adicionar", "anote", "anota", "anotar",
     "cadastre", "cadastra", "cadastrar", "coloque", "coloca", "colocar",
@@ -24,7 +22,7 @@ _ACTION_VERBS = (
     "incluir", "insira", "insere", "inserir", "lance", "lança", "lanca",
     "lançar", "lancar", "registre", "registra", "registrar", "salve",
     "salva", "salvar", "gastei", "paguei", "comprei", "recebi", "vendi",
-    "entrou", "saiu",
+    "entrou", "saiu", "lembre", "lembra", "lembrete",
 )
 _GUIDANCE_PREFIXES = ("como ", "onde ", "posso ", "quero saber", "me explique", "qual ")
 _BUSINESS_TIMEZONE = ZoneInfo("America/Sao_Paulo")
@@ -74,6 +72,10 @@ def _intent(question: str) -> str | None:
     if not _looks_operational(question):
         return None
     text = _plain(question)
+    if any(term in text for term in ("me lembre", "lembrete", "obrigacao", "vencimento")):
+        return "obligation"
+    if re.search(r"\b(?:cadastre|cadastra|registre|registra|adicione|adiciona)\s+(?:o\s+|a\s+|um\s+|uma\s+)?(?:cliente|fornecedor|contato)\b", text):
+        return "contact"
     if re.search(r"\b(nota fiscal|nfse|nfs-e|nf-e|nota\s+(?:n[ºo.]?\s*)?\w+)", text):
         return "invoice"
     if any(term in text for term in (
@@ -81,6 +83,8 @@ def _intent(question: str) -> str | None:
         "vendi", "entrada", "saida", "lançamento", "lancamento",
         "movimentação", "movimentacao", "entrou", "saiu",
     )):
+        if any(term in text for term in ("todo mes", "mensal", "mensalmente", "toda semana", "semanal", "semanalmente", "todo ano", "anual", "anualmente", "recorrente")):
+            return "recurring_transaction"
         return "transaction"
     return None
 
@@ -182,10 +186,12 @@ def _extract_description(question: str, *, fallback: str) -> str:
 def _local_arguments(question: str, action_type: str, today: date) -> dict[str, Any]:
     amount = _parse_amount(question)
     when = _parse_date(question, today).isoformat()
-    if action_type == "transaction":
+    if action_type in {"transaction", "recurring_transaction"}:
         tx_type = _transaction_type(question)
+        plain = _plain(question)
+        frequency = "Semanal" if any(term in plain for term in ("semana", "semanal")) else "Anual" if any(term in plain for term in ("ano", "anual")) else "Mensal"
         return {
-            "action_type": "transaction",
+            "action_type": action_type,
             "tx_type": tx_type,
             "date": when,
             "value": amount,
@@ -202,6 +208,38 @@ def _local_arguments(question: str, action_type: str, today: date) -> dict[str, 
             "customer": "",
             "customer_document": "",
             "status": "",
+            "frequency": frequency,
+            "end_date": "",
+            "title": "",
+            "contact_type": "",
+            "name": "",
+            "email": "",
+            "phone": "",
+            "notes": "",
+        }
+
+    if action_type == "obligation":
+        title = re.sub(r"(?i)^.*?\b(?:me lembre|lembrete|obrigação|obrigacao)\b\s*(?:de|para)?\s*", "", question).strip(" .,-")
+        return {
+            "action_type": "obligation", "date": when, "title": title[:180],
+            "category": "Fiscal" if any(term in _plain(question) for term in ("das", "imposto", "fiscal", "declaracao")) else "Administrativo",
+            "notes": question.strip()[:500],
+        }
+
+    if action_type == "contact":
+        plain = _plain(question)
+        contact_type = "Fornecedor" if "fornecedor" in plain else "Cliente" if "cliente" in plain else "Contato"
+        name_match = re.search(r"(?i)\b(?:cliente|fornecedor|contato)\s+(.+?)(?=\s+(?:cpf|cnpj|e-?mail|telefone|fone)\b|[,.;]|$)", question)
+        email_match = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", question)
+        phone_match = re.search(r"(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s]?\d{4}", question)
+        document_match = re.search(r"\b(?:\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2})\b", question)
+        return {
+            "action_type": "contact", "contact_type": contact_type,
+            "name": (name_match.group(1) if name_match else "").strip()[:180],
+            "document": document_match.group(0) if document_match else "",
+            "email": email_match.group(0) if email_match else "",
+            "phone": phone_match.group(0) if phone_match else "",
+            "notes": "Cadastrado via Assistente Razync",
         }
 
     number_match = re.search(r"\bnota(?:\s+fiscal)?\s*(?:n[ºo.]?|numero)?\s*([A-Za-z0-9./_-]+)", question, flags=re.I)
@@ -261,6 +299,8 @@ _ACTION_TOOL = {
 
 
 def _openai_arguments(question: str, *, api_key: str, model: str, today: date) -> dict[str, Any]:
+    from openai import OpenAI
+
     client = OpenAI(api_key=api_key.strip(), timeout=20.0, max_retries=0)
     response = client.responses.create(
         model=model.strip(),
@@ -324,6 +364,32 @@ def _normalize_draft(arguments: dict[str, Any], *, today: date, source: str) -> 
         )
         return ActionDraft(action_type, payload, missing, summary, source)
 
+    if action_type == "recurring_transaction":
+        tx_type = str(arguments.get("tx_type") or "")
+        category = str(arguments.get("category") or "Outros")
+        payment = str(arguments.get("payment_method") or "Outro")
+        frequency = str(arguments.get("frequency") or "Mensal")
+        description = str(arguments.get("description") or "").strip()[:255]
+        end_date_raw = str(arguments.get("end_date") or "").strip()
+        end_date = _safe_date(end_date_raw, today).isoformat() if end_date_raw else None
+        payload = {
+            "tx_type": tx_type,
+            "description": description,
+            "category": category if category in TRANSACTION_CATEGORIES else "Outros",
+            "value": value,
+            "payment_method": payment if payment in PAYMENT_METHODS else "Outro",
+            "frequency": frequency if frequency in RECURRENCE_FREQUENCIES else "Mensal",
+            "next_date": when.isoformat(),
+            "end_date": end_date,
+            "active": True,
+        }
+        missing = tuple(label for condition, label in (
+            (tx_type not in {"Receita", "Despesa"}, "tipo (receita ou despesa)"),
+            (value <= 0, "valor"), (not description, "descrição"),
+        ) if condition)
+        summary = f"{tx_type or 'Lançamento'} {payload['frequency'].lower()} de R$ {value:,.2f} · {description or 'sem descrição'}"
+        return ActionDraft(action_type, payload, missing, summary, source)
+
     if action_type == "invoice":
         invoice_type = str(arguments.get("invoice_type") or "Serviço")
         description = str(arguments.get("description") or "").strip()[:255]
@@ -342,6 +408,29 @@ def _normalize_draft(arguments: dict[str, Any], *, today: date, source: str) -> 
         summary = f"Nota {number} · R$ {value:,.2f} · {when.strftime('%d/%m/%Y')} · {description or 'sem descrição'}"
         return ActionDraft(action_type, payload, missing, summary, source)
 
+    if action_type == "obligation":
+        title = str(arguments.get("title") or "").strip()[:180]
+        payload = {
+            "title": title, "due_date": when.isoformat(), "status": "Pendente",
+            "category": str(arguments.get("category") or "Administrativo")[:80],
+            "notes": str(arguments.get("notes") or "").strip()[:1000],
+        }
+        missing = tuple(label for condition, label in ((not title, "título do lembrete"),) if condition)
+        return ActionDraft(action_type, payload, missing, f"Lembrete: {title or 'sem título'} · {when.strftime('%d/%m/%Y')}", source)
+
+    if action_type == "contact":
+        name = str(arguments.get("name") or "").strip()[:180]
+        contact_type = str(arguments.get("contact_type") or "Contato")
+        payload = {
+            "contact_type": contact_type if contact_type in {"Cliente", "Fornecedor", "Contato"} else "Contato",
+            "name": name, "document": str(arguments.get("document") or "").strip()[:30],
+            "email": str(arguments.get("email") or "").strip()[:255],
+            "phone": str(arguments.get("phone") or "").strip()[:40],
+            "notes": str(arguments.get("notes") or "").strip()[:1000],
+        }
+        missing = ("nome",) if not name else ()
+        return ActionDraft(action_type, payload, missing, f"{payload['contact_type']}: {name or 'sem nome'}", source)
+
     raise AssistantActionError("Tipo de ação não reconhecido.")
 
 
@@ -358,7 +447,7 @@ def plan_assistant_action(
         return None
 
     local_arguments = _local_arguments(question, intent, today)
-    if api_key.strip():
+    if api_key.strip() and intent in {"transaction", "invoice"}:
         try:
             arguments = _openai_arguments(question, api_key=api_key, model=model, today=today)
             if arguments.get("action_type") != intent:
@@ -369,8 +458,51 @@ def plan_assistant_action(
     return _normalize_draft(local_arguments, today=today, source="Local")
 
 
-def execute_assistant_action(user_id: int, draft: dict[str, Any]) -> str:
-    from database import add_invoice, add_transaction
+def revise_action_draft(draft: dict[str, Any], updates: dict[str, Any] | None = None, *, today: date | None = None) -> ActionDraft:
+    """Revalidate user-edited fields instead of trusting values stored in session state."""
+    today = today or _business_today()
+    action_type = str(draft.get("action_type") or "")
+    payload = {**dict(draft.get("payload") or {}), **dict(updates or {})}
+    arguments = {"action_type": action_type, **payload}
+    if action_type == "transaction":
+        arguments["date"] = payload.get("tx_date")
+    elif action_type == "invoice":
+        arguments["date"] = payload.get("issue_date")
+        arguments["value"] = payload.get("amount")
+    elif action_type == "recurring_transaction":
+        arguments["date"] = payload.get("next_date")
+    elif action_type == "obligation":
+        arguments["date"] = payload.get("due_date")
+    return _normalize_draft(arguments, today=today, source="Revisado pelo usuário")
+
+
+def plan_document_action(analysis: dict[str, Any], filename: str, *, today: date | None = None) -> ActionDraft | None:
+    """Turn locally extracted document metadata into a confirmable draft."""
+    today = today or _business_today()
+    amount = float(analysis.get("value") or 0)
+    number = str(analysis.get("document_number") or "")
+    category = str(analysis.get("category") or "Outro")
+    if category == "Nota Fiscal":
+        return _normalize_draft({
+            "action_type": "invoice", "date": today.isoformat(), "value": amount,
+            "number": number, "description": f"Nota importada de {filename}",
+            "invoice_type": "Serviço", "customer": "", "customer_document": "", "status": "Emitida",
+        }, today=today, source="Documento")
+    if category in {"Comprovante", "DAS"} and amount > 0:
+        return _normalize_draft({
+            "action_type": "transaction", "date": today.isoformat(), "value": amount,
+            "tx_type": "Despesa", "description": f"{category} · {filename}",
+            "category": "Taxas" if category == "DAS" else "Outros",
+            "document_number": number, "counterparty": "", "payment_method": "Outro",
+        }, today=today, source="Documento")
+    return None
+
+
+def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_receipt: bool = False) -> str | dict[str, Any]:
+    from database import (
+        add_contact, add_invoice, add_obligation, add_recurring_transaction, add_transaction,
+        list_contacts, list_invoices, list_obligations, list_recurring_transactions, list_transactions,
+    )
 
     action_type = str(draft.get("action_type") or "")
     payload = dict(draft.get("payload") or {})
@@ -384,8 +516,11 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any]) -> str:
                 raise AssistantActionError("Confira os dados do lançamento antes de salvar.")
             safe = normalized.payload
             safe["tx_date"] = date.fromisoformat(safe["tx_date"])
+            before = {int(row["id"]) for row in list_transactions(int(user_id))}
             add_transaction(int(user_id), **safe)
-            return "Lançamento salvo. O Dashboard e os relatórios já serão atualizados."
+            record_id = next((int(row["id"]) for row in list_transactions(int(user_id)) if int(row["id"]) not in before), None)
+            message = "Lançamento salvo. O Dashboard e os relatórios já serão atualizados."
+            return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
         if action_type == "invoice":
             normalized = _normalize_draft({
@@ -398,12 +533,75 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any]) -> str:
                 raise AssistantActionError("Confira os dados da nota antes de salvar.")
             safe = normalized.payload
             safe["issue_date"] = date.fromisoformat(safe["issue_date"])
+            before = {int(row["id"]) for row in list_invoices(int(user_id))}
             add_invoice(int(user_id), **safe)
-            return "Nota cadastrada no Razync. Isso não emite a NFS-e no portal oficial."
+            record_id = next((int(row["id"]) for row in list_invoices(int(user_id)) if int(row["id"]) not in before), None)
+            message = "Nota cadastrada no Razync. Isso não emite a NFS-e no portal oficial."
+            return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
+
+        if action_type == "recurring_transaction":
+            normalized = revise_action_draft(draft)
+            if not normalized.ready:
+                raise AssistantActionError("Confira os dados da recorrência antes de salvar.")
+            safe = normalized.payload
+            safe["next_date"] = date.fromisoformat(safe["next_date"])
+            safe["end_date"] = date.fromisoformat(safe["end_date"]) if safe.get("end_date") else None
+            before = {int(row["id"]) for row in list_recurring_transactions(int(user_id))}
+            add_recurring_transaction(int(user_id), **safe)
+            record_id = next((int(row["id"]) for row in list_recurring_transactions(int(user_id)) if int(row["id"]) not in before), None)
+            message = "Automação recorrente criada. O Razync fará os lançamentos nas datas programadas."
+            return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
+
+        if action_type == "obligation":
+            normalized = revise_action_draft(draft)
+            if not normalized.ready:
+                raise AssistantActionError("Confira o lembrete antes de salvar.")
+            safe = normalized.payload
+            safe["due_date"] = date.fromisoformat(safe["due_date"])
+            before = {int(row["id"]) for row in list_obligations(int(user_id))}
+            add_obligation(int(user_id), **safe)
+            record_id = next((int(row["id"]) for row in list_obligations(int(user_id)) if int(row["id"]) not in before), None)
+            message = "Lembrete salvo na agenda de obrigações."
+            return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
+
+        if action_type == "contact":
+            normalized = revise_action_draft(draft)
+            if not normalized.ready:
+                raise AssistantActionError("Informe o nome do contato antes de salvar.")
+            before = {int(row["id"]) for row in list_contacts(int(user_id))}
+            add_contact(int(user_id), **normalized.payload)
+            record_id = next((int(row["id"]) for row in list_contacts(int(user_id)) if int(row["id"]) not in before), None)
+            message = "Contato cadastrado com sucesso."
+            return {"message": message, "action_type": action_type, "record_id": record_id} if return_receipt else message
 
         raise AssistantActionError("Ação não suportada pelo Assistente.")
     except AssistantActionError:
         raise
     except Exception as exc:
         raise AssistantActionError("Não foi possível salvar a ação agora.") from exc
+
+
+def undo_assistant_action(user_id: int, receipt: dict[str, Any]) -> str:
+    """Undo only the exact record created by the latest confirmed assistant action."""
+    from database import delete_contact, delete_invoice, delete_obligation, delete_recurring_transaction, delete_transaction
+
+    record_id = receipt.get("record_id")
+    action_type = str(receipt.get("action_type") or "")
+    if not record_id:
+        raise AssistantActionError("Não foi possível identificar o item para desfazer.")
+    handlers = {
+        "transaction": delete_transaction,
+        "invoice": delete_invoice,
+        "recurring_transaction": delete_recurring_transaction,
+        "obligation": delete_obligation,
+        "contact": delete_contact,
+    }
+    handler = handlers.get(action_type)
+    if handler is None:
+        raise AssistantActionError("Esta ação não pode ser desfeita automaticamente.")
+    try:
+        handler(int(user_id), int(record_id))
+    except Exception as exc:
+        raise AssistantActionError("Não foi possível desfazer a última ação.") from exc
+    return "Última ação da IA desfeita com segurança."
 
