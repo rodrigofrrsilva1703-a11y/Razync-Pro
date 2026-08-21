@@ -504,6 +504,13 @@ def _store_turn(question: str, answer: str, resources: dict | None = None) -> No
     st.session_state["razync_ai_last_resource_question"] = question
 
 
+def _provider_caption(result: dict) -> str:
+    provider = str(result.get("provider") or "Local")
+    if provider == "Local":
+        return "Resposta processada pelo mecanismo seguro local do Razync."
+    return f"Resposta processada por {provider}."
+
+
 def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
     try:
         user_id = int(user.get("id"))
@@ -534,6 +541,8 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
 
     if sent and question.strip():
         question = question.strip()
+        with st.chat_message("user"):
+            st.markdown(question)
         with st.spinner("Pensando..."):
             result = _answer_question(
                 question,
@@ -561,6 +570,7 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
         _render_notices(result["notices"])
         with st.chat_message("assistant"):
             st.markdown(result["answer"])
+            st.caption(_provider_caption(result))
 
     _render_resources(
         st.session_state.get("razync_ai_last_resources"),
@@ -695,8 +705,10 @@ def render_ai_assistant(
             )
         _render_notices(result["notices"])
         st.markdown(result["answer"])
+        st.caption(_provider_caption(result))
 
     _store_turn(question, result["answer"], resources)
     _render_resources(resources, key_prefix="full_ai", current_page="Assistente Razync")
     _render_pending_action(key_prefix="full_ai_action")
     st.caption("As respostas usam os registros do Razync. Para obrigações oficiais, confirme no portal competente ou com seu contador.")
+
