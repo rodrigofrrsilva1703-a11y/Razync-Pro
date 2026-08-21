@@ -91,11 +91,17 @@ def _inject_assistant_style() -> None:
             border: 1px solid var(--rz-border); border-radius: 12px; background: var(--rz-surface);
             box-shadow: 0 0 0 0 transparent; overflow: hidden;
         }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] > div,
+        .st-key-floating_ai_composer [data-testid="stChatInput"] textarea {
+            background: var(--rz-surface) !important; color: var(--rz-text) !important;
+        }
         .st-key-floating_ai_composer [data-testid="stChatInput"]:focus-within {
             border-color: var(--rz-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rz-primary) 14%, transparent);
         }
         .st-key-floating_ai_composer [data-testid="stChatInput"] textarea { min-height: 2.75rem !important; }
-        .st-key-floating_ai_composer [data-testid="stChatInputSubmitButton"] { color: var(--rz-primary) !important; }
+        .st-key-floating_ai_composer [data-testid="stChatInputSubmitButton"] {
+            color: var(--rz-primary) !important; background: var(--rz-soft) !important;
+        }
         .rz-ai-page-intro {
             display: flex; align-items: center; justify-content: space-between; gap: 1rem;
             padding: 1rem 1.1rem; margin: .1rem 0 1rem; border: 1px solid var(--rz-border);
