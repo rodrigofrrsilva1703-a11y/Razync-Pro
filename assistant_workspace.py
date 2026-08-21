@@ -86,19 +86,16 @@ def _inject_assistant_style() -> None:
         .st-key-floating_ai_messages [data-testid="stChatMessageAvatarUser"],
         .st-key-floating_ai_messages [data-testid="stChatMessageAvatarAssistant"] { transform: scale(.82); transform-origin: top center; }
         .st-key-floating_ai_messages [data-testid="stMarkdownContainer"] p { font-size: .82rem; line-height: 1.5; }
-        .st-key-floating_ai_composer [data-testid="stForm"] {
-            border: 0 !important; padding: 0 !important; margin-top: .35rem;
-            background: transparent !important; box-shadow: none !important;
+        .st-key-floating_ai_composer { margin-top: .35rem; }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] {
+            border: 1px solid var(--rz-border); border-radius: 12px; background: var(--rz-surface);
+            box-shadow: 0 0 0 0 transparent; overflow: hidden;
         }
-        .st-key-floating_ai_composer [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: .45rem !important; }
-        .st-key-floating_ai_composer [data-testid="column"]:first-child { flex: 1 1 auto !important; min-width: 0 !important; }
-        .st-key-floating_ai_composer [data-testid="column"]:last-child { flex: 0 0 88px !important; min-width: 88px !important; }
-        .st-key-floating_ai_composer input { min-height: 2.7rem !important; }
-        .st-key-floating_ai_composer [data-testid="stFormSubmitButton"] button {
-            min-height: 2.7rem !important; border-radius: 10px !important;
-            background: var(--rz-primary) !important; color: white !important; border-color: var(--rz-primary) !important;
+        .st-key-floating_ai_composer [data-testid="stChatInput"]:focus-within {
+            border-color: var(--rz-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rz-primary) 14%, transparent);
         }
-        .st-key-floating_ai_composer [data-testid="stFormSubmitButton"] button p { color: white !important; }
+        .st-key-floating_ai_composer [data-testid="stChatInput"] textarea { min-height: 2.75rem !important; }
+        .st-key-floating_ai_composer [data-testid="stChatInputSubmitButton"] { color: var(--rz-primary) !important; }
         .rz-ai-page-intro {
             display: flex; align-items: center; justify-content: space-between; gap: 1rem;
             padding: 1rem 1.1rem; margin: .1rem 0 1rem; border: 1px solid var(--rz-border);
@@ -645,16 +642,9 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
                 st.markdown(message["content"])
 
     with st.container(key="floating_ai_composer"):
-        with st.form("floating_ai_chat_form", clear_on_submit=True):
-            message_col, send_col = st.columns([5, 1])
-            question = message_col.text_input(
-                "Mensagem",
-                placeholder="Digite seu pedido...",
-                label_visibility="collapsed",
-            )
-            sent = send_col.form_submit_button("Enviar", type="primary", width="stretch")
+        question = st.chat_input("Digite seu pedido...", key="floating_ai_chat_input")
 
-    if sent and question.strip():
+    if question and question.strip():
         question = question.strip()
         with st.chat_message("user"):
             st.markdown(question)
