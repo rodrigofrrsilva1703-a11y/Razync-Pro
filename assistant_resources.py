@@ -7,6 +7,8 @@ from typing import Iterable
 
 import pandas as pd
 
+from assistant_query_engine import analyze_business_question, parse_period
+from assistant_reports import custom_query_pdf
 from business_tools import financial_analysis, monthly_closing
 from database import get_document
 from reports import closing_summary_pdf, dasn_summary_pdf, financial_summary_pdf, monthly_report_pdf
@@ -48,6 +50,7 @@ REPORT_TYPES = (
     "Relatório mensal de receitas em PDF",
     "Fechamento do mês em PDF",
     "Resumo DASN-SIMEI em PDF",
+    "Relatório personalizado da consulta em PDF/CSV",
 )
 
 _STOPWORDS = {
@@ -75,14 +78,18 @@ def build_product_context(documents: Iterable[dict], current_page: str | None = 
         "assistant_capabilities": [
             "explicar como usar qualquer área do Razync",
             "analisar números e movimentações agregadas do negócio",
+            "entender períodos naturais como mês passado, últimos meses, trimestres e intervalos entre meses",
+            "comparar períodos e identificar maiores categorias, clientes ou fornecedores usando processamento local",
             "indicar a tela correta para executar uma tarefa",
             "localizar documentos do próprio usuário e preparar download quando solicitado",
-            "gerar relatórios locais do Razync para download quando solicitado",
+            "gerar relatórios locais e relatórios personalizados da consulta quando solicitado",
+            "preparar cadastros e lançamentos para confirmação do usuário",
         ],
         "assistant_limits": [
             "não executa pagamento, transmissão fiscal ou exclusão automaticamente",
             "não acessa dados de outro usuário",
             "não envia credenciais ou documentos brutos ao provedor de IA",
+            "nomes de clientes e fornecedores usados em consultas específicas são processados localmente no Razync",
         ],
     }
 
@@ -150,23 +157,43 @@ def _monthly_rows(transactions: pd.DataFrame, year: int, month: int) -> list[dic
     }]
 
 
-def _document_matches(question: str, documents: list[dict], limit: int = 4) -> list[dict]:
+def _monthly_rows_for_period(transactions: pd.DataFrame, start: date, end: date) -> list[dict]:
+    rows: list[dict] = []
+    cursor = date(start.year, start.month, 1)
+    while cursor <= end:
+        rows.extend(_monthly_rows(transactions, cursor.year, cursor.month))
+        if cursor.month == 12:
+            cursor = date(cursor.year + 1, 1, 1)
+        else:
+            cursor = date(cursor.year, cursor.month + 1, 1)
+    return rows
+
+
+def _document_matches(question: str, documents: list[dict], limit: int = 6) -> list[dict]:
     if not documents:
         return []
     text = _normalize(question)
-    explicit = any(term in text for term in ("documento", "arquivo", "anexo", "anexado", "comprovante", "pdf", "guia"))
+    explicit = any(term in text for term in ("documento", "arquivo", "anexo", "anexado", "comprovante", "pdf", "guia", "nota"))
     if not explicit:
         return []
 
     tokens = [token for token in re.split(r"\s+", text) if len(token) >= 3 and token not in _STOPWORDS]
+    period = parse_period(question)
+    period_keys = set()
+    cursor = date(period.start.year, period.start.month, 1)
+    while cursor <= period.end:
+        period_keys.add(f"{cursor.year}-{cursor.month:02d}")
+        cursor = date(cursor.year + 1, 1, 1) if cursor.month == 12 else date(cursor.year, cursor.month + 1, 1)
+
     scored: list[tuple[int, dict]] = []
     for item in documents:
-        haystack = _normalize(" ".join([
-            str(item.get("filename") or ""),
-            str(item.get("category") or ""),
-            str(item.get("reference_month") or ""),
-        ]))
-        score = sum(2 if token in _normalize(str(item.get("filename") or "")) else 1 for token in tokens if token in haystack)
+        filename = _normalize(str(item.get("filename") or ""))
+        category = _normalize(str(item.get("category") or ""))
+        reference = str(item.get("reference_month") or "").strip()
+        haystack = f"{filename} {category} {reference}"
+        score = sum(3 if token in filename else 2 if token in category else 1 for token in tokens if token in haystack)
+        if reference and reference in period_keys and any(marker in text for marker in ("mes", "janeiro", "fevereiro", "março", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro", "202")):
+            score += 4
         scored.append((score, item))
 
     if tokens and any(score > 0 for score, _ in scored):
@@ -176,13 +203,7 @@ def _document_matches(question: str, documents: list[dict], limit: int = 4) -> l
     return chosen[:limit]
 
 
-def _load_document_asset(
-    *,
-    user_id: int,
-    meta: dict,
-    access_token: str,
-    refresh_token: str,
-) -> dict | None:
+def _load_document_asset(*, user_id: int, meta: dict, access_token: str, refresh_token: str) -> dict | None:
     document = get_document(user_id, int(meta["id"]))
     if not document:
         return None
@@ -200,7 +221,7 @@ def _load_document_asset(
     }
 
 
-def _report_assets(
+def _standard_report_assets(
     question: str,
     *,
     profile: dict,
@@ -217,44 +238,83 @@ def _report_assets(
     if not wants_report:
         return []
 
-    today = date.today()
+    period = parse_period(question, default_year=year)
+    report_year = period.end.year
+    report_month = period.end.month
     assets: list[dict] = []
     if "fechamento" in text:
-        closing = monthly_closing(transactions, invoices, documents, das_rows, year, today.month)
+        closing = monthly_closing(transactions, invoices, documents, das_rows, report_year, report_month)
         assets.append({
-            "label": "Baixar fechamento do mês",
-            "data": closing_summary_pdf(profile, year, today.month, closing),
-            "file_name": f"fechamento_{year}_{today.month:02d}.pdf",
+            "label": f"Baixar fechamento {report_month:02d}/{report_year}",
+            "data": closing_summary_pdf(profile, report_year, report_month, closing),
+            "file_name": f"fechamento_{report_year}_{report_month:02d}.pdf",
             "mime": "application/pdf",
         })
     elif "dasn" in text or "declaração anual" in text or "declaracao anual" in text:
         if transactions.empty:
             services = sales = 0.0
         else:
-            cur = transactions[(transactions["tx_type"] == "Receita") & (transactions["tx_date"].dt.year == year)]
+            cur = transactions[(transactions["tx_type"] == "Receita") & (transactions["tx_date"].dt.year == report_year)]
             services = float(cur[cur["category"].isin(["Serviços", "Serviço"])]["value"].sum())
             sales = float(cur["value"].sum()) - services
         assets.append({
-            "label": "Baixar resumo DASN-SIMEI",
-            "data": dasn_summary_pdf(profile, year, services, sales, bool(profile.get("has_employee", False))),
-            "file_name": f"resumo_DASN_{year}.pdf",
+            "label": f"Baixar resumo DASN-SIMEI {report_year}",
+            "data": dasn_summary_pdf(profile, report_year, services, sales, bool(profile.get("has_employee", False))),
+            "file_name": f"resumo_DASN_{report_year}.pdf",
             "mime": "application/pdf",
         })
     elif "mensal" in text or "receitas brutas" in text:
+        rows = _monthly_rows_for_period(transactions, period.start, period.end)
         assets.append({
-            "label": "Baixar relatório mensal",
-            "data": monthly_report_pdf(profile, year, _monthly_rows(transactions, year, today.month)),
-            "file_name": f"relatorio_mensal_{year}_{today.month:02d}.pdf",
+            "label": f"Baixar relatório de receitas · {period.label}",
+            "data": monthly_report_pdf(profile, report_year, rows),
+            "file_name": f"relatorio_receitas_{period.start:%Y%m}_{period.end:%Y%m}.pdf",
             "mime": "application/pdf",
         })
-    else:
+    elif "financeir" in text or "análise" in text or "analise" in text:
         assets.append({
-            "label": "Baixar análise financeira",
-            "data": financial_summary_pdf(profile, year, financial_analysis(transactions, year)),
-            "file_name": f"analise_financeira_{year}.pdf",
+            "label": f"Baixar análise financeira {report_year}",
+            "data": financial_summary_pdf(profile, report_year, financial_analysis(transactions, report_year)),
+            "file_name": f"analise_financeira_{report_year}.pdf",
             "mime": "application/pdf",
         })
     return assets
+
+
+def _query_assets(question: str, transactions: pd.DataFrame, year: int) -> tuple[list[dict], str | None]:
+    result = analyze_business_question(question, transactions, default_year=year)
+    if not result.handled:
+        return [], None
+
+    assets: list[dict] = []
+    csv_data = result.csv_bytes()
+    text = _normalize(question)
+    wants_file = any(term in text for term in ("relatório", "relatorio", "baixar", "download", "csv", "excel", "pdf", "arquivo"))
+    if csv_data and wants_file:
+        assets.append({
+            "label": "Baixar dados da consulta em CSV",
+            "data": csv_data,
+            "file_name": "consulta_razync.csv",
+            "mime": "text/csv",
+        })
+    if wants_file:
+        try:
+            pdf = custom_query_pdf(
+                title="Relatório personalizado do Copiloto Razync",
+                summary=result.summary,
+                period_label=result.period.label if result.period else None,
+                table=result.table,
+            )
+        except Exception:
+            pdf = b""
+        if pdf:
+            assets.append({
+                "label": "Baixar relatório personalizado em PDF",
+                "data": pdf,
+                "file_name": "relatorio_personalizado_razync.pdf",
+                "mime": "application/pdf",
+            })
+    return assets, result.summary
 
 
 def build_resource_bundle(
@@ -272,7 +332,7 @@ def build_resource_bundle(
     refresh_token: str = "",
 ) -> dict:
     route, route_label = suggest_route(question)
-    downloads = _report_assets(
+    downloads = _standard_report_assets(
         question,
         profile=profile,
         transactions=transactions,
@@ -281,6 +341,9 @@ def build_resource_bundle(
         documents=documents,
         year=year,
     )
+
+    query_downloads, query_summary = _query_assets(question, transactions, year)
+    downloads.extend(query_downloads)
 
     document_errors = 0
     for meta in _document_matches(question, documents):
@@ -298,15 +361,17 @@ def build_resource_bundle(
         else:
             document_errors += 1
 
-    note = None
+    notes: list[str] = []
+    if query_summary:
+        notes.append(query_summary)
     if document_errors:
-        note = "Alguns documentos encontrados não puderam ser preparados para download agora."
+        notes.append("Alguns documentos encontrados não puderam ser preparados para download agora.")
     elif any(term in _normalize(question) for term in ("documento", "arquivo", "anexo", "anexado")) and not documents:
-        note = "Não há documentos salvos no Razync para esta conta."
+        notes.append("Não há documentos salvos no Razync para esta conta.")
 
     return {
         "route": route,
         "route_label": route_label,
-        "downloads": downloads[:5],
-        "note": note,
+        "downloads": downloads[:8],
+        "note": "\n\n".join(notes) if notes else None,
     }
