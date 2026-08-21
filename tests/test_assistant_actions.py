@@ -4,7 +4,10 @@ import unittest
 from datetime import date
 from unittest.mock import patch
 
-from assistant_actions import AssistantActionError, execute_assistant_action, plan_assistant_action
+from assistant_actions import (
+    AssistantActionError, execute_assistant_action, plan_assistant_action,
+    plan_document_action, revise_action_draft, undo_assistant_action,
+)
 
 
 class AssistantActionPlanningTests(unittest.TestCase):
@@ -96,6 +99,54 @@ class AssistantActionPlanningTests(unittest.TestCase):
         draft = plan_assistant_action("Registre uma despesa de aluguel hoje", today=date.today())
         with self.assertRaises(AssistantActionError):
             execute_assistant_action(7, draft.to_dict())
+
+    def test_plans_monthly_recurring_expense(self):
+        draft = plan_assistant_action(
+            "Registre uma despesa mensal de R$ 950 de aluguel no PIX",
+            today=date(2026, 8, 20),
+        )
+        self.assertEqual(draft.action_type, "recurring_transaction")
+        self.assertTrue(draft.ready)
+        self.assertEqual(draft.payload["frequency"], "Mensal")
+
+    def test_plans_obligation_reminder(self):
+        draft = plan_assistant_action(
+            "Me lembre de pagar o DAS em 25/08/2026",
+            today=date(2026, 8, 20),
+        )
+        self.assertEqual(draft.action_type, "obligation")
+        self.assertTrue(draft.ready)
+        self.assertEqual(draft.payload["due_date"], "2026-08-25")
+
+    def test_plans_customer_contact(self):
+        draft = plan_assistant_action(
+            "Cadastre o cliente Maria email maria@example.com telefone 11999998888",
+            today=date(2026, 8, 20),
+        )
+        self.assertEqual(draft.action_type, "contact")
+        self.assertTrue(draft.ready)
+        self.assertEqual(draft.payload["name"], "Maria")
+
+    def test_revises_incomplete_draft_with_user_value(self):
+        draft = plan_assistant_action("Registre uma despesa de aluguel", today=date(2026, 8, 20))
+        revised = revise_action_draft(draft.to_dict(), {"value": 900})
+        self.assertTrue(revised.ready)
+        self.assertEqual(revised.payload["value"], 900)
+
+    def test_prepares_invoice_from_document_analysis(self):
+        draft = plan_document_action(
+            {"category": "Nota Fiscal", "value": 780.5, "document_number": "NF123"},
+            "nota.pdf", today=date(2026, 8, 20),
+        )
+        self.assertEqual(draft.action_type, "invoice")
+        self.assertTrue(draft.ready)
+        self.assertEqual(draft.payload["amount"], 780.5)
+
+    @patch("database.delete_transaction")
+    def test_undoes_exact_assistant_transaction(self, delete_transaction):
+        message = undo_assistant_action(7, {"action_type": "transaction", "record_id": 42})
+        self.assertIn("desfeita", message)
+        delete_transaction.assert_called_once_with(7, 42)
 
 
 if __name__ == "__main__":
