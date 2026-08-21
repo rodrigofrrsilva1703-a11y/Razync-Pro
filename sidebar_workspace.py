@@ -5,7 +5,8 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
-from floating_assistant import inject_floating_assistant_styles, render_floating_assistant
+from floating_assistant import render_floating_assistant
+from floating_chat_theme import inject_floating_assistant_styles
 from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
 from onboarding_tools import onboarding_progress
 
