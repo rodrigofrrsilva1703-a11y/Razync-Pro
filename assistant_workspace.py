@@ -10,9 +10,14 @@ import streamlit as st
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, OpenAI, RateLimitError
 
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
-from assistant_actions import (
-    AssistantActionError, execute_assistant_action, plan_assistant_action,
-    plan_document_action, revise_action_draft, undo_assistant_action,
+from assistant_actions import AssistantActionError, plan_document_action
+from assistant_action_store import AssistantActionStoreError, list_actions
+from assistant_audio import AssistantAudioError, transcribe_audio
+from assistant_automation_service import (
+    confirm_automation as execute_assistant_action,
+    prepare_automation as plan_assistant_action,
+    revise_automation as revise_action_draft,
+    undo_automation as undo_assistant_action,
 )
 from assistant_history import (
     AssistantHistoryError, WELCOME_MESSAGE, append_message as persist_ai_message,
@@ -502,13 +507,10 @@ def _answer_question(
         action_state["original_request"] = action_question
         st.session_state["razync_ai_pending_action"] = action_state
         if action_draft.ready:
-            answer = (
-                "Entendi e preparei a ação. Confira o resumo abaixo e confirme uma única vez para salvar. "
-                "Nada foi gravado ainda."
-            )
+            answer = "Pronto — preparei a ação. Confira o resumo e confirme para salvar."
         else:
             missing = ", ".join(action_draft.missing_fields)
-            answer = f"Consigo fazer isso. Só preciso de: {missing}. Envie essa informação na próxima mensagem."
+            answer = f"Só preciso de: {missing}. Responda aqui ou complete os campos da ação."
         return {
             "answer": answer,
             "notices": [],
@@ -829,6 +831,52 @@ def _render_document_intake(*, key_prefix: str) -> None:
             st.success(f"Documento analisado com confiança {analysis.get('confidence', 'Baixa')}. Confira a prévia antes de salvar.")
             st.rerun()
 
+    with st.expander("Enviar áudio"):
+        st.caption("O áudio é enviado à OpenAI somente para transcrição e exige confirmação antes de qualquer lançamento.")
+        audio = st.file_uploader(
+            "Envie ou grave um áudio com seu pedido",
+            type=["mp3", "m4a", "ogg", "wav", "webm", "mp4"],
+            key=f"{key_prefix}_audio_upload",
+            help="Exemplo: Gastei 80 reais de combustível hoje.",
+        )
+        if audio is not None and st.button("Transcrever e enviar", key=f"{key_prefix}_transcribe_audio", width="stretch"):
+            provider = _provider_state()
+            try:
+                with st.spinner("Transcrevendo áudio..."):
+                    transcript = transcribe_audio(
+                        audio.getvalue(), audio.name,
+                        api_key=str(provider.get("openai_api_key") or ""),
+                    )
+            except AssistantAudioError as exc:
+                st.error(str(exc))
+                return
+            st.session_state["razync_ai_pending_question"] = transcript
+            st.rerun()
+
+
+def _render_action_history(user_id: int | None) -> None:
+    with st.expander("Ações realizadas pela IA"):
+        if user_id is None:
+            st.caption("Entre novamente para acessar o histórico.")
+            return
+        try:
+            actions = list_actions(user_id, limit=12)
+        except AssistantActionStoreError as exc:
+            st.warning(str(exc))
+            return
+        if not actions:
+            st.caption("Nenhuma ação confirmada pela IA ainda.")
+            return
+        status_labels = {
+            "completed": "Concluída", "undone": "Desfeita",
+            "failed": "Falhou", "processing": "Processando",
+        }
+        for item in actions:
+            status = status_labels.get(str(item.get("status") or ""), "Registrada")
+            channel = "WhatsApp" if item.get("channel") == "whatsapp" else "Site"
+            st.markdown(f"**{status}** · {channel}")
+            st.caption(str(item.get("summary") or "Ação da IA"))
+
 
 def _store_turn(question: str, answer: str, resources: dict | None = None) -> None:
     _append_message("user", question)
@@ -954,7 +1002,7 @@ def _render_ai_settings(provider: dict, *, quota_ready: bool, usage_count: int, 
             st.caption("IA externa configurada; o controle de uso está temporariamente indisponível.")
         else:
             st.caption("Modo local ativo. Configure GEMINI_API_KEY ou OPENAI_API_KEY para respostas avançadas.")
-        st.caption("Arquivos e OCR são processados localmente. Ações continuam exigindo confirmação.")
+        st.caption("Documentos e OCR são processados localmente; áudios são enviados à OpenAI para transcrição. Toda ação exige confirmação.")
         if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
             with st.spinner("Testando conexão..."):
                 if provider["gemini_enabled"]:
@@ -1032,6 +1080,7 @@ def render_ai_assistant(
         _render_pending_action(key_prefix="full_ai_idle_action")
         _render_document_intake(key_prefix="full_ai_idle")
         _render_last_action_undo(key_prefix="full_ai_idle")
+        _render_action_history(user_id)
         _render_ai_settings(provider, quota_ready=quota_ready, usage_count=usage_count, daily_limit=daily_limit)
         st.caption("O Razync prepara as ações; você sempre confirma antes de qualquer alteração.")
         return
