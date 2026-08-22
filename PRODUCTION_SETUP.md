@@ -1,6 +1,6 @@
 # Razync Pro — Configuração de Produção
 
-O código do Razync Pro aceita PostgreSQL por `DATABASE_URL`. Sem essa configuração, o sistema usa SQLite apenas para desenvolvimento e testes.
+O Razync Pro usa PostgreSQL/Supabase em produção. SQLite permanece disponível somente para desenvolvimento e testes. Quando `APP_ENVIRONMENT = "production"`, o aplicativo falha fechado se banco, Auth ou segredo de sessão não estiverem configurados explicitamente; ele não deve iniciar silenciosamente em modo local.
 
 ## 1. Banco PostgreSQL / Supabase
 
@@ -23,17 +23,23 @@ No painel do aplicativo:
 3. Configure:
 
 ```toml
+APP_ENVIRONMENT = "production"
 DATABASE_URL = "postgresql://USUARIO:SENHA@HOST:5432/BANCO"
 SUPABASE_URL = "https://SEU-PROJETO.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_..."
 SESSION_COOKIE_SECRET = "gere-um-valor-aleatorio-com-pelo-menos-32-caracteres"
-SENTRY_DSN = "https://..." # opcional, para observabilidade externa
-APP_ENVIRONMENT = "production"
-OPENAI_API_KEY = "sk-proj-..." # opcional, ativa a IA do Assistente Razync
-OPENAI_MODEL = "gpt-5.6-luna" # opcional; modelo com foco em custo
+
+GEMINI_API_KEY = "..." # provedor preferencial da IA
+GEMINI_MODEL = "gemini-3.6-flash"
+
+OPENAI_API_KEY = "..." # opcional, provedor alternativo
+OPENAI_MODEL = "gpt-5.4-mini"
+OPENAI_DAILY_REQUEST_LIMIT = "20"
+
+SENTRY_DSN = "https://..." # opcional, observabilidade externa
 ```
 
-Use somente a chave publicável no Streamlit; nunca configure `service_role` ou secret key administrativa no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”.
+Use somente a chave publicável do Supabase no Streamlit; nunca configure `service_role` ou secret key administrativa no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”.
 
 4. Salve e reinicie o aplicativo.
 
@@ -49,22 +55,21 @@ O ambiente de produção usa Supabase Auth para login, confirmação de e-mail, 
 
 A exclusão de conta é executada pela Edge Function protegida `delete-account`, com JWT obrigatório. Ela remove primeiro os documentos privados, depois o registro interno do usuário (cascateando os dados de negócio) e por último a identidade Supabase Auth. A chave administrativa permanece somente no ambiente seguro da Edge Function.
 
-Enquanto as variáveis de Auth não estiverem configuradas, o aplicativo informa explicitamente que está em modo temporário de desenvolvimento/migração. Esse modo não deve ser usado para clientes reais.
+Em desenvolvimento ainda podem existir fallbacks locais. Em produção, o guard de configuração impede inicialização quando os Secrets críticos não estão presentes.
 
+## 4. Assistente Razync com IA
 
-## Assistente Razync com IA
+O Assistente Razync usa Gemini como provedor preferencial quando `GEMINI_API_KEY` estiver configurada. A OpenAI permanece disponível como alternativa quando `OPENAI_API_KEY` estiver configurada. Se nenhum provedor externo responder ou a quota for atingida, o Razync preserva o fallback local para não interromper o produto.
 
-O Assistente Razync usa a OpenAI Responses API somente quando `OPENAI_API_KEY` estiver configurada. Sem a chave, o sistema preserva o assistente local baseado em regras, evitando indisponibilidade do recurso.
+A integração envia somente contexto empresarial agregado e sanitizado. CPF, CNPJ, telefone, credenciais, tokens, conteúdo bruto de documentos e identificadores diretos não devem ser enviados ao provedor externo. No fluxo OpenAI, as chamadas continuam usando `store=False`.
 
-A integração envia apenas um contexto agregado calculado a partir do snapshot já carregado na sessão. Não são enviados CNPJ, CPF, telefone, nomes de clientes/fornecedores, números de documentos, arquivos, tokens, credenciais ou conteúdo bruto de documentos. A chamada usa `store=False`.
+A quota diária é controlada por conta e persistida no PostgreSQL. O padrão seguro é `20` respostas externas por dia, configurável por `OPENAI_DAILY_REQUEST_LIMIT`.
 
-A chave da OpenAI deve existir somente nos Secrets do ambiente. Nunca a grave no repositório, no navegador ou em logs. O modelo pode ser alterado por `OPENAI_MODEL`; o padrão do produto é `gpt-5.6-luna` para equilibrar qualidade e custo.
+O copiloto pode analisar dados, orientar o uso do sistema, localizar recursos, preparar relatórios e preparar ações. Alterações de dados passam por validação e confirmação explícita; pagamentos, transmissões fiscais e exclusões não devem ser executados automaticamente pela IA.
 
-O assistente é consultivo: ele não paga DAS, transmite declarações, emite notas ou altera dados por conta própria. Regras fiscais e prazos sujeitos a mudança devem ser confirmados em fonte oficial.
+## 5. Segurança e privacidade
 
-## 4. Segurança e privacidade
-
-Nunca publique a string real de conexão, segredos de sessão ou chaves privadas em arquivos do repositório. O arquivo `.streamlit/secrets.toml` deve permanecer ignorado pelo Git.
+Nunca publique string real de conexão, segredos de sessão ou chaves privadas em arquivos do repositório. O arquivo `.streamlit/secrets.toml` deve permanecer ignorado pelo Git.
 
 Antes de ampliar o uso comercial, revise periodicamente:
 
@@ -75,11 +80,11 @@ Antes de ampliar o uso comercial, revise periodicamente:
 - LGPD e procedimentos de atendimento ao titular;
 - backups automáticos, restauração e monitoramento de disponibilidade.
 
-## 5. Documentos
+## 6. Documentos
 
 Novos documentos de contas autenticadas são gravados no bucket privado `documents`, em uma pasta exclusiva do usuário. O PostgreSQL mantém metadados e o caminho do arquivo. Arquivos legados continuam disponíveis durante a transição quando aplicável.
 
-## 6. Operação, backup e recuperação
+## 7. Operação, backup e recuperação
 
 O projeto possui duas camadas complementares de proteção:
 
@@ -107,7 +112,7 @@ Além disso:
 - Não execute comandos destrutivos de reset no projeto de produção.
 - Mantenha um plano de rollback para alterações de banco e autenticação.
 
-## 7. Monitoramento externo
+## 8. Monitoramento externo
 
 O módulo `monitoring.py` integra opcionalmente com Sentry quando `SENTRY_DSN` estiver configurado. O SDK é inicializado com `send_default_pii=False`, remove request, usuário, breadcrumbs, extras e contextos customizados antes do envio, e mantém os logs estruturados locais como fallback.
 
@@ -115,12 +120,14 @@ Não envie para observabilidade CPF/CNPJ, nomes, e-mails, telefone, tokens, cont
 
 Consulte `OPERATIONS_RUNBOOK.md` para procedimento de incidente.
 
-## 8. Integrações externas
+## 9. Integrações externas
 
 A importação de extratos CSV/Excel e de arquivos de NFS-e já funciona sem credenciais bancárias. Integração direta com bancos, envio automatizado de mensagens e emissão direta de NFS-e dependem de provedores/APIs e credenciais específicas; não devem ser apresentadas como conectadas quando não estiverem configuradas.
 
 A interface classifica integrações como **Ativo**, **Assistido** ou **Configurar**, evitando apresentar uma capacidade assistida como integração automática.
 
-## 9. Validação antes da liberação
+## 10. Validação antes da liberação
 
-Execute `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo login real, recuperação de senha, upload/download, isolamento entre contas, tema claro/escuro, exclusão de uma conta de teste e teste em celular/tablet/desktop.
+O workflow `Razync Pro CI` roda automaticamente em pull requests e pushes ao `main`, com permissões de leitura, validação de dependências, sintaxe, imports e a suíte completa de testes. Execute também `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo login real, recuperação de senha, upload/download, isolamento entre contas, tema claro/escuro, exclusão de uma conta de teste e teste em celular/tablet/desktop.
+
+A proteção da branch `main` deve exigir o check `Razync Pro CI` e bloquear push direto sempre que o plano/permissões do repositório permitirem.
