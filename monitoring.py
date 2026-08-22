@@ -13,6 +13,10 @@ _ALLOWED_FIELDS = {
 _SENTRY_INITIALIZED = False
 
 
+class ProductionConfigurationError(RuntimeError):
+    """Raised when production would otherwise start with an unsafe fallback."""
+
+
 def _secret(name: str) -> str:
     value = os.getenv(name, "").strip()
     if value:
@@ -22,6 +26,42 @@ def _secret(name: str) -> str:
         return str(st.secrets.get(name, "")).strip()
     except Exception:
         return ""
+
+
+def is_production_environment() -> bool:
+    return (_secret("APP_ENVIRONMENT") or "").strip().lower() in {"production", "prod"}
+
+
+def validate_production_configuration() -> None:
+    """Prevent production from silently falling back to SQLite or legacy auth.
+
+    Development remains permissive. In production the server must receive explicit
+    PostgreSQL/Supabase, Auth and session-persistence configuration.
+    """
+    if not is_production_environment():
+        return
+
+    missing: list[str] = []
+    database_url = _secret("DATABASE_URL")
+    has_postgres_url = database_url.startswith(("postgresql://", "postgresql+psycopg://", "postgres://"))
+    has_pooler = bool(_secret("SUPABASE_DB_PASSWORD") and _secret("SUPABASE_DB_HOST") and _secret("SUPABASE_DB_USER"))
+    if not (has_postgres_url or has_pooler):
+        missing.append("PostgreSQL/Supabase Database")
+
+    if not _secret("SUPABASE_URL"):
+        missing.append("SUPABASE_URL")
+    if not _secret("SUPABASE_PUBLISHABLE_KEY"):
+        missing.append("SUPABASE_PUBLISHABLE_KEY")
+    session_secret = _secret("SESSION_COOKIE_SECRET")
+    if len(session_secret) < 32:
+        missing.append("SESSION_COOKIE_SECRET (32+ caracteres)")
+
+    if missing:
+        raise ProductionConfigurationError(
+            "Configuração de produção incompleta. O Razync recusou iniciar em modo de fallback: "
+            + ", ".join(missing)
+            + "."
+        )
 
 
 def observability_configured() -> bool:
@@ -102,3 +142,8 @@ def safe_error(event: str, exc: Exception, **fields) -> None:
             sentry_sdk.capture_exception(exc)
         except Exception:
             pass
+
+
+# Import-time guard is intentional: app.py imports this module before init_db().
+# In production, unsafe fallbacks are rejected before any business data is loaded.
+validate_production_configuration()
