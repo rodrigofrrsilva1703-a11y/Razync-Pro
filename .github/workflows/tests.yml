@@ -6,9 +6,17 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: razync-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -16,7 +24,9 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Validate dependency consistency
+        run: python -m pip check
       - name: Validate syntax
         run: python -m compileall -q -x '^./scripts/' .
       - name: Validate main imports
@@ -25,5 +35,5 @@ jobs:
         run: |
           test ! -f preview_access.py
           test ! -f preview_app.py
-      - name: Run tests
+      - name: Run full test suite
         run: python -m unittest discover -s tests -v
