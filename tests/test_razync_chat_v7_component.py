@@ -15,10 +15,16 @@ def test_v7_chat_is_isolated_from_streamlit_widgets():
     assert 'dispatchPrompt(String(item.prompt),"quick_prompt")' in html
     assert '"confirm_action"' in html
     assert '"cancel_action"' in html
-    assert '"review_action"' in html
+    assert '"update_action"' in html
+    assert '"upload_document"' in html
+    assert '"upload_audio"' in html
+    assert '"open_receipt"' in html
+    assert '"undo_action"' in html
     assert 'className="action-card"' in html
+    assert 'className="receipt-card"' in html
     assert 'className="quick-actions"' in html
-    assert "execute_assistant_action" in host
+    assert "confirm_automation" in host
+    assert "revise_automation" in host
     assert "_pending_action_card" in host
     assert 'st.popover' not in host
     assert 'st.chat_message' not in host
