@@ -11,7 +11,15 @@ def test_v7_chat_is_isolated_from_streamlit_widgets():
     assert 'class="thread"' in html
     assert 'class="composer"' in html
     assert 'id="send"' in html
-    assert 'action:"send"' in html
+    assert 'function dispatchPrompt(text,action="send")' in html
+    assert 'dispatchPrompt(String(item.prompt),"quick_prompt")' in html
+    assert '"confirm_action"' in html
+    assert '"cancel_action"' in html
+    assert '"review_action"' in html
+    assert 'className="action-card"' in html
+    assert 'className="quick-actions"' in html
+    assert "execute_assistant_action" in host
+    assert "_pending_action_card" in host
     assert 'st.popover' not in host
     assert 'st.chat_message' not in host
     assert 'st.form' not in host
@@ -24,3 +32,4 @@ def test_v7_is_connected_to_sidebar_without_popover():
     assert 'key="floating_ai_v7_shell"' in sidebar
     assert 'key="floating_ai_launcher"' in sidebar
     assert "st.popover" not in sidebar
+
