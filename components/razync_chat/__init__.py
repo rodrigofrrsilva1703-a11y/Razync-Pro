@@ -14,6 +14,7 @@ def razync_chat(
     messages: list[dict[str, Any]],
     quick_actions: list[dict[str, str]] | None = None,
     action_card: dict[str, Any] | None = None,
+    receipt_card: dict[str, Any] | None = None,
     is_loading: bool = False,
     title: str = "Razync",
     subtitle: str = "Assistente online",
@@ -27,6 +28,9 @@ def razync_chat(
     - {"action": "send", "text": "...", "event_id": "..."}
     - {"action": "quick_prompt", "text": "...", "event_id": "..."}
     - {"action": "confirm_action" | "cancel_action" | "review_action", "event_id": "..."}
+    - {"action": "update_action", "values": {...}, "event_id": "..."}
+    - {"action": "upload_document" | "upload_audio", "data": "base64", ...}
+    - {"action": "open_receipt" | "undo_action", "event_id": "..."}
     - {"action": "close", "event_id": "..."}
     - {"action": "open_full", "event_id": "..."}
     """
@@ -34,6 +38,7 @@ def razync_chat(
         messages=messages,
         quick_actions=quick_actions or [],
         action_card=action_card,
+        receipt_card=receipt_card,
         is_loading=bool(is_loading),
         title=str(title),
         subtitle=str(subtitle),
