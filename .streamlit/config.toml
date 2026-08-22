@@ -10,4 +10,7 @@ font = "sans serif"
 headless = true
 
 [client]
-toolbarMode = "viewer"
+toolbarMode = "minimal"
+showErrorDetails = false
+showErrorLinks = false
+
