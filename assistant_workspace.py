@@ -14,6 +14,11 @@ from assistant_actions import (
     AssistantActionError, execute_assistant_action, plan_assistant_action,
     plan_document_action, revise_action_draft, undo_assistant_action,
 )
+from assistant_history import (
+    AssistantHistoryError, WELCOME_MESSAGE, append_message as persist_ai_message,
+    create_conversation, get_or_create_conversation, list_conversations,
+    load_messages, serialize_timestamp,
+)
 from ai_provider_router import ProviderChainError, run_provider_chain
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
 from assistant_resources import build_product_context, build_resource_bundle
@@ -21,6 +26,7 @@ from fiscal_rules import annual_limit_for
 from document_intelligence import analyze_document
 from gemini_provider import DEFAULT_GEMINI_MODEL, GeminiAIError, ask_razync_gemini, diagnose_gemini
 from product_core import assistant_answer
+from monitoring import safe_error
 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
@@ -307,16 +313,71 @@ def _provider_state() -> dict:
 
 
 def _ensure_messages() -> list[dict]:
-    if "razync_ai_messages" not in st.session_state:
-        st.session_state["razync_ai_messages"] = [
-            {
-                "role": "assistant",
-                "content": (
-                    "Olá! Como posso ajudar? Posso analisar seu negócio ou preparar receitas, despesas e notas para sua confirmação."
-                ),
-            }
-        ]
-    return st.session_state["razync_ai_messages"]
+    """Load one owned conversation per session and gracefully fall back to memory."""
+    user_id = _current_user_id()
+    loaded_for = st.session_state.get("razync_ai_history_loaded_for")
+    if "razync_ai_messages" in st.session_state and loaded_for == user_id:
+        return st.session_state["razync_ai_messages"]
+
+    messages: list[dict] = []
+    if user_id is not None:
+        try:
+            current_id = st.session_state.get("razync_ai_conversation_id")
+            conversation_id = get_or_create_conversation(user_id, int(current_id) if current_id else None)
+            st.session_state["razync_ai_conversation_id"] = conversation_id
+            messages = load_messages(user_id, conversation_id)
+        except (AssistantHistoryError, TypeError, ValueError):
+            st.session_state["razync_ai_history_warning"] = (
+                "O histórico persistente está temporariamente indisponível. Esta conversa continuará nesta sessão."
+            )
+
+    if not messages:
+        messages = [{"role": "assistant", "content": WELCOME_MESSAGE}]
+    st.session_state["razync_ai_messages"] = messages
+    st.session_state["razync_ai_history_loaded_for"] = user_id
+    return messages
+
+
+def _append_message(role: str, content: str, *, metadata: dict | None = None) -> None:
+    safe_content = str(content or "").strip()
+    if not safe_content:
+        return
+    messages = _ensure_messages()
+    messages.append({"role": role, "content": safe_content})
+    user_id = _current_user_id()
+    conversation_id = st.session_state.get("razync_ai_conversation_id")
+    if user_id is None or not conversation_id:
+        return
+    try:
+        persist_ai_message(user_id, int(conversation_id), role, safe_content, metadata=metadata)
+    except AssistantHistoryError:
+        st.session_state["razync_ai_history_warning"] = (
+            "Não foi possível sincronizar uma mensagem com o histórico. Ela continua visível nesta sessão."
+        )
+
+
+def _activate_conversation(conversation_id: int) -> None:
+    st.session_state["razync_ai_conversation_id"] = int(conversation_id)
+    st.session_state.pop("razync_ai_messages", None)
+    st.session_state.pop("razync_ai_history_loaded_for", None)
+    st.session_state.pop("razync_ai_last_resources", None)
+    st.session_state.pop("razync_ai_pending_action", None)
+
+
+def _start_new_conversation() -> None:
+    user_id = _current_user_id()
+    if user_id is not None:
+        try:
+            st.session_state["razync_ai_conversation_id"] = create_conversation(user_id)
+        except AssistantHistoryError:
+            st.session_state.pop("razync_ai_conversation_id", None)
+            st.session_state["razync_ai_history_warning"] = "A nova conversa ficará somente nesta sessão por enquanto."
+    st.session_state.pop("razync_ai_messages", None)
+    st.session_state.pop("razync_ai_history_loaded_for", None)
+    st.session_state.pop("razync_ai_last_resources", None)
+    st.session_state.pop("razync_ai_last_resource_question", None)
+    st.session_state.pop("razync_ai_pending_action", None)
+    st.session_state.pop("razync_ai_last_receipt", None)
 
 
 def _opening_date(profile: dict) -> date | None:
@@ -424,7 +485,8 @@ def _answer_question(
             api_key=action_api_key,
             model=provider["openai_model"],
         )
-    except Exception:
+    except Exception as exc:
+        safe_error("assistant_action_planning_failed", exc, feature="assistant", operation="plan_action")
         action_draft = None
 
     if action_draft is not None:
@@ -577,7 +639,8 @@ def _prepare_resources(
             access_token=str(st.session_state.get("access_token") or ""),
             refresh_token=str(st.session_state.get("refresh_token") or ""),
         )
-    except Exception:
+    except Exception as exc:
+        safe_error("assistant_resources_failed", exc, feature="assistant", operation="prepare_resources")
         return {
             "route": None,
             "route_label": None,
@@ -708,12 +771,12 @@ def _render_pending_action(*, key_prefix: str) -> None:
             st.session_state["razync_ai_last_receipt"] = receipt
             st.session_state.pop("razync_ai_pending_action", None)
             st.session_state.pop("razync_ai_last_resources", None)
-            _ensure_messages().append({"role": "assistant", "content": message})
+            _append_message("assistant", message, metadata={"event": "action_confirmed"})
             st.success(message)
             st.rerun()
         if cancel.button("Cancelar", key=f"{key_prefix}_cancel", width="stretch"):
             st.session_state.pop("razync_ai_pending_action", None)
-            _ensure_messages().append({"role": "assistant", "content": "Ação cancelada. Nenhum dado foi alterado."})
+            _append_message("assistant", "Ação cancelada. Nenhum dado foi alterado.", metadata={"event": "action_cancelled"})
             st.rerun()
 
 
@@ -734,7 +797,7 @@ def _render_last_action_undo(*, key_prefix: str) -> None:
                 st.error(str(exc))
                 return
             st.session_state.pop("razync_ai_last_receipt", None)
-            _ensure_messages().append({"role": "assistant", "content": message})
+            _append_message("assistant", message, metadata={"event": "action_undone"})
             st.success(message)
             st.rerun()
 
@@ -742,21 +805,22 @@ def _render_last_action_undo(*, key_prefix: str) -> None:
 def _render_document_intake(*, key_prefix: str) -> None:
     with st.expander("Ler nota, comprovante ou DAS"):
         uploaded = st.file_uploader(
-            "Envie um PDF para a IA preparar os dados",
-            type=["pdf"], key=f"{key_prefix}_document_upload",
-            help="A leitura é feita localmente e nada é salvo sem sua confirmação.",
+            "Envie um PDF ou uma foto para a IA preparar os dados",
+            type=["pdf", "png", "jpg", "jpeg", "webp"], key=f"{key_prefix}_document_upload",
+            help="A leitura e o OCR são feitos localmente. Nada é salvo sem sua confirmação.",
         )
         if uploaded is not None and st.button("Analisar documento", key=f"{key_prefix}_analyze_document", width="stretch"):
             try:
                 analysis = analyze_document(uploaded.getvalue(), uploaded.type or "application/pdf", uploaded.name)
                 draft = plan_document_action(analysis, uploaded.name)
-            except Exception:
-                st.error("Não foi possível analisar este arquivo. Confira se o PDF está válido.")
+            except Exception as exc:
+                safe_error("assistant_document_analysis_failed", exc, feature="assistant", operation="document_ocr")
+                st.error("Não foi possível analisar este arquivo. Confira se o PDF ou a imagem está válido.")
                 return
             if analysis.get("warning"):
                 st.warning(str(analysis["warning"]))
             if draft is None:
-                st.info("O documento foi lido, mas faltaram dados para preparar uma ação. Tente um PDF com texto pesquisável.")
+                st.info("O documento foi lido, mas faltaram dados para preparar uma ação. Envie uma imagem mais nítida ou complete os dados manualmente.")
                 return
             state = draft.to_dict()
             state["original_request"] = f"Documento {uploaded.name}"
@@ -767,11 +831,8 @@ def _render_document_intake(*, key_prefix: str) -> None:
 
 
 def _store_turn(question: str, answer: str, resources: dict | None = None) -> None:
-    messages = _ensure_messages()
-    messages.append({"role": "user", "content": question})
-    messages.append({"role": "assistant", "content": answer})
-    if len(messages) > 24:
-        st.session_state["razync_ai_messages"] = messages[-24:]
+    _append_message("user", question)
+    _append_message("assistant", answer, metadata={"resources": bool(resources)})
     st.session_state["razync_ai_last_resources"] = resources or {}
     st.session_state["razync_ai_last_resource_question"] = question
 
@@ -852,6 +913,59 @@ def render_floating_ai_assistant(*, user: dict, page: str, navigate) -> None:
     st.markdown('<div class="rz-ai-safety">As alterações só são salvas com sua confirmação.</div>', unsafe_allow_html=True)
 
 
+def _render_conversation_controls(user_id: int | None) -> None:
+    left, right = st.columns([1, 1])
+    if left.button("Nova conversa", key="razync_ai_new_chat", icon=":material/edit_square:", width="stretch"):
+        _start_new_conversation()
+        st.rerun()
+
+    with right.popover("Conversas", icon=":material/history:", width="stretch"):
+        if user_id is None:
+            st.caption("Entre novamente para acessar o histórico.")
+            return
+        try:
+            conversations = list_conversations(user_id, limit=12)
+        except AssistantHistoryError as exc:
+            st.warning(str(exc))
+            return
+        if not conversations:
+            st.caption("Nenhuma conversa anterior.")
+            return
+        current_id = st.session_state.get("razync_ai_conversation_id")
+        for conversation in conversations:
+            title = str(conversation.get("title") or "Conversa")
+            timestamp = serialize_timestamp(conversation.get("updated_at"))
+            label = f"{title}\n{timestamp}" if timestamp else title
+            if st.button(
+                label,
+                key=f"ai_conversation_{conversation['id']}",
+                type="primary" if int(conversation["id"]) == int(current_id or 0) else "secondary",
+                width="stretch",
+            ):
+                _activate_conversation(int(conversation["id"]))
+                st.rerun()
+
+
+def _render_ai_settings(provider: dict, *, quota_ready: bool, usage_count: int, daily_limit: int) -> None:
+    with st.expander("Configurações e diagnóstico"):
+        if provider["ai_enabled"] and quota_ready:
+            st.caption(f"{provider['provider']} · {provider['model']} · {usage_count}/{daily_limit} respostas hoje")
+        elif provider["ai_enabled"]:
+            st.caption("IA externa configurada; o controle de uso está temporariamente indisponível.")
+        else:
+            st.caption("Modo local ativo. Configure GEMINI_API_KEY ou OPENAI_API_KEY para respostas avançadas.")
+        st.caption("Arquivos e OCR são processados localmente. Ações continuam exigindo confirmação.")
+        if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
+            with st.spinner("Testando conexão..."):
+                if provider["gemini_enabled"]:
+                    ok, diagnosis = diagnose_gemini(provider["gemini_api_key"], provider["gemini_model"])
+                elif provider["openai_enabled"]:
+                    ok, diagnosis = _diagnose_openai(provider["openai_api_key"], provider["openai_model"])
+                else:
+                    ok, diagnosis = False, "Nenhuma API externa foi configurada."
+            (st.success if ok else st.error)(diagnosis)
+
+
 def render_ai_assistant(
     *,
     profile: dict,
@@ -865,7 +979,6 @@ def render_ai_assistant(
     fallback_answer: Callable[[str], str],
 ) -> None:
     _inject_assistant_style()
-    _render_assistant_header(compact=False)
     provider = _provider_state()
     user_id = _current_user_id()
     daily_limit = _daily_request_limit()
@@ -877,58 +990,10 @@ def render_ai_assistant(
         except AIUsageStoreError:
             quota_ready = False
 
-    with st.container(key="full_ai_toolbar"):
-        status_left, status_right = st.columns([4, 1])
-        with status_left:
-            if provider["ai_enabled"] and quota_ready:
-                provider_name = escape(str(provider["provider"]))
-                model_name = escape(str(provider["model"]))
-                st.markdown(
-                    f'<div class="rz-ai-provider-line"><i class="rz-ai-provider-dot"></i><span>{provider_name}<br><small>{model_name} · {usage_count}/{daily_limit} respostas hoje</small></span></div>',
-                    unsafe_allow_html=True,
-                )
-                if provider["fallback_enabled"]:
-                    st.caption("Continuidade automática ativa entre os provedores.")
-                else:
-                    st.caption("Seus arquivos brutos não são enviados ao provedor de IA.")
-            elif provider["ai_enabled"]:
-                st.markdown('<div class="rz-ai-provider-line"><i class="rz-ai-provider-dot" style="background:#e4a11b"></i><span>Modo seguro local<br><small>O controle de uso externo está temporariamente indisponível.</small></span></div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="rz-ai-provider-line"><i class="rz-ai-provider-dot" style="background:#78909c"></i><span>Inteligência local Razync<br><small>Análises e automações essenciais continuam disponíveis.</small></span></div>', unsafe_allow_html=True)
-        with status_right:
-            if st.button("Nova conversa", key="razync_ai_new_chat", icon=":material/edit_square:", width="stretch"):
-                st.session_state.pop("razync_ai_messages", None)
-                st.session_state.pop("razync_ai_last_resources", None)
-                st.session_state.pop("razync_ai_last_resource_question", None)
-                st.session_state.pop("razync_ai_pending_action", None)
-                st.session_state.pop("razync_ai_last_receipt", None)
-                st.rerun()
-
-    with st.expander("Diagnóstico da IA", expanded=not provider["ai_enabled"]):
-        if provider["gemini_enabled"]:
-            st.caption("O teste não envia dados do MEI e não consome a quota interna do Assistente.")
-        elif provider["openai_enabled"]:
-            st.caption("O teste não envia dados do MEI e não consome a quota interna do Assistente.")
-        else:
-            st.caption("Configure GEMINI_API_KEY ou OPENAI_API_KEY nos Secrets para testar uma conexão externa.")
-        if st.button("Testar conexão da IA", key="razync_ai_diagnostic", width="stretch"):
-            with st.spinner("Testando conexão..."):
-                if provider["gemini_enabled"]:
-                    ok, diagnosis = diagnose_gemini(provider["gemini_api_key"], provider["gemini_model"])
-                elif provider["openai_enabled"]:
-                    ok, diagnosis = _diagnose_openai(provider["openai_api_key"], provider["openai_model"])
-                else:
-                    ok, diagnosis = False, "Nenhuma API externa foi configurada."
-            if ok:
-                st.success(diagnosis)
-            else:
-                st.error(diagnosis)
-
-    messages = _ensure_messages()
-    with st.container(key="full_ai_messages"):
-        for message in messages[-12:]:
-            with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
-                st.markdown(message["content"])
+    _render_conversation_controls(user_id)
+    history_warning = st.session_state.pop("razync_ai_history_warning", None)
+    if history_warning:
+        st.warning(history_warning)
 
     suggested = None
     with st.expander("Sugestões"):
@@ -938,12 +1003,26 @@ def render_ai_assistant(
                 if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
                     suggested = prompt
 
+    messages = _ensure_messages()
+    with st.container(key="full_ai_messages"):
+        for message in messages[-100:]:
+            with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
+                st.markdown(message["content"])
+
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
     with st.container(key="full_ai_composer"):
-        typed_question = st.chat_input("Escreva o que você precisa...", key="full_ai_chat_input")
-    st.markdown('<div class="rz-ai-composer-help">Enter para enviar · nenhuma alteração é salva sem sua confirmação</div>', unsafe_allow_html=True)
-    question = suggested or pending_question or typed_question
+        typed_question = st.chat_input("Escreva uma mensagem...", key="full_ai_chat_input")
+    st.markdown('<div class="rz-ai-composer-help">Enter para enviar · as alterações só são salvas com sua confirmação</div>', unsafe_allow_html=True)
+    incoming_question = suggested or pending_question or typed_question
     _render_notices(st.session_state.pop("razync_ai_flash_notices", []))
+    if incoming_question and not st.session_state.get("razync_ai_processing_question"):
+        incoming_question = str(incoming_question).strip()
+        if incoming_question:
+            _append_message("user", incoming_question)
+            st.session_state["razync_ai_processing_question"] = incoming_question
+            st.rerun()
+
+    question = st.session_state.pop("razync_ai_processing_question", None)
     if not question:
         _render_resources(
             st.session_state.get("razync_ai_last_resources"),
@@ -953,11 +1032,12 @@ def render_ai_assistant(
         _render_pending_action(key_prefix="full_ai_idle_action")
         _render_document_intake(key_prefix="full_ai_idle")
         _render_last_action_undo(key_prefix="full_ai_idle")
-        st.caption("O copiloto orienta e prepara recursos, mas ações sensíveis continuam exigindo confirmação nas ferramentas do Razync.")
+        _render_ai_settings(provider, quota_ready=quota_ready, usage_count=usage_count, daily_limit=daily_limit)
+        st.caption("O Razync prepara as ações; você sempre confirma antes de qualquer alteração.")
         return
 
-    question = question.strip()
-    with st.spinner(f"Analisando com {provider['provider']}..."):
+    with st.status("Analisando sua solicitação…", expanded=True) as status:
+        st.write("Consultando somente os dados necessários da sua conta.")
         result = _answer_question(
             question,
             profile=profile,
@@ -971,6 +1051,7 @@ def render_ai_assistant(
             current_page="Assistente Razync",
             fallback_answer=fallback_answer,
         )
+        status.update(label="Preparando resposta e próximas ações…", state="running")
         resources = _prepare_resources(
             question,
             profile=profile,
@@ -981,8 +1062,11 @@ def render_ai_assistant(
             documents=documents,
             current_year=current_year,
         )
+        status.update(label="Resposta pronta", state="complete", expanded=False)
 
-    _store_turn(question, result["answer"], resources)
+    _append_message("assistant", result["answer"], metadata={"resources": bool(resources)})
+    st.session_state["razync_ai_last_resources"] = resources or {}
+    st.session_state["razync_ai_last_resource_question"] = question
     st.session_state["razync_ai_flash_notices"] = result["notices"]
     st.rerun()
 
