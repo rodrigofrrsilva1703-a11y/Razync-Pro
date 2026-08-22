@@ -9,7 +9,7 @@ from assistant_history import (
     list_conversations,
     load_messages,
 )
-from database import DATABASE_URL, create_user, engine
+from database import DATABASE_URL, create_user, engine, init_db
 from sqlalchemy import text
 
 
@@ -17,6 +17,7 @@ from sqlalchemy import text
 class AssistantHistoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        init_db()
         email = "history-test@razync.local"
         create_user("History Test", email, "StrongPass123!")
         with engine.connect() as conn:
