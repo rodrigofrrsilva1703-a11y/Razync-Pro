@@ -116,7 +116,7 @@ class LoginUiRegressionTests(unittest.TestCase):
         workflows = root / ".github" / "workflows"
         self.assertEqual(
             {path.name for path in workflows.glob("*.yml")},
-            {"ci.yml", "tests.yml", "production-backup.yml"},
+            {"tests.yml", "production-backup.yml"},
         )
         backup_source = (workflows / "production-backup.yml").read_text(encoding="utf-8")
         self.assertIn("RAZYNC_BACKUP_DATABASE_URL", backup_source)
