@@ -7,14 +7,23 @@ from pathlib import Path
 import streamlit as st
 
 from assistant_actions import (
-    AssistantActionError, INVOICE_TYPES, PAYMENT_METHODS, RECURRENCE_FREQUENCIES,
-    TRANSACTION_CATEGORIES, plan_document_action,
+    AssistantActionError,
+    INVOICE_TYPES,
+    PAYMENT_METHODS,
+    RECURRENCE_FREQUENCIES,
+    TRANSACTION_CATEGORIES,
+    plan_document_action,
 )
 from assistant_audio import AssistantAudioError, MAX_AUDIO_BYTES, transcribe_audio
 from assistant_automation_service import confirm_automation, revise_automation, undo_automation
 from assistant_workspace import (
-    _append_message, _answer_question, _ensure_messages, _prepare_resources,
-    _provider_state, _session_snapshot, _store_turn,
+    _append_message,
+    _answer_question,
+    _ensure_messages,
+    _prepare_resources,
+    _provider_state,
+    _session_snapshot,
+    _store_turn,
 )
 from components.razync_chat import razync_chat
 from document_intelligence import analyze_document
@@ -22,7 +31,18 @@ from document_intelligence import analyze_document
 _LAST_EVENT_KEY = "razync_chat_v7_last_event"
 _OPEN_KEY = "razync_floating_open"
 _MAX_DOCUMENT_BYTES = 6 * 1024 * 1024
+_MAX_COMPONENT_DOWNLOAD_BYTES = 4 * 1024 * 1024
+_MAX_COMPONENT_DOWNLOAD_TOTAL_BYTES = 8 * 1024 * 1024
 _DOCUMENT_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+_SAFE_DOWNLOAD_MIMES = {
+    "application/pdf",
+    "application/octet-stream",
+    "text/csv",
+    "text/plain",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+}
 
 
 def _public_messages(messages: list[dict]) -> list[dict[str, str]]:
@@ -36,7 +56,13 @@ def _public_messages(messages: list[dict]) -> list[dict[str, str]]:
 
 
 def _field(key: str, label: str, value, *, field_type: str = "text", options=()) -> dict:
-    return {"key": key, "label": label, "value": value if value is not None else "", "type": field_type, "options": list(options)}
+    return {
+        "key": key,
+        "label": label,
+        "value": value if value is not None else "",
+        "type": field_type,
+        "options": list(options),
+    }
 
 
 def _action_fields(action_type: str, payload: dict) -> list[dict]:
@@ -51,22 +77,32 @@ def _action_fields(action_type: str, payload: dict) -> list[dict]:
             _field(date_key, "Data", payload.get(date_key), field_type="date"),
         ]
         if action_type == "recurring_transaction":
-            fields.append(_field("frequency", "Frequência", payload.get("frequency"), field_type="select", options=RECURRENCE_FREQUENCIES))
+            fields.append(
+                _field("frequency", "Frequência", payload.get("frequency"), field_type="select", options=RECURRENCE_FREQUENCIES)
+            )
         return fields
     if action_type == "invoice":
         return [
-            _field("number", "Número", payload.get("number")), _field("customer", "Cliente", payload.get("customer")),
-            _field("description", "Descrição", payload.get("description")), _field("amount", "Valor", payload.get("amount"), field_type="number"),
+            _field("number", "Número", payload.get("number")),
+            _field("customer", "Cliente", payload.get("customer")),
+            _field("description", "Descrição", payload.get("description")),
+            _field("amount", "Valor", payload.get("amount"), field_type="number"),
             _field("invoice_type", "Tipo", payload.get("invoice_type"), field_type="select", options=INVOICE_TYPES),
             _field("issue_date", "Data", payload.get("issue_date"), field_type="date"),
         ]
     if action_type == "obligation":
-        return [_field("title", "Lembrete", payload.get("title")), _field("due_date", "Vencimento", payload.get("due_date"), field_type="date"), _field("category", "Categoria", payload.get("category"))]
+        return [
+            _field("title", "Lembrete", payload.get("title")),
+            _field("due_date", "Vencimento", payload.get("due_date"), field_type="date"),
+            _field("category", "Categoria", payload.get("category")),
+        ]
     if action_type == "contact":
         return [
             _field("contact_type", "Tipo", payload.get("contact_type"), field_type="select", options=("Cliente", "Fornecedor", "Contato")),
-            _field("name", "Nome", payload.get("name")), _field("document", "CPF ou CNPJ", payload.get("document")),
-            _field("email", "E-mail", payload.get("email"), field_type="email"), _field("phone", "Telefone", payload.get("phone")),
+            _field("name", "Nome", payload.get("name")),
+            _field("document", "CPF ou CNPJ", payload.get("document")),
+            _field("email", "E-mail", payload.get("email"), field_type="email"),
+            _field("phone", "Telefone", payload.get("phone")),
         ]
     return []
 
@@ -76,15 +112,19 @@ def _pending_action_card(draft: object) -> dict | None:
         return None
     missing = [str(item) for item in draft.get("missing_fields") or [] if str(item).strip()]
     labels = {
-        "transaction": "Lançamento preparado", "recurring_transaction": "Automação preparada",
-        "invoice": "Nota preparada", "obligation": "Lembrete preparado",
-        "contact": "Contato preparado", "batch": "Lançamentos preparados",
+        "transaction": "Lançamento preparado",
+        "recurring_transaction": "Automação preparada",
+        "invoice": "Nota preparada",
+        "obligation": "Lembrete preparado",
+        "contact": "Contato preparado",
+        "batch": "Lançamentos preparados",
     }
     action_type = str(draft.get("action_type") or "")
     return {
         "title": labels.get(action_type, "Ação preparada"),
         "summary": str(draft.get("summary") or "Confira os dados antes de continuar."),
-        "missing": missing, "ready": not missing and bool(draft.get("ready", True)),
+        "missing": missing,
+        "ready": not missing and bool(draft.get("ready", True)),
         "fields": _action_fields(action_type, dict(draft.get("payload") or {})),
     }
 
@@ -93,9 +133,12 @@ def _receipt_card(receipt: object) -> dict | None:
     if not isinstance(receipt, dict):
         return None
     return {
-        "title": "Ação concluída", "summary": str(receipt.get("summary") or receipt.get("message") or "Alteração salva."),
-        "message": str(receipt.get("message") or "Alteração salva."), "route_label": "Abrir registro",
-        "can_open": bool(receipt.get("route")), "can_undo": not bool(receipt.get("duplicate")),
+        "title": "Ação concluída",
+        "summary": str(receipt.get("summary") or receipt.get("message") or "Alteração salva."),
+        "message": str(receipt.get("message") or "Alteração salva."),
+        "route_label": "Abrir registro",
+        "can_open": bool(receipt.get("route")),
+        "can_undo": not bool(receipt.get("duplicate")),
     }
 
 
@@ -110,8 +153,10 @@ def _contextual_quick_actions(transactions, invoices, das_rows: list[dict], obli
     if not invoices.empty:
         actions.append({"label": "Notas", "prompt": "Mostre a situação das minhas notas fiscais"})
     defaults = [
-        {"label": "Despesa", "prompt": "Quero registrar uma despesa"}, {"label": "Receita", "prompt": "Quero registrar uma receita"},
-        {"label": "Nota", "prompt": "Quero cadastrar uma nota fiscal"}, {"label": "Lembrete", "prompt": "Quero criar um lembrete"},
+        {"label": "Despesa", "prompt": "Quero registrar uma despesa"},
+        {"label": "Receita", "prompt": "Quero registrar uma receita"},
+        {"label": "Nota", "prompt": "Quero cadastrar uma nota fiscal"},
+        {"label": "Lembrete", "prompt": "Quero criar um lembrete"},
     ]
     for item in defaults:
         if len(actions) >= 4:
@@ -133,6 +178,55 @@ def _decode_file_event(event: dict, *, max_bytes: int) -> tuple[bytes, str, str]
     if not content or len(content) > max_bytes:
         raise ValueError(f"Envie um arquivo válido de até {max_bytes // (1024 * 1024)} MB.")
     return content, filename, mime_type
+
+
+def _component_resources(bundle: object) -> dict:
+    if not isinstance(bundle, dict):
+        return {"downloads": [], "note": None, "route": None, "route_label": None}
+
+    downloads: list[dict] = []
+    total_bytes = 0
+    skipped = 0
+    for asset in list(bundle.get("downloads") or [])[:8]:
+        if not isinstance(asset, dict):
+            continue
+        raw = asset.get("data") or b""
+        if isinstance(raw, str):
+            raw = raw.encode("utf-8")
+        if not isinstance(raw, (bytes, bytearray)) or not raw:
+            continue
+        data = bytes(raw)
+        if len(data) > _MAX_COMPONENT_DOWNLOAD_BYTES or total_bytes + len(data) > _MAX_COMPONENT_DOWNLOAD_TOTAL_BYTES:
+            skipped += 1
+            continue
+        total_bytes += len(data)
+        mime = str(asset.get("mime") or "application/octet-stream").lower().strip()
+        if mime not in _SAFE_DOWNLOAD_MIMES:
+            mime = "application/octet-stream"
+        file_name = Path(str(asset.get("file_name") or "arquivo")).name[:180]
+        downloads.append(
+            {
+                "label": str(asset.get("label") or "Baixar arquivo")[:220],
+                "file_name": file_name,
+                "mime": mime,
+                "href": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+            }
+        )
+
+    note_parts: list[str] = []
+    note = str(bundle.get("note") or "").strip()
+    if note:
+        note_parts.append(note)
+    if skipped:
+        note_parts.append(
+            "Alguns arquivos são grandes demais para abrir diretamente no chat. Use a área indicada do Razync para baixá-los."
+        )
+    return {
+        "downloads": downloads,
+        "note": "\n\n".join(note_parts) if note_parts else None,
+        "route": str(bundle.get("route") or "").strip() or None,
+        "route_label": str(bundle.get("route_label") or "").strip() or None,
+    }
 
 
 def _normalize_updates(values: object) -> dict:
@@ -174,17 +268,37 @@ def _finish_pending_action(*, user_id: int, confirm: bool) -> None:
 
 def _process_question(question: str, *, snapshot: tuple, page: str) -> None:
     profile, transactions, invoices, das_rows, obligations, documents, annual_limit, current_year = snapshot
-    result = _answer_question(
-        question, profile=profile, transactions=transactions, invoices=invoices, das_rows=das_rows,
-        obligations=obligations, documents=documents, annual_limit=annual_limit,
-        current_year=current_year, current_page=page,
-    )
-    resources = _prepare_resources(
-        question, profile=profile, transactions=transactions, invoices=invoices, das_rows=das_rows,
-        obligations=obligations, documents=documents, current_year=current_year,
-    )
-    _store_turn(question, result["answer"], resources)
-    st.session_state["razync_ai_flash_notices"] = result["notices"]
+    try:
+        result = _answer_question(
+            question,
+            profile=profile,
+            transactions=transactions,
+            invoices=invoices,
+            das_rows=das_rows,
+            obligations=obligations,
+            documents=documents,
+            annual_limit=annual_limit,
+            current_year=current_year,
+            current_page=page,
+        )
+        resources = _prepare_resources(
+            question,
+            profile=profile,
+            transactions=transactions,
+            invoices=invoices,
+            das_rows=das_rows,
+            obligations=obligations,
+            documents=documents,
+            current_year=current_year,
+        )
+        _store_turn(question, result["answer"], resources)
+        st.session_state["razync_ai_flash_notices"] = result["notices"]
+    except Exception:
+        _append_message(
+            "assistant",
+            "Não consegui concluir esse pedido agora. Tente novamente em alguns instantes ou abra a conversa completa.",
+            metadata={"event": "chat_processing_error"},
+        )
     st.rerun()
 
 
@@ -193,25 +307,36 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
         user_id = int(user.get("id"))
     except (TypeError, ValueError):
         return
+
     snapshot = _session_snapshot(user_id)
     if snapshot is None:
         return
     profile, transactions, invoices, das_rows, obligations, documents, annual_limit, current_year = snapshot
     messages = _ensure_messages()
     theme = "dark" if str(st.session_state.get("ui_theme") or "").lower().startswith("esc") else "light"
+    resource_bundle = _component_resources(st.session_state.get("razync_ai_last_resources"))
+
     event = razync_chat(
-        messages=_public_messages(messages), quick_actions=_contextual_quick_actions(transactions, invoices, das_rows, obligations),
+        messages=_public_messages(messages),
+        quick_actions=_contextual_quick_actions(transactions, invoices, das_rows, obligations),
         action_card=_pending_action_card(st.session_state.get("razync_ai_pending_action")),
         receipt_card=_receipt_card(st.session_state.get("razync_ai_last_receipt")),
-        is_loading=False, theme=theme, key="razync_chat_v7_instance",
+        resources=resource_bundle,
+        max_document_bytes=_MAX_DOCUMENT_BYTES,
+        max_audio_bytes=MAX_AUDIO_BYTES,
+        is_loading=False,
+        theme=theme,
+        key="razync_chat_v7_instance",
     )
     if not isinstance(event, dict):
         return
+
     event_id = str(event.get("event_id") or "").strip()
     if event_id and event_id == str(st.session_state.get(_LAST_EVENT_KEY) or ""):
         return
     if event_id:
         st.session_state[_LAST_EVENT_KEY] = event_id
+
     action = str(event.get("action") or "").strip().lower()
     if action == "open_full":
         st.session_state[_OPEN_KEY] = False
@@ -220,6 +345,12 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
     if action == "close":
         st.session_state[_OPEN_KEY] = False
         st.rerun()
+    if action == "open_resource_route":
+        route = resource_bundle.get("route")
+        if route:
+            st.session_state[_OPEN_KEY] = False
+            navigate(str(route))
+        return
     if action == "confirm_action":
         _finish_pending_action(user_id=user_id, confirm=True)
         return
@@ -272,7 +403,11 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
             state = draft.to_dict()
             state["original_request"] = f"Documento {filename}"
             st.session_state["razync_ai_pending_action"] = state
-            _append_message("assistant", f"Li {filename} e preparei uma ação. Confira os dados antes de salvar.", metadata={"event": "document_ready"})
+            _append_message(
+                "assistant",
+                f"Li {filename} e preparei uma ação. Confira os dados antes de salvar.",
+                metadata={"event": "document_ready"},
+            )
         st.rerun()
     if action == "upload_audio":
         try:
@@ -290,4 +425,3 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
     question = str(event.get("text") or "").strip()
     if question:
         _process_question(question, snapshot=snapshot, page=page)
-
