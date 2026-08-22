@@ -12,6 +12,8 @@ _component = components.declare_component("razync_chat_v7", path=str(_COMPONENT_
 def razync_chat(
     *,
     messages: list[dict[str, Any]],
+    quick_actions: list[dict[str, str]] | None = None,
+    action_card: dict[str, Any] | None = None,
     is_loading: bool = False,
     title: str = "Razync",
     subtitle: str = "Assistente online",
@@ -23,11 +25,15 @@ def razync_chat(
 
     Eventos previstos:
     - {"action": "send", "text": "...", "event_id": "..."}
+    - {"action": "quick_prompt", "text": "...", "event_id": "..."}
+    - {"action": "confirm_action" | "cancel_action" | "review_action", "event_id": "..."}
     - {"action": "close", "event_id": "..."}
     - {"action": "open_full", "event_id": "..."}
     """
     return _component(
         messages=messages,
+        quick_actions=quick_actions or [],
+        action_card=action_card,
         is_loading=bool(is_loading),
         title=str(title),
         subtitle=str(subtitle),
@@ -36,3 +42,4 @@ def razync_chat(
         default=None,
         key=key,
     )
+
