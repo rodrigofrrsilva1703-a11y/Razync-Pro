@@ -21,13 +21,27 @@ class DocumentIntelligenceTests(unittest.TestCase):
         self.assertTrue(result["has_searchable_text"])
         self.assertEqual(result["confidence"], "Alta")
 
-    def test_image_uses_filename_and_explains_manual_review(self):
+    @patch("document_intelligence._ocr_image_bytes")
+    def test_image_uses_local_ocr(self, ocr):
+        ocr.return_value = "Comprovante PIX realizado Valor R$ 199,90"
         result = analyze_document(b"image", "image/png", "comprovante_pix_2026-08.png")
         self.assertEqual(result["category"], "Comprovante")
         self.assertEqual(result["reference_month"], "2026-08")
-        self.assertFalse(result["has_searchable_text"])
-        self.assertIn("não possuem leitura automática", result["warning"])
+        self.assertEqual(result["value"], 199.90)
+        self.assertTrue(result["has_searchable_text"])
+        self.assertTrue(result["ocr_used"])
+        self.assertEqual(result["warning"], "")
+
+    @patch("document_intelligence._ocr_scanned_pdf")
+    @patch("document_intelligence._extract_pdf_text", return_value="")
+    def test_scanned_pdf_falls_back_to_local_ocr(self, _extract, ocr):
+        ocr.return_value = "NOTA FISCAL Número: 9988 Valor total R$ 450,00"
+        result = analyze_document(b"%PDF", "application/pdf", "scan.pdf")
+        self.assertEqual(result["category"], "Nota Fiscal")
+        self.assertEqual(result["document_number"], "9988")
+        self.assertTrue(result["ocr_used"])
 
 
 if __name__ == "__main__":
     unittest.main()
+

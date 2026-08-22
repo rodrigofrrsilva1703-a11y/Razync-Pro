@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+from functools import lru_cache
 import re
 import unicodedata
 
@@ -31,6 +32,38 @@ def _extract_pdf_text(content: bytes, max_pages: int = 8) -> str:
     for page in reader.pages[:max_pages]:
         pieces.append(page.extract_text() or "")
     return "\n".join(pieces).strip()
+
+
+@lru_cache(maxsize=1)
+def _ocr_engine():
+    from rapidocr_onnxruntime import RapidOCR
+    return RapidOCR()
+
+
+def _ocr_image_bytes(content: bytes) -> str:
+    """Run local OCR without sending the document to an external provider."""
+    from PIL import Image
+    image = Image.open(BytesIO(content)).convert("RGB")
+    result, _ = _ocr_engine()(image)
+    if not result:
+        return ""
+    return "\n".join(str(item[1]).strip() for item in result if len(item) > 1 and str(item[1]).strip())
+
+
+def _ocr_scanned_pdf(content: bytes, max_pages: int = 3) -> str:
+    """Rasterize only the first pages and OCR them locally to keep latency bounded."""
+    import fitz
+
+    document = fitz.open(stream=content, filetype="pdf")
+    pieces: list[str] = []
+    try:
+        for page_number in range(min(len(document), max_pages)):
+            page = document.load_page(page_number)
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(1.7, 1.7), alpha=False)
+            pieces.append(_ocr_image_bytes(pixmap.tobytes("png")))
+    finally:
+        document.close()
+    return "\n".join(piece for piece in pieces if piece).strip()
 
 
 def _category(text: str, filename: str) -> str:
@@ -85,16 +118,28 @@ def analyze_document(content: bytes, mime_type: str, filename: str) -> dict:
     """Extract local, confirmable suggestions from a document without external APIs."""
     text = ""
     warning = ""
+    ocr_used = False
     is_pdf = mime_type == "application/pdf" or Path(filename).suffix.lower() == ".pdf"
     if is_pdf:
         try:
             text = _extract_pdf_text(content)
         except Exception:
             warning = "Não foi possível ler o texto deste PDF. Confira os dados manualmente."
-        if not text and not warning:
-            warning = "Este PDF parece escaneado e não possui texto pesquisável. Confira os dados manualmente."
+        if not text:
+            try:
+                text = _ocr_scanned_pdf(content)
+                ocr_used = bool(text)
+                warning = "" if text else "O OCR não encontrou texto legível neste PDF. Confira os dados manualmente."
+            except (ImportError, OSError, RuntimeError, ValueError):
+                warning = "Este PDF parece escaneado e o OCR local não conseguiu concluir a leitura. Confira os dados manualmente."
     else:
-        warning = "Imagens ainda não possuem leitura automática. Use as sugestões do nome do arquivo e confira os dados."
+        try:
+            text = _ocr_image_bytes(content)
+            ocr_used = bool(text)
+            if not text:
+                warning = "O OCR não encontrou texto legível na imagem. Confira os dados manualmente."
+        except (ImportError, OSError, RuntimeError, ValueError):
+            warning = "A leitura automática desta imagem não pôde ser concluída. Use as sugestões do nome do arquivo e confira os dados."
 
     category = _category(text, filename)
     competence = _competence(text, filename)
@@ -112,4 +157,6 @@ def analyze_document(content: bytes, mime_type: str, filename: str) -> dict:
         "confidence": confidence,
         "warning": warning,
         "has_searchable_text": bool(text),
+        "ocr_used": ocr_used,
     }
+
