@@ -85,8 +85,9 @@ class AssistantActionPlanningTests(unittest.TestCase):
         self.assertFalse(draft.ready)
         self.assertIn("valor", draft.missing_fields)
 
+    @patch("database.list_transactions", side_effect=[[], [{"id": 42}]])
     @patch("database.add_transaction")
-    def test_executes_only_confirmed_validated_transaction(self, add_transaction):
+    def test_executes_only_confirmed_validated_transaction(self, add_transaction, list_transactions):
         draft = plan_assistant_action(
             "Registre uma despesa de R$ 25,00 com transporte hoje no PIX",
             today=date.today(),
@@ -94,6 +95,7 @@ class AssistantActionPlanningTests(unittest.TestCase):
         message = execute_assistant_action(7, draft.to_dict())
         self.assertIn("salvo", message.lower())
         add_transaction.assert_called_once()
+        self.assertEqual(list_transactions.call_count, 2)
 
     def test_rejects_incomplete_action(self):
         draft = plan_assistant_action("Registre uma despesa de aluguel hoje", today=date.today())
