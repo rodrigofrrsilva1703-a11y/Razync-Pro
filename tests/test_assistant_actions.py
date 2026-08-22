@@ -85,8 +85,9 @@ class AssistantActionPlanningTests(unittest.TestCase):
         self.assertFalse(draft.ready)
         self.assertIn("valor", draft.missing_fields)
 
+    @patch("database.list_transactions", side_effect=[[], [{"id": 42}]])
     @patch("database.add_transaction")
-    def test_executes_only_confirmed_validated_transaction(self, add_transaction):
+    def test_executes_only_confirmed_validated_transaction(self, add_transaction, list_transactions):
         draft = plan_assistant_action(
             "Registre uma despesa de R$ 25,00 com transporte hoje no PIX",
             today=date.today(),
@@ -94,6 +95,7 @@ class AssistantActionPlanningTests(unittest.TestCase):
         message = execute_assistant_action(7, draft.to_dict())
         self.assertIn("salvo", message.lower())
         add_transaction.assert_called_once()
+        self.assertEqual(list_transactions.call_count, 2)
 
     def test_rejects_incomplete_action(self):
         draft = plan_assistant_action("Registre uma despesa de aluguel hoje", today=date.today())
@@ -132,6 +134,7 @@ class AssistantActionPlanningTests(unittest.TestCase):
         revised = revise_action_draft(draft.to_dict(), {"value": 900})
         self.assertTrue(revised.ready)
         self.assertEqual(revised.payload["value"], 900)
+        self.assertEqual(revised.action_key, draft.action_key)
 
     def test_prepares_invoice_from_document_analysis(self):
         draft = plan_document_action(
@@ -141,6 +144,46 @@ class AssistantActionPlanningTests(unittest.TestCase):
         self.assertEqual(draft.action_type, "invoice")
         self.assertTrue(draft.ready)
         self.assertEqual(draft.payload["amount"], 780.5)
+
+    def test_prepares_multiple_expenses_as_one_confirmable_batch(self):
+        draft = plan_assistant_action(
+            "Registre três despesas: aluguel 900, internet 120 e energia 180",
+            today=date(2026, 8, 20),
+        )
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.action_type, "batch")
+        self.assertTrue(draft.ready)
+        self.assertEqual(len(draft.payload["items"]), 3)
+        self.assertIn("1,200.00", draft.summary)
+
+    @patch("assistant_action_store.complete_action")
+    @patch("assistant_action_store.claim_action")
+    @patch("assistant_actions._execute_one")
+    def test_executes_batch_and_returns_one_receipt(self, execute_one, claim_action, complete_action):
+        claim_action.return_value = (True, None)
+        execute_one.side_effect = [
+            {"message": "ok", "action_type": "transaction", "record_id": 1},
+            {"message": "ok", "action_type": "transaction", "record_id": 2},
+        ]
+        draft = {
+            "action_type": "batch", "action_key": "batch-1", "channel": "web",
+            "summary": "2 lançamentos", "missing_fields": [],
+            "payload": {"items": [{"action_type": "transaction"}, {"action_type": "transaction"}]},
+        }
+        receipt = execute_assistant_action(7, draft, return_receipt=True)
+        self.assertEqual(receipt["action_type"], "batch")
+        self.assertEqual(len(receipt["items"]), 2)
+        complete_action.assert_called_once()
+
+    @patch("assistant_action_store.claim_action")
+    def test_repeated_confirmation_returns_existing_receipt(self, claim_action):
+        claim_action.return_value = (False, {"message": "salvo", "action_type": "transaction", "record_id": 9})
+        receipt = execute_assistant_action(7, {
+            "action_type": "transaction", "action_key": "same", "channel": "web",
+            "summary": "Despesa", "missing_fields": [], "payload": {},
+        }, return_receipt=True)
+        self.assertTrue(receipt["duplicate"])
+        self.assertIn("duplicado", receipt["message"].lower())
 
     @patch("database.delete_transaction")
     def test_undoes_exact_assistant_transaction(self, delete_transaction):
