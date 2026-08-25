@@ -779,7 +779,15 @@ elif page == "Movimentações":
     with st.container(border=True):
         st.caption("NOVO LANÇAMENTO")
         with st.form("tx_form", clear_on_submit=True):
-            tx_type = st.segmented_control("Tipo", ["Receita","Despesa"], default="Receita", selection_mode="single") or "Receita"
+            tx_type = st.segmented_control(
+                "Tipo do lançamento",
+                ["Receita", "Despesa"],
+                default="Receita",
+                selection_mode="single",
+                format_func=lambda option: "Entrada · Receita" if option == "Receita" else "Saída · Despesa",
+                key="tx_type_new",
+                width="stretch",
+            ) or "Receita"
             a,b = st.columns(2)
             value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
             tx_date = b.date_input("Data", value=date.today())
