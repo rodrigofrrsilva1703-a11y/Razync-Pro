@@ -24,7 +24,7 @@ class AssistantPersonalityTests(unittest.TestCase):
         label, directive = build_skill_directive("Estou preocupado com minhas despesas, me ajuda")
         self.assertIn("Analista financeiro", label)
         self.assertIn("Acolhedor e resolutivo", label)
-        self.assertIn("não fingir ser uma pessoa real", directive)
+        self.assertIn("sem fingir ser uma pessoa real", directive)
         self.assertIn("Transforme números em significado", directive)
         self.assertIn("memória da conversa", directive)
         self.assertIn("só faça uma pergunta de esclarecimento", directive)
