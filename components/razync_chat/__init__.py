@@ -16,6 +16,9 @@ def razync_chat(
     action_card: dict[str, Any] | None = None,
     receipt_card: dict[str, Any] | None = None,
     feedback_enabled: bool = False,
+    resources: dict[str, Any] | None = None,
+    max_document_bytes: int = 6 * 1024 * 1024,
+    max_audio_bytes: int = 10 * 1024 * 1024,
     is_loading: bool = False,
     title: str = "Razync",
     subtitle: str = "Assistente online",
@@ -23,24 +26,16 @@ def razync_chat(
     theme: str = "light",
     key: str = "razync_chat_v7",
 ) -> dict[str, Any] | None:
-    """Renderiza o chat isolado e retorna eventos enviados pelo frontend.
-
-    Eventos previstos:
-    - {"action": "send", "text": "...", "event_id": "..."}
-    - {"action": "quick_prompt", "text": "...", "event_id": "..."}
-    - {"action": "confirm_action" | "cancel_action" | "review_action", "event_id": "..."}
-    - {"action": "update_action", "values": {...}, "event_id": "..."}
-    - {"action": "upload_document" | "upload_audio", "data": "base64", ...}
-    - {"action": "open_receipt" | "undo_action", "event_id": "..."}
-    - {"action": "close", "event_id": "..."}
-    - {"action": "open_full", "event_id": "..."}
-    """
+    """Renderiza o chat isolado e retorna eventos enviados pelo frontend."""
     return _component(
         messages=messages,
         quick_actions=quick_actions or [],
         action_card=action_card,
         receipt_card=receipt_card,
         feedback_enabled=bool(feedback_enabled),
+        resources=resources or {"downloads": [], "note": None, "route": None, "route_label": None},
+        max_document_bytes=max(1, int(max_document_bytes)),
+        max_audio_bytes=max(1, int(max_audio_bytes)),
         is_loading=bool(is_loading),
         title=str(title),
         subtitle=str(subtitle),
