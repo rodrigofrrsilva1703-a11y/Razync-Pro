@@ -3,12 +3,28 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from assistant_personality import build_conversation_directive
+
 
 @dataclass(frozen=True)
 class AssistantSkill:
     key: str
     label: str
     directive: str
+
+
+_HUMANIZED_CORE = (
+    "Converse como um copiloto experiente que está acompanhando a rotina do cliente, sem fingir ser uma pessoa real. "
+    "Entenda primeiro o que ele realmente quer resolver, inclusive quando a pergunta vier curta, incompleta ou informal. "
+    "Use a memória da conversa para evitar pedir novamente algo que já foi informado. Quando houver ambiguidade, tente "
+    "resolvê-la com o contexto disponível; só faça uma pergunta de esclarecimento se ela for indispensável para não errar. "
+    "Fale de forma natural, respeitosa e próxima, sem jargão desnecessário, sem frases robóticas e sem entusiasmo artificial. "
+    "Não comece toda resposta com saudações ou elogios. Mostre que entendeu o pedido em uma frase curta quando isso ajudar. "
+    "Transforme números em significado: além de citar o valor, explique o que ele representa para a empresa e qual decisão "
+    "pode ser tomada a partir dele. Antecipe a próxima dúvida provável apenas quando isso trouxer utilidade real. "
+    "Se puder resolver diretamente, resolva; não mande o cliente navegar pelo sistema sem necessidade. Se existir uma ação "
+    "segura que o Razync consegue preparar, explique de forma simples e deixe claro que a confirmação continua sendo do usuário."
+)
 
 
 _SKILLS = {
@@ -146,4 +162,10 @@ def select_response_skill(question: str) -> AssistantSkill:
 
 def build_skill_directive(question: str) -> tuple[str, str]:
     skill = select_response_skill(question)
-    return skill.label, skill.directive
+    style_label, style_directive = build_conversation_directive(question)
+    combined = (
+        _HUMANIZED_CORE
+        + "\n\nEstilo de comunicação desta resposta: " + style_label + ". " + style_directive
+        + "\n\nEspecialidade desta resposta: " + skill.label + ". " + skill.directive
+    )
+    return f"{skill.label} · {style_label}", combined
