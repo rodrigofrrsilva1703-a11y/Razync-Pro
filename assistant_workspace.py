@@ -242,6 +242,11 @@ def _current_user_id() -> int | None:
     user = st.session_state.get("user")
     if not isinstance(user, dict):
         return None
+    try:
+        user_id = int(user.get("id"))
+    except (TypeError, ValueError):
+        return None
+    return user_id if user_id > 0 else None
 
 
 def _remember_ai_usage(user_id: int, count: int) -> None:
@@ -263,10 +268,6 @@ def _cached_ai_usage(user_id: int, *, force: bool = False) -> int:
     count = get_ai_usage(user_id)
     _remember_ai_usage(user_id, count)
     return count
-    try:
-        return int(user.get("id"))
-    except (TypeError, ValueError):
-        return None
 
 
 def _invalidate_session_snapshot(user_id: int) -> None:
