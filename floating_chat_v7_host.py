@@ -20,6 +20,7 @@ from assistant_workspace import (
     _append_message,
     _answer_question,
     _ensure_messages,
+    _invalidate_session_snapshot,
     _prepare_resources,
     _provider_state,
     _session_snapshot,
@@ -27,6 +28,7 @@ from assistant_workspace import (
 )
 from components.razync_chat import razync_chat
 from document_intelligence import analyze_document
+from assistant_state_store import AssistantStateStoreError, save_draft, save_feedback, set_draft_status
 
 _LAST_EVENT_KEY = "razync_chat_v7_last_event"
 _OPEN_KEY = "razync_floating_open"
@@ -118,6 +120,9 @@ def _pending_action_card(draft: object) -> dict | None:
         "obligation": "Lembrete preparado",
         "contact": "Contato preparado",
         "batch": "Lançamentos preparados",
+        "update_transaction": "Alteração preparada",
+        "update_obligation": "Atualização preparada",
+        "reconcile_invoice": "Conciliação preparada",
     }
     action_type = str(draft.get("action_type") or "")
     return {
@@ -155,8 +160,8 @@ def _contextual_quick_actions(transactions, invoices, das_rows: list[dict], obli
     defaults = [
         {"label": "Despesa", "prompt": "Quero registrar uma despesa"},
         {"label": "Receita", "prompt": "Quero registrar uma receita"},
-        {"label": "Nota", "prompt": "Quero cadastrar uma nota fiscal"},
-        {"label": "Lembrete", "prompt": "Quero criar um lembrete"},
+        {"label": "Buscar", "prompt": "Procure um lançamento ou documento"},
+        {"label": "Prioridades", "prompt": "Verifique tudo e mostre minhas prioridades"},
     ]
     for item in defaults:
         if len(actions) >= 4:
@@ -250,6 +255,10 @@ def _finish_pending_action(*, user_id: int, confirm: bool) -> None:
         return
     if not confirm:
         st.session_state.pop("razync_ai_pending_action", None)
+        try:
+            set_draft_status(user_id, str(draft.get("action_key") or ""), "cancelled")
+        except AssistantStateStoreError:
+            pass
         _append_message("assistant", "Ação cancelada. Nenhum dado foi alterado.", metadata={"event": "action_cancelled"})
         st.rerun()
         return
@@ -262,6 +271,11 @@ def _finish_pending_action(*, user_id: int, confirm: bool) -> None:
     st.session_state["razync_ai_last_receipt"] = receipt
     st.session_state.pop("razync_ai_pending_action", None)
     st.session_state.pop("razync_ai_last_resources", None)
+    try:
+        set_draft_status(user_id, str(draft.get("action_key") or ""), "confirmed")
+    except AssistantStateStoreError:
+        pass
+    _invalidate_session_snapshot(user_id)
     _append_message("assistant", str(receipt.get("message") or "Ação concluída."), metadata={"event": "action_confirmed"})
     st.rerun()
 
@@ -324,6 +338,7 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
         resources=resource_bundle,
         max_document_bytes=_MAX_DOCUMENT_BYTES,
         max_audio_bytes=MAX_AUDIO_BYTES,
+        feedback_enabled=bool(messages),
         is_loading=False,
         theme=theme,
         key="razync_chat_v7_instance",
@@ -368,6 +383,10 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
                 state = revised.to_dict()
                 state["original_request"] = draft.get("original_request", "")
                 st.session_state["razync_ai_pending_action"] = state
+                try:
+                    save_draft(user_id, state, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+                except AssistantStateStoreError:
+                    pass
         st.rerun()
     if action == "open_receipt":
         receipt = st.session_state.get("razync_ai_last_receipt")
@@ -384,6 +403,7 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
                 message = str(exc)
             else:
                 st.session_state.pop("razync_ai_last_receipt", None)
+                _invalidate_session_snapshot(user_id)
             _append_message("assistant", message, metadata={"event": "action_undone"})
         st.rerun()
     if action == "upload_document":
@@ -403,6 +423,10 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
             state = draft.to_dict()
             state["original_request"] = f"Documento {filename}"
             st.session_state["razync_ai_pending_action"] = state
+            try:
+                save_draft(user_id, state, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+            except AssistantStateStoreError:
+                pass
             _append_message(
                 "assistant",
                 f"Li {filename} e preparei uma ação. Confira os dados antes de salvar.",
@@ -419,6 +443,17 @@ def render_isolated_chat_v7(*, user: dict, page: str, navigate) -> None:
             st.rerun()
             return
         _process_question(transcript, snapshot=snapshot, page=page)
+        return
+    if action in {"feedback_yes", "feedback_no"}:
+        last = next((message for message in reversed(messages) if message.get("role") == "assistant"), None)
+        if last:
+            try:
+                save_feedback(
+                    user_id, str(last.get("content") or ""), action == "feedback_yes",
+                    conversation_id=st.session_state.get("razync_ai_conversation_id"),
+                )
+            except AssistantStateStoreError:
+                pass
         return
     if action not in {"send", "quick_prompt"}:
         return

@@ -12,6 +12,10 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, Authenti
 from ai_assistant import RazyncAIError, ask_razync_ai, build_safe_business_context
 from assistant_actions import AssistantActionError, plan_document_action
 from assistant_action_store import AssistantActionStoreError, list_actions
+from assistant_operational_tools import answer_record_search, plan_record_operation, proactive_answer
+from assistant_state_store import (
+    AssistantStateStoreError, list_pending_drafts, save_draft, save_feedback, set_draft_status,
+)
 from assistant_audio import AssistantAudioError, transcribe_audio
 from assistant_automation_service import (
     confirm_automation as execute_assistant_action,
@@ -238,6 +242,11 @@ def _current_user_id() -> int | None:
         return int(user.get("id"))
     except (TypeError, ValueError):
         return None
+
+
+def _invalidate_session_snapshot(user_id: int) -> None:
+    st.session_state.pop(f"_mei_snapshot_{int(user_id)}", None)
+    st.session_state.pop(f"_mei_snapshot_version_{int(user_id)}", None)
 
 
 def _safe_api_status_metadata(exc: APIStatusError) -> str:
@@ -485,11 +494,18 @@ def _answer_question(
     if provider["openai_enabled"] and quota_ready and usage_count < daily_limit:
         action_api_key = provider["openai_api_key"]
     try:
-        action_draft = plan_assistant_action(
+        action_draft = plan_record_operation(
             action_question,
-            api_key=action_api_key,
-            model=provider["openai_model"],
+            transactions=transactions,
+            invoices=invoices,
+            obligations=obligations,
         )
+        if action_draft is None:
+            action_draft = plan_assistant_action(
+                action_question,
+                api_key=action_api_key,
+                model=provider["openai_model"],
+            )
     except Exception as exc:
         safe_error("assistant_action_planning_failed", exc, feature="assistant", operation="plan_action")
         action_draft = None
@@ -506,6 +522,11 @@ def _answer_question(
         action_state = action_draft.to_dict()
         action_state["original_request"] = action_question
         st.session_state["razync_ai_pending_action"] = action_state
+        if user_id is not None:
+            try:
+                save_draft(user_id, action_state, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+            except AssistantStateStoreError:
+                notices.append(("warning", "A prévia está segura nesta sessão, mas a central de aprovações não sincronizou agora."))
         if action_draft.ready:
             answer = "Pronto — preparei a ação. Confira o resumo e confirme para salvar."
         else:
@@ -513,10 +534,33 @@ def _answer_question(
             answer = f"Só preciso de: {missing}. Responda aqui ou complete os campos da ação."
         return {
             "answer": answer,
-            "notices": [],
+            "notices": notices,
             "provider": action_draft.source,
             "model": provider["openai_model"] if action_draft.source == "OpenAI" else "Razync local",
             "action": action_state,
+        }
+
+    search_result = answer_record_search(
+        question,
+        transactions=transactions,
+        invoices=invoices,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=documents,
+    )
+    if search_result is not None:
+        return {
+            "answer": search_result["answer"] + f"\n\n_Confiança {search_result['confidence']} · {search_result['reason']}_",
+            "notices": [], "provider": "Busca local", "model": "Razync local",
+        }
+
+    if any(term in question.lower() for term in ("prioridades", "o que preciso fazer", "pendências", "pendencias", "verifique tudo")):
+        proactive = proactive_answer(
+            transactions=transactions, invoices=invoices, obligations=obligations, das_rows=das_rows,
+        )
+        return {
+            "answer": proactive["answer"] + f"\n\n_Confiança {proactive['confidence']} · {proactive['reason']}_",
+            "notices": [], "provider": "Análise proativa", "model": "Razync local",
         }
 
     prior_conversation = list(_ensure_messages()[-6:])
@@ -744,7 +788,10 @@ def _render_pending_action(*, key_prefix: str) -> None:
                     updates["document"] = st.text_input("CPF ou CNPJ", value=str(payload.get("document") or ""), key=f"{key_prefix}_document")
                     updates["email"] = st.text_input("E-mail", value=str(payload.get("email") or ""), key=f"{key_prefix}_email")
                     updates["phone"] = st.text_input("Telefone", value=str(payload.get("phone") or ""), key=f"{key_prefix}_phone")
-                reviewed = st.form_submit_button("Atualizar prévia", width="stretch")
+                editable = action_type in {"transaction", "recurring_transaction", "invoice", "obligation", "contact"}
+                if not editable:
+                    st.caption("Esta ação foi vinculada a um registro específico. Para mudar o alvo, cancele e faça um novo pedido.")
+                reviewed = st.form_submit_button("Atualizar prévia", width="stretch", disabled=not editable)
             if reviewed:
                 try:
                     revised = revise_action_draft(draft, updates)
@@ -754,6 +801,12 @@ def _render_pending_action(*, key_prefix: str) -> None:
                     revised_state = revised.to_dict()
                     revised_state["original_request"] = draft.get("original_request", "")
                     st.session_state["razync_ai_pending_action"] = revised_state
+                    user_id = _current_user_id()
+                    if user_id is not None:
+                        try:
+                            save_draft(user_id, revised_state, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+                        except AssistantStateStoreError:
+                            pass
                     st.rerun()
 
         st.caption("O Razync só grava depois da sua confirmação. Pagamentos e emissões oficiais nunca são executados aqui.")
@@ -773,11 +826,22 @@ def _render_pending_action(*, key_prefix: str) -> None:
             st.session_state["razync_ai_last_receipt"] = receipt
             st.session_state.pop("razync_ai_pending_action", None)
             st.session_state.pop("razync_ai_last_resources", None)
+            try:
+                set_draft_status(user_id, str(draft.get("action_key") or ""), "confirmed")
+            except AssistantStateStoreError:
+                pass
+            _invalidate_session_snapshot(user_id)
             _append_message("assistant", message, metadata={"event": "action_confirmed"})
             st.success(message)
             st.rerun()
         if cancel.button("Cancelar", key=f"{key_prefix}_cancel", width="stretch"):
             st.session_state.pop("razync_ai_pending_action", None)
+            user_id = _current_user_id()
+            if user_id is not None:
+                try:
+                    set_draft_status(user_id, str(draft.get("action_key") or ""), "cancelled")
+                except AssistantStateStoreError:
+                    pass
             _append_message("assistant", "Ação cancelada. Nenhum dado foi alterado.", metadata={"event": "action_cancelled"})
             st.rerun()
 
@@ -799,6 +863,7 @@ def _render_last_action_undo(*, key_prefix: str) -> None:
                 st.error(str(exc))
                 return
             st.session_state.pop("razync_ai_last_receipt", None)
+            _invalidate_session_snapshot(user_id)
             _append_message("assistant", message, metadata={"event": "action_undone"})
             st.success(message)
             st.rerun()
@@ -806,29 +871,50 @@ def _render_last_action_undo(*, key_prefix: str) -> None:
 
 def _render_document_intake(*, key_prefix: str) -> None:
     with st.expander("Ler nota, comprovante ou DAS"):
-        uploaded = st.file_uploader(
-            "Envie um PDF ou uma foto para a IA preparar os dados",
+        uploaded_files = st.file_uploader(
+            "Envie PDFs ou fotos para a IA preparar os dados",
             type=["pdf", "png", "jpg", "jpeg", "webp"], key=f"{key_prefix}_document_upload",
+            accept_multiple_files=True,
             help="A leitura e o OCR são feitos localmente. Nada é salvo sem sua confirmação.",
         )
-        if uploaded is not None and st.button("Analisar documento", key=f"{key_prefix}_analyze_document", width="stretch"):
-            try:
-                analysis = analyze_document(uploaded.getvalue(), uploaded.type or "application/pdf", uploaded.name)
-                draft = plan_document_action(analysis, uploaded.name)
-            except Exception as exc:
-                safe_error("assistant_document_analysis_failed", exc, feature="assistant", operation="document_ocr")
-                st.error("Não foi possível analisar este arquivo. Confira se o PDF ou a imagem está válido.")
+        if uploaded_files and st.button("Analisar documentos", key=f"{key_prefix}_analyze_document", width="stretch"):
+            drafts: list[dict] = []
+            analyses: list[dict] = []
+            for uploaded in list(uploaded_files)[:10]:
+                try:
+                    analysis = analyze_document(uploaded.getvalue(), uploaded.type or "application/pdf", uploaded.name)
+                    draft = plan_document_action(analysis, uploaded.name)
+                except Exception as exc:
+                    safe_error("assistant_document_analysis_failed", exc, feature="assistant", operation="document_ocr")
+                    analyses.append({"filename": uploaded.name, "confidence": "Falha"})
+                    continue
+                analyses.append({"filename": uploaded.name, **analysis})
+                if draft is not None:
+                    drafts.append(draft.to_dict())
+            if not drafts:
+                st.info("Os arquivos foram lidos, mas faltaram dados para preparar ações. Envie imagens mais nítidas ou complete os dados manualmente.")
                 return
-            if analysis.get("warning"):
-                st.warning(str(analysis["warning"]))
-            if draft is None:
-                st.info("O documento foi lido, mas faltaram dados para preparar uma ação. Envie uma imagem mais nítida ou complete os dados manualmente.")
-                return
-            state = draft.to_dict()
-            state["original_request"] = f"Documento {uploaded.name}"
+            if len(drafts) == 1:
+                state = drafts[0]
+            else:
+                from uuid import uuid4
+                total = sum(float(item.get("payload", {}).get("value") or item.get("payload", {}).get("amount") or 0) for item in drafts)
+                state = {
+                    "action_type": "batch", "payload": {"items": drafts}, "missing_fields": [], "ready": True,
+                    "summary": f"{len(drafts)} ações extraídas de documentos · total identificado de R$ {total:,.2f}",
+                    "source": "Documentos", "action_key": uuid4().hex, "channel": "web",
+                }
+            state["original_request"] = f"{len(uploaded_files)} documento(s) enviado(s)"
             st.session_state["razync_ai_pending_action"] = state
-            st.session_state["razync_ai_document_analysis"] = analysis
-            st.success(f"Documento analisado com confiança {analysis.get('confidence', 'Baixa')}. Confira a prévia antes de salvar.")
+            st.session_state["razync_ai_document_analysis"] = analyses
+            user_id = _current_user_id()
+            if user_id is not None:
+                try:
+                    save_draft(user_id, state, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+                except AssistantStateStoreError:
+                    pass
+            confidence = "Alta" if all(item.get("confidence") == "Alta" for item in analyses) else "Média" if any(item.get("confidence") in {"Alta", "Média"} for item in analyses) else "Baixa"
+            st.success(f"{len(drafts)} ação(ões) preparada(s) · confiança geral {confidence}. Confira antes de salvar.")
             st.rerun()
 
     with st.expander("Enviar áudio"):
@@ -876,6 +962,57 @@ def _render_action_history(user_id: int | None) -> None:
             channel = "WhatsApp" if item.get("channel") == "whatsapp" else "Site"
             st.markdown(f"**{status}** · {channel}")
             st.caption(str(item.get("summary") or "Ação da IA"))
+
+
+def _render_approval_center(user_id: int | None) -> None:
+    if user_id is None:
+        return
+    with st.expander("Central de aprovações"):
+        try:
+            drafts = list_pending_drafts(user_id, limit=20)
+        except AssistantStateStoreError as exc:
+            st.warning(str(exc))
+            return
+        if not drafts:
+            st.caption("Nenhuma ação aguardando sua confirmação.")
+            return
+        st.caption(f"{len(drafts)} ação(ões) aguardando revisão. Nada é gravado antes da confirmação.")
+        current_key = str((st.session_state.get("razync_ai_pending_action") or {}).get("action_key") or "")
+        for index, draft in enumerate(drafts):
+            left, right = st.columns([4, 1])
+            left.markdown(f"**{draft.get('summary') or 'Ação preparada'}**")
+            left.caption("WhatsApp" if draft.get("channel") == "whatsapp" else "Site")
+            if right.button(
+                "Revisar" if str(draft.get("action_key")) != current_key else "Aberta",
+                key=f"ai_approval_open_{index}_{draft.get('action_key')}",
+                disabled=str(draft.get("action_key")) == current_key,
+                width="stretch",
+            ):
+                st.session_state["razync_ai_pending_action"] = draft
+                st.rerun()
+
+
+def _render_last_answer_feedback(user_id: int | None, messages: list[dict]) -> None:
+    if user_id is None:
+        return
+    last = next((message for message in reversed(messages) if message.get("role") == "assistant"), None)
+    if not last or str(last.get("content") or "") == WELCOME_MESSAGE:
+        return
+    content = str(last.get("content") or "")
+    st.caption("Esta resposta resolveu?")
+    yes, no, spacer = st.columns([1, 1, 5])
+    if yes.button("Sim", key="razync_ai_feedback_yes", width="stretch"):
+        try:
+            save_feedback(user_id, content, True, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+            st.toast("Obrigado. Avaliação registrada.")
+        except AssistantStateStoreError as exc:
+            st.warning(str(exc))
+    if no.button("Não", key="razync_ai_feedback_no", width="stretch"):
+        try:
+            save_feedback(user_id, content, False, conversation_id=st.session_state.get("razync_ai_conversation_id"))
+            st.toast("Obrigado. Vamos usar isso para melhorar a IA.")
+        except AssistantStateStoreError as exc:
+            st.warning(str(exc))
 
 
 def _store_turn(question: str, answer: str, resources: dict | None = None) -> None:
@@ -1056,6 +1193,7 @@ def render_ai_assistant(
         for message in messages[-100:]:
             with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
                 st.markdown(message["content"])
+    _render_last_answer_feedback(user_id, messages)
 
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
     with st.container(key="full_ai_composer"):
@@ -1078,6 +1216,7 @@ def render_ai_assistant(
             current_page="Assistente Razync",
         )
         _render_pending_action(key_prefix="full_ai_idle_action")
+        _render_approval_center(user_id)
         _render_document_intake(key_prefix="full_ai_idle")
         _render_last_action_undo(key_prefix="full_ai_idle")
         _render_action_history(user_id)
@@ -1118,4 +1257,3 @@ def render_ai_assistant(
     st.session_state["razync_ai_last_resource_question"] = question
     st.session_state["razync_ai_flash_notices"] = result["notices"]
     st.rerun()
-

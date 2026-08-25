@@ -191,7 +191,18 @@ class AssistantActionPlanningTests(unittest.TestCase):
         self.assertIn("desfeita", message)
         delete_transaction.assert_called_once_with(7, 42)
 
+    @patch("assistant_action_store.complete_action")
+    @patch("assistant_action_store.claim_action", return_value=(True, None))
+    @patch("database.update_transaction", return_value=True)
+    def test_executes_confirmed_update_and_keeps_previous_values_for_undo(self, update_transaction, claim_action, complete_action):
+        receipt = execute_assistant_action(7, {
+            "action_type": "update_transaction", "action_key": "update-1", "channel": "web",
+            "summary": "Alterar internet", "missing_fields": [],
+            "payload": {"record_id": 42, "updates": {"value": 120}, "previous": {"value": 100}},
+        }, return_receipt=True)
+        self.assertEqual(receipt["previous"]["value"], 100)
+        update_transaction.assert_called_once_with(7, 42, value=120)
+
 
 if __name__ == "__main__":
     unittest.main()
-

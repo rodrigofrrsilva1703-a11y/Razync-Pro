@@ -761,9 +761,10 @@ def delete_transaction(user_id: int, item_id: int) -> None:
 
 
 def link_transaction_document(user_id: int, item_id: int, document_number: str, counterparty: str = "") -> None:
-    payload = {"document_number": (document_number or "").strip()}
-    if counterparty:
-        payload["counterparty"] = counterparty.strip()
+    payload = {
+        "document_number": (document_number or "").strip(),
+        "counterparty": (counterparty or "").strip(),
+    }
     with engine.begin() as conn:
         conn.execute(update(transactions).where(transactions.c.user_id == user_id, transactions.c.id == item_id).values(**payload))
     _cache_invalidate("transactions", user_id)
@@ -853,6 +854,17 @@ def list_invoices(user_id: int) -> list[dict[str, Any]]:
     return _cache_set("invoices", user_id, [dict(r) for r in rows])
 
 
+def update_invoice(user_id: int, item_id: int, **data: Any) -> bool:
+    allowed = {"issue_date", "invoice_type", "number", "customer", "customer_document", "description", "amount", "status"}
+    payload = {key: value for key, value in data.items() if key in allowed}
+    if not payload:
+        return False
+    with engine.begin() as conn:
+        result = conn.execute(update(invoices).where(invoices.c.user_id == user_id, invoices.c.id == item_id).values(**payload))
+    _cache_invalidate("invoices", user_id)
+    return bool(result.rowcount)
+
+
 def delete_invoice(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(invoices).where(invoices.c.user_id == user_id, invoices.c.id == item_id))
@@ -872,6 +884,17 @@ def list_contacts(user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as conn:
         rows = conn.execute(select(contacts).where(contacts.c.user_id == user_id).order_by(contacts.c.name.asc())).mappings().all()
     return _cache_set("contacts", user_id, [dict(r) for r in rows])
+
+
+def update_contact(user_id: int, item_id: int, **data: Any) -> bool:
+    allowed = {"contact_type", "name", "document", "email", "phone", "notes"}
+    payload = {key: value for key, value in data.items() if key in allowed}
+    if not payload:
+        return False
+    with engine.begin() as conn:
+        result = conn.execute(update(contacts).where(contacts.c.user_id == user_id, contacts.c.id == item_id).values(**payload))
+    _cache_invalidate("contacts", user_id)
+    return bool(result.rowcount)
 
 
 def delete_contact(user_id: int, item_id: int) -> None:

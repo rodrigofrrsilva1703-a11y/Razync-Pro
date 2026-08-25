@@ -569,6 +569,9 @@ def _action_receipt(*, message: str, action_type: str, record_id: int | None, su
         "obligation": "Obrigações",
         "contact": "Clientes e Fornecedores",
         "batch": "Movimentações",
+        "update_transaction": "Movimentações",
+        "update_obligation": "Obrigações",
+        "reconcile_invoice": "Conciliação Inteligente",
     }
     return {
         "message": message,
@@ -583,7 +586,8 @@ def _action_receipt(*, message: str, action_type: str, record_id: int | None, su
 def _execute_one(user_id: int, draft: dict[str, Any]) -> dict[str, Any]:
     from database import (
         add_contact, add_invoice, add_obligation, add_recurring_transaction, add_transaction,
-        list_contacts, list_invoices, list_obligations, list_recurring_transactions, list_transactions,
+        link_transaction_document, list_contacts, list_invoices, list_obligations,
+        list_recurring_transactions, list_transactions, update_obligation_status, update_transaction,
     )
 
     action_type = str(draft.get("action_type") or "")
@@ -591,6 +595,35 @@ def _execute_one(user_id: int, draft: dict[str, Any]) -> dict[str, Any]:
     action_key = str(draft.get("action_key") or "")
     if draft.get("missing_fields"):
         raise AssistantActionError("A ação ainda possui campos obrigatórios pendentes.")
+
+    if action_type == "update_transaction":
+        record_id = int(payload.get("record_id") or 0)
+        updates = dict(payload.get("updates") or {})
+        if not record_id or not updates or not update_transaction(int(user_id), record_id, **updates):
+            raise AssistantActionError("Não encontrei o lançamento para atualizar.")
+        receipt = _action_receipt(message="Lançamento atualizado com segurança.", action_type=action_type, record_id=record_id, summary=str(draft.get("summary") or "Lançamento atualizado"), action_key=action_key)
+        receipt["previous"] = dict(payload.get("previous") or {})
+        return receipt
+
+    if action_type == "update_obligation":
+        record_id = int(payload.get("record_id") or 0)
+        if not record_id:
+            raise AssistantActionError("Não encontrei a obrigação para atualizar.")
+        update_obligation_status(int(user_id), record_id, str(payload.get("status") or "Concluído"))
+        receipt = _action_receipt(message="Obrigação marcada como concluída.", action_type=action_type, record_id=record_id, summary=str(draft.get("summary") or "Obrigação atualizada"), action_key=action_key)
+        receipt["previous_status"] = str(payload.get("previous_status") or "Pendente")
+        return receipt
+
+    if action_type == "reconcile_invoice":
+        record_id = int(payload.get("record_id") or 0)
+        number = str(payload.get("document_number") or "").strip()
+        if not record_id or not number:
+            raise AssistantActionError("Confira a nota e o lançamento antes de conciliar.")
+        link_transaction_document(int(user_id), record_id, number, str(payload.get("counterparty") or ""))
+        receipt = _action_receipt(message="Nota e receita conciliadas.", action_type=action_type, record_id=record_id, summary=str(draft.get("summary") or "Conciliação concluída"), action_key=action_key)
+        receipt["previous_document_number"] = str(payload.get("previous_document_number") or "")
+        receipt["previous_counterparty"] = str(payload.get("previous_counterparty") or "")
+        return receipt
 
     if action_type == "transaction":
         normalized = _normalize_draft({"action_type": action_type, **payload, "date": payload.get("tx_date")}, today=_business_today(), source="validated", action_key=action_key)
@@ -719,7 +752,10 @@ def execute_assistant_action(user_id: int, draft: dict[str, Any], *, return_rece
 
 def undo_assistant_action(user_id: int, receipt: dict[str, Any]) -> str:
     """Undo only the exact record created by the latest confirmed assistant action."""
-    from database import delete_contact, delete_invoice, delete_obligation, delete_recurring_transaction, delete_transaction
+    from database import (
+        delete_contact, delete_invoice, delete_obligation, delete_recurring_transaction,
+        delete_transaction, link_transaction_document, update_obligation_status, update_transaction,
+    )
 
     action_type = str(receipt.get("action_type") or "")
     if action_type == "batch":
@@ -738,6 +774,37 @@ def undo_assistant_action(user_id: int, receipt: dict[str, Any]) -> str:
     record_id = receipt.get("record_id")
     if not record_id:
         raise AssistantActionError("Não foi possível identificar o item para desfazer.")
+    if action_type == "update_transaction":
+        previous = dict(receipt.get("previous") or {})
+        if previous.get("tx_date") and isinstance(previous["tx_date"], str):
+            previous["tx_date"] = date.fromisoformat(previous["tx_date"][:10])
+        if not previous or not update_transaction(int(user_id), int(record_id), **previous):
+            raise AssistantActionError("Não foi possível restaurar o lançamento anterior.")
+        try:
+            from assistant_action_store import mark_action_undone
+            mark_action_undone(user_id, str(receipt.get("action_key") or ""))
+        except Exception:
+            pass
+        return "Alteração desfeita e lançamento restaurado."
+    if action_type == "update_obligation":
+        update_obligation_status(int(user_id), int(record_id), str(receipt.get("previous_status") or "Pendente"))
+        try:
+            from assistant_action_store import mark_action_undone
+            mark_action_undone(user_id, str(receipt.get("action_key") or ""))
+        except Exception:
+            pass
+        return "Alteração desfeita e obrigação restaurada."
+    if action_type == "reconcile_invoice":
+        link_transaction_document(
+            int(user_id), int(record_id), str(receipt.get("previous_document_number") or ""),
+            str(receipt.get("previous_counterparty") or ""),
+        )
+        try:
+            from assistant_action_store import mark_action_undone
+            mark_action_undone(user_id, str(receipt.get("action_key") or ""))
+        except Exception:
+            pass
+        return "Conciliação desfeita com segurança."
     handlers = {
         "transaction": delete_transaction,
         "invoice": delete_invoice,
@@ -758,4 +825,3 @@ def undo_assistant_action(user_id: int, receipt: dict[str, Any]) -> str:
     except Exception:
         pass
     return "Última ação da IA desfeita com segurança."
-
