@@ -25,7 +25,10 @@ _ACTION_VERBS = (
     "salva", "salvar", "gastei", "paguei", "comprei", "recebi", "vendi",
     "entrou", "saiu", "lembre", "lembra", "lembrete",
 )
-_GUIDANCE_PREFIXES = ("como ", "onde ", "posso ", "quero saber", "me explique", "qual ")
+_GUIDANCE_PREFIXES = (
+    "como ", "onde ", "posso ", "quero saber", "me explique", "qual ",
+    "quais ", "quanto ", "quantos ", "quantas ",
+)
 _BUSINESS_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 
@@ -304,7 +307,7 @@ _ACTION_TOOL = {
 def _openai_arguments(question: str, *, api_key: str, model: str, today: date) -> dict[str, Any]:
     from openai import OpenAI
 
-    client = OpenAI(api_key=api_key.strip(), timeout=20.0, max_retries=0)
+    client = OpenAI(api_key=api_key.strip(), timeout=8.0, max_retries=0)
     response = client.responses.create(
         model=model.strip(),
         instructions=(

@@ -104,7 +104,7 @@ def suggest_route(question: str) -> tuple[str | None, str | None]:
         (("fluxo de caixa", "saldo acumulado"), "Fluxo de Caixa"),
         (("análise financeira", "analise financeira", "margem", "despesas por categoria"), "Análise Financeira"),
         (("recorrência", "recorrencia", "recorrente"), "Recorrências"),
-        (("movimentação", "movimentacao", "lançamento", "lancamento", "registrar receita", "registrar despesa", "cadastrar receita", "cadastrar despesa", "cadastro uma nova receita", "cadastro uma nova despesa", "nova receita", "nova despesa"), "Movimentações"),
+        (("movimentação", "movimentacao", "lançamento", "lancamento", "registrar receita", "registrar despesa", "cadastrar receita", "cadastrar despesa", "cadastro uma receita", "cadastro uma despesa", "cadastro uma nova receita", "cadastro uma nova despesa", "nova receita", "nova despesa"), "Movimentações"),
         (("financeiro", "resultado financeiro"), "Financeiro"),
         (("importar nfs", "importar nota"), "Importar NFS-e"),
         (("nota fiscal", "nfse", "nfs-e"), "Notas Fiscais"),
@@ -127,6 +127,21 @@ def suggest_route(question: str) -> tuple[str | None, str | None]:
         if any(term in text for term in terms):
             return route, f"Abrir {route}"
     return None, None
+
+
+def should_prepare_resources(question: str) -> bool:
+    """Avoid report/document work when the answer does not need a system resource."""
+    route, _ = suggest_route(question)
+    if route:
+        return True
+    text = _normalize(question)
+    return any(
+        term in text
+        for term in (
+            "relatório", "relatorio", "baixar", "download", "csv", "excel",
+            "pdf", "arquivo", "documento", "anexo", "comprovante", "fechamento",
+        )
+    )
 
 
 def _monthly_rows(transactions: pd.DataFrame, year: int, month: int) -> list[dict]:

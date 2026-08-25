@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from html import escape
 from datetime import date
+from time import monotonic
 from typing import Callable
 
 import pandas as pd
@@ -24,22 +25,25 @@ from assistant_automation_service import (
     undo_automation as undo_assistant_action,
 )
 from assistant_history import (
-    AssistantHistoryError, WELCOME_MESSAGE, append_message as persist_ai_message,
+    AssistantHistoryError, WELCOME_MESSAGE, append_exchange as persist_ai_exchange,
+    append_message as persist_ai_message,
     create_conversation, get_or_create_conversation, list_conversations,
     load_messages, serialize_timestamp,
 )
 from ai_provider_router import ProviderChainError, run_provider_chain
 from ai_usage_store import AIUsageStoreError, get_ai_usage, release_ai_request, reserve_ai_request
-from assistant_resources import build_product_context, build_resource_bundle
+from assistant_query_engine import analyze_business_question
+from assistant_resources import build_product_context, build_resource_bundle, should_prepare_resources
 from fiscal_rules import annual_limit_for
 from document_intelligence import analyze_document
 from gemini_provider import DEFAULT_GEMINI_MODEL, GeminiAIError, ask_razync_gemini, diagnose_gemini
-from product_core import assistant_answer
+from product_core import assistant_answer, supports_instant_assistant_answer
 from monitoring import safe_error
 
 
 DEFAULT_UI_MODEL = "gpt-5.4-mini"
 DEFAULT_DAILY_REQUEST_LIMIT = 20
+AI_USAGE_CACHE_SECONDS = 30.0
 _SAFE_API_META = re.compile(r"^[A-Za-z0-9_.:\-/]{1,96}$")
 
 SUGGESTED_QUESTIONS = [
@@ -238,6 +242,27 @@ def _current_user_id() -> int | None:
     user = st.session_state.get("user")
     if not isinstance(user, dict):
         return None
+
+
+def _remember_ai_usage(user_id: int, count: int) -> None:
+    st.session_state[f"razync_ai_usage_{int(user_id)}"] = {
+        "count": max(0, int(count)),
+        "expires_at": monotonic() + AI_USAGE_CACHE_SECONDS,
+    }
+
+
+def _cached_ai_usage(user_id: int, *, force: bool = False) -> int:
+    key = f"razync_ai_usage_{int(user_id)}"
+    cached = st.session_state.get(key)
+    if not force and isinstance(cached, dict):
+        try:
+            if float(cached.get("expires_at") or 0) > monotonic():
+                return max(0, int(cached.get("count") or 0))
+        except (TypeError, ValueError):
+            pass
+    count = get_ai_usage(user_id)
+    _remember_ai_usage(user_id, count)
+    return count
     try:
         return int(user.get("id"))
     except (TypeError, ValueError):
@@ -477,12 +502,6 @@ def _answer_question(
     notices: list[tuple[str, str]] = []
     usage_count = 0
 
-    if quota_ready:
-        try:
-            usage_count = get_ai_usage(user_id)
-        except AIUsageStoreError:
-            quota_ready = False
-
     pending_action = st.session_state.get("razync_ai_pending_action")
     action_question = question
     if isinstance(pending_action, dict) and pending_action.get("missing_fields"):
@@ -490,9 +509,6 @@ def _answer_question(
         if original_request:
             action_question = f"{original_request}. Informação adicional: {question}"
 
-    action_api_key = ""
-    if provider["openai_enabled"] and quota_ready and usage_count < daily_limit:
-        action_api_key = provider["openai_api_key"]
     try:
         action_draft = plan_record_operation(
             action_question,
@@ -501,24 +517,12 @@ def _answer_question(
             obligations=obligations,
         )
         if action_draft is None:
-            action_draft = plan_assistant_action(
-                action_question,
-                api_key=action_api_key,
-                model=provider["openai_model"],
-            )
+            action_draft = plan_assistant_action(action_question)
     except Exception as exc:
         safe_error("assistant_action_planning_failed", exc, feature="assistant", operation="plan_action")
         action_draft = None
 
     if action_draft is not None:
-        if action_draft.source == "OpenAI" and user_id is not None:
-            try:
-                allowed, _ = reserve_ai_request(user_id, daily_limit)
-            except AIUsageStoreError:
-                allowed = False
-            if not allowed:
-                action_draft = plan_assistant_action(action_question)
-
         action_state = action_draft.to_dict()
         action_state["original_request"] = action_question
         st.session_state["razync_ai_pending_action"] = action_state
@@ -536,7 +540,7 @@ def _answer_question(
             "answer": answer,
             "notices": notices,
             "provider": action_draft.source,
-            "model": provider["openai_model"] if action_draft.source == "OpenAI" else "Razync local",
+            "model": "Razync local",
             "action": action_state,
         }
 
@@ -563,6 +567,35 @@ def _answer_question(
             "notices": [], "provider": "Análise proativa", "model": "Razync local",
         }
 
+    instant_query = analyze_business_question(question, transactions, default_year=current_year)
+    if instant_query.handled:
+        return {
+            "answer": instant_query.summary,
+            "notices": [], "provider": "Análise instantânea", "model": "Razync local",
+        }
+
+    if supports_instant_assistant_answer(question):
+        return {
+            "answer": _fallback_answer(
+                question,
+                transactions=transactions,
+                invoices=invoices,
+                das_rows=das_rows,
+                obligations=obligations,
+                documents=documents,
+                annual_limit=annual_limit,
+                current_year=current_year,
+                fallback_answer=fallback_answer,
+            ),
+            "notices": [], "provider": "Análise instantânea", "model": "Razync local",
+        }
+
+    if quota_ready and user_id is not None:
+        try:
+            usage_count = _cached_ai_usage(user_id)
+        except AIUsageStoreError:
+            quota_ready = False
+
     prior_conversation = list(_ensure_messages()[-6:])
     local_answer = lambda: _fallback_answer(
         question,
@@ -583,6 +616,8 @@ def _answer_question(
             allowed = False
             reserved_count = usage_count
             notices.append(("warning", "O controle diário da IA não respondeu. Usei a análise local do Razync."))
+        else:
+            _remember_ai_usage(user_id, reserved_count)
 
         if allowed:
             context = build_safe_business_context(
@@ -628,7 +663,8 @@ def _answer_question(
                     ))
             except ProviderChainError as exc:
                 try:
-                    release_ai_request(user_id)
+                    released_count = release_ai_request(user_id)
+                    _remember_ai_usage(user_id, released_count)
                 except AIUsageStoreError:
                     pass
                 answer = local_answer()
@@ -668,6 +704,8 @@ def _prepare_resources(
     documents: list[dict],
     current_year: int,
 ) -> dict:
+    if not should_prepare_resources(question):
+        return {"route": None, "route_label": None, "downloads": [], "note": None}
     user_id = _current_user_id()
     if user_id is None:
         return {"route": None, "route_label": None, "downloads": [], "note": None}
@@ -1016,8 +1054,30 @@ def _render_last_answer_feedback(user_id: int | None, messages: list[dict]) -> N
 
 
 def _store_turn(question: str, answer: str, resources: dict | None = None) -> None:
-    _append_message("user", question)
-    _append_message("assistant", answer, metadata={"resources": bool(resources)})
+    safe_question = str(question or "").strip()
+    safe_answer = str(answer or "").strip()
+    if not safe_question or not safe_answer:
+        return
+    messages = _ensure_messages()
+    messages.extend([
+        {"role": "user", "content": safe_question},
+        {"role": "assistant", "content": safe_answer},
+    ])
+    user_id = _current_user_id()
+    conversation_id = st.session_state.get("razync_ai_conversation_id")
+    if user_id is not None and conversation_id:
+        try:
+            persist_ai_exchange(
+                user_id,
+                int(conversation_id),
+                safe_question,
+                safe_answer,
+                assistant_metadata={"resources": bool(resources)},
+            )
+        except AssistantHistoryError:
+            st.session_state["razync_ai_history_warning"] = (
+                "Não foi possível sincronizar esta conversa com o histórico. Ela continua visível nesta sessão."
+            )
     st.session_state["razync_ai_last_resources"] = resources or {}
     st.session_state["razync_ai_last_resource_question"] = question
 
@@ -1171,7 +1231,7 @@ def render_ai_assistant(
     usage_count = 0
     if quota_ready:
         try:
-            usage_count = get_ai_usage(user_id)
+            usage_count = _cached_ai_usage(user_id)
         except AIUsageStoreError:
             quota_ready = False
 

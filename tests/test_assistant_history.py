@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from assistant_history import (
+    append_exchange,
     append_message,
     archive_conversation,
     create_conversation,
@@ -36,6 +37,22 @@ class AssistantHistoryTests(unittest.TestCase):
         self.assertEqual([item["role"] for item in messages], ["user", "assistant"])
         self.assertEqual(list_conversations(self.user_id)[0]["title"], "Registrar uma despesa de aluguel")
 
+    def test_persists_a_complete_exchange_atomically(self):
+        conversation_id = create_conversation(self.user_id)
+        append_exchange(
+            self.user_id,
+            conversation_id,
+            "Quanto faturei?",
+            "Você faturou R$ 1.000,00.",
+            assistant_metadata={"resources": False},
+        )
+        messages = load_messages(self.user_id, conversation_id)
+        self.assertEqual(messages, [
+            {"role": "user", "content": "Quanto faturei?"},
+            {"role": "assistant", "content": "Você faturou R$ 1.000,00."},
+        ])
+        self.assertEqual(list_conversations(self.user_id)[0]["title"], "Quanto faturei?")
+
     def test_user_cannot_read_another_users_conversation(self):
         conversation_id = create_conversation(self.user_id)
         append_message(self.user_id, conversation_id, "user", "Mensagem privada")
@@ -49,4 +66,3 @@ class AssistantHistoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

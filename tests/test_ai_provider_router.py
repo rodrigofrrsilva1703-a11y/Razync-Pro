@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from ai_provider_router import ProviderChainError, run_provider_chain
+from ai_provider_router import ProviderChainError, reset_provider_health, run_provider_chain
 
 
 class ProviderRouterTests(unittest.TestCase):
+    def setUp(self):
+        reset_provider_health()
+
     def test_returns_primary_provider_without_calling_fallback(self):
         calls: list[str] = []
 
@@ -51,6 +54,35 @@ class ProviderRouterTests(unittest.TestCase):
                 ("OpenAI", lambda: ""),
             ])
         self.assertEqual(context.exception.attempted_providers, ("Gemini", "OpenAI"))
+
+    def test_temporarily_skips_a_provider_that_just_failed(self):
+        calls: list[str] = []
+
+        def unavailable() -> str:
+            calls.append("Gemini")
+            raise TimeoutError("timeout")
+
+        with self.assertRaises(ProviderChainError):
+            run_provider_chain([("Gemini", unavailable)])
+        with self.assertRaises(ProviderChainError):
+            run_provider_chain([("Gemini", unavailable)])
+
+        self.assertEqual(calls, ["Gemini"])
+
+    def test_remembers_the_working_fallback_as_next_preference(self):
+        first_calls: list[str] = []
+        run_provider_chain([
+            ("Gemini", lambda: (_ for _ in ()).throw(TimeoutError("timeout"))),
+            ("OpenAI", lambda: "Reserva funcionando"),
+        ])
+
+        answer, provider, _ = run_provider_chain([
+            ("Gemini", lambda: first_calls.append("Gemini") or "Gemini voltou"),
+            ("OpenAI", lambda: first_calls.append("OpenAI") or "Resposta rápida"),
+        ])
+
+        self.assertEqual((answer, provider), ("Resposta rápida", "OpenAI"))
+        self.assertEqual(first_calls, ["OpenAI"])
 
 
 if __name__ == "__main__":

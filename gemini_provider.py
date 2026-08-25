@@ -10,6 +10,8 @@ from ai_assistant import INSTRUCTIONS, RazyncAIError, build_ai_prompt
 
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 _GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_REQUEST_TIMEOUT_SECONDS = 8.0
+GEMINI_MAX_OUTPUT_TOKENS = 650
 
 
 class GeminiAIError(RazyncAIError):
@@ -45,7 +47,7 @@ def _request_gemini(*, api_key: str, model: str, prompt: str, max_output_tokens:
     )
 
     try:
-        with urlopen(request, timeout=25.0) as response:
+        with urlopen(request, timeout=GEMINI_REQUEST_TIMEOUT_SECONDS) as response:
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         status = int(getattr(exc, "code", 0) or 0)
@@ -109,5 +111,5 @@ def ask_razync_gemini(
         api_key=api_key,
         model=model,
         prompt=prompt,
-        max_output_tokens=1100,
+        max_output_tokens=GEMINI_MAX_OUTPUT_TOKENS,
     )
