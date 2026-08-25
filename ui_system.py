@@ -13,6 +13,8 @@ THEMES = {
         "text": "#111c27",
         "muted": "#607487",
         "border": "#cfdee8",
+        "control_border": "#aebfcb",
+        "control_bg": "#f8fbfd",
         "primary": "#08b9ef",
         "primary_hover": "#009dce",
         "primary_soft": "#ddf6ff",
@@ -31,6 +33,8 @@ THEMES = {
         "text": "#f5f9fc",
         "muted": "#91a7ba",
         "border": "#22384b",
+        "control_border": "#385269",
+        "control_bg": "#101d2a",
         "primary": "#10bdf2",
         "primary_hover": "#43cdf7",
         "primary_soft": "rgba(19, 185, 232, .12)",
@@ -118,8 +122,12 @@ hr { border-color:#cfdee8 !important; }
   --rz-text:{t['text']};
   --rz-muted:{t['muted']};
   --rz-border:{t['border']};
+  --rz-control-border:{t['control_border']};
+  --rz-control-bg:{t['control_bg']};
   --rz-primary:{t['primary']};
   --rz-primary-soft:{t['primary_soft']};
+  --rz-success:{t['success']};
+  --rz-danger:{t['danger']};
   --rz-shadow:{t['shadow']};
   --rz-shadow-soft:{t['shadow_soft']};
 }}
@@ -290,6 +298,124 @@ hr {{ border-color:var(--rz-border); }}
 .rz-next-action span {{ color:var(--rz-muted); font-size:.79rem; line-height:1.45; }}
 
 {native}
+
+/* Campos com limites claros em ambos os temas. Os seletores usam data-testid
+   e data-baseweb, evitando classes internas geradas pelo Streamlit. */
+[data-testid="stTextInput"] [data-baseweb="input"],
+[data-testid="stTextInputRootElement"],
+[data-testid="stNumberInput"] [data-baseweb="input"],
+[data-testid="stNumberInputContainer"],
+[data-testid="stDateInput"] [data-baseweb="input"],
+[data-testid="stTextArea"] [data-baseweb="textarea"],
+[data-testid="stTextArea"] [data-rac][role="group"],
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stSelectbox"] [data-rac][role="group"],
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-rac][role="group"] {{
+  background:var(--rz-control-bg)!important;
+  border:1px solid var(--rz-control-border)!important;
+  border-radius:10px!important;
+  box-shadow:0 1px 2px rgba(17,28,39,.045)!important;
+  overflow:hidden;
+  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
+}}
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stTextArea"] textarea {{
+  min-height:2.65rem;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  color:var(--rz-text)!important;
+}}
+[data-testid="stTextInput"] [data-baseweb="input"]:focus-within,
+[data-testid="stTextInputRootElement"]:focus-within,
+[data-testid="stNumberInput"] [data-baseweb="input"]:focus-within,
+[data-testid="stNumberInputContainer"]:focus-within,
+[data-testid="stDateInput"] [data-baseweb="input"]:focus-within,
+[data-testid="stTextArea"] [data-baseweb="textarea"]:focus-within,
+[data-testid="stTextArea"] [data-rac][role="group"]:focus-within,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within,
+[data-testid="stSelectbox"] [data-rac][role="group"]:focus-within,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within,
+[data-testid="stMultiSelect"] [data-rac][role="group"]:focus-within {{
+  background:var(--rz-surface)!important;
+  border-color:var(--rz-primary)!important;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--rz-primary) 13%,transparent)!important;
+}}
+[data-testid="stNumberInput"] button,
+[data-testid="stDateInput"] button {{
+  min-height:2.65rem!important;
+  background:var(--rz-soft)!important;
+  color:var(--rz-text)!important;
+  border:0!important;
+  border-left:1px solid var(--rz-control-border)!important;
+  border-radius:0!important;
+}}
+[data-testid="stNumberInput"] button:hover,
+[data-testid="stDateInput"] button:hover {{ background:var(--rz-primary-soft)!important; color:var(--rz-primary)!important; }}
+[data-testid="stSelectbox"] [data-rac][role="group"] input,
+[data-testid="stMultiSelect"] [data-rac][role="group"] input {{
+  min-height:2.65rem!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  color:var(--rz-text)!important;
+}}
+[data-testid="stSelectbox"] [data-rac][role="group"] button,
+[data-testid="stMultiSelect"] [data-rac][role="group"] button {{
+  min-height:2.65rem!important;
+  background:transparent!important;
+  color:var(--rz-text)!important;
+  border:0!important;
+  border-left:1px solid var(--rz-control-border)!important;
+  border-radius:0!important;
+}}
+input::placeholder, textarea::placeholder {{ color:var(--rz-muted)!important; opacity:.82!important; }}
+[data-testid="stExpander"] summary,
+[data-testid="stExpanderDetails"] {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; }}
+[data-testid="stExpander"] summary {{ border-radius:10px 10px 0 0!important; }}
+[data-testid="stExpander"] summary * {{ color:var(--rz-text)!important; }}
+[data-testid="stExpander"] summary:hover {{ background:var(--rz-soft)!important; }}
+
+/* Tipo do novo lançamento: duas opções grandes, sem ambiguidade visual. */
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) [role="radiogroup"] {{
+  display:flex!important;
+  width:min(100%,520px)!important;
+  gap:.35rem!important;
+  padding:.28rem!important;
+  background:var(--rz-soft)!important;
+  border:1px solid var(--rz-control-border)!important;
+  border-radius:12px!important;
+}}
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button {{
+  flex:1 1 0!important;
+  min-height:2.65rem!important;
+  padding:.5rem .9rem!important;
+  background:var(--rz-surface)!important;
+  color:var(--rz-text)!important;
+  border:1px solid var(--rz-border)!important;
+  border-radius:9px!important;
+  box-shadow:none!important;
+  font-weight:720!important;
+}}
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button * {{ color:inherit!important; }}
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button:first-child:is([aria-checked="true"],[aria-pressed="true"],[aria-selected="true"]),
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button:first-child:is([data-active="true"],[data-selected="true"]) {{
+  background:color-mix(in srgb,var(--rz-success) 14%,var(--rz-surface))!important;
+  color:var(--rz-success)!important;
+  border-color:var(--rz-success)!important;
+  box-shadow:0 3px 10px color-mix(in srgb,var(--rz-success) 14%,transparent)!important;
+}}
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button:last-child:is([aria-checked="true"],[aria-pressed="true"],[aria-selected="true"]),
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button:last-child:is([data-active="true"],[data-selected="true"]) {{
+  background:color-mix(in srgb,var(--rz-danger) 13%,var(--rz-surface))!important;
+  color:var(--rz-danger)!important;
+  border-color:var(--rz-danger)!important;
+  box-shadow:0 3px 10px color-mix(in srgb,var(--rz-danger) 13%,transparent)!important;
+}}
+.st-key-tx_type_new :is([data-testid="stButtonGroup"],[data-testid="stSegmentedControl"]) button:hover {{ border-color:var(--rz-primary)!important; }}
 @media (max-width:1000px) {{ .block-container {{ padding-left:1rem; padding-right:1rem; }} [data-testid="stMetric"] {{ min-height:96px; }} }}
 @media (max-width:720px) {{
   .rz-page-title {{ font-size:1.5rem; }}
