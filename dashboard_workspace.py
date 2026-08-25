@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
+from html import escape
 
 import pandas as pd
 import streamlit as st
@@ -70,15 +71,46 @@ def render_dashboard_workspace(
     month_in = float(month_tx[month_tx["tx_type"] == "Receita"]["value"].sum()) if not month_tx.empty else 0.0
     month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
     month_result = month_in - month_out
+    previous_month = today.replace(day=1) - timedelta(days=1)
+    previous_tx = transactions[
+        (transactions["tx_date"].dt.year == previous_month.year)
+        & (transactions["tx_date"].dt.month == previous_month.month)
+    ] if not transactions.empty else transactions
+    previous_in = float(previous_tx[previous_tx["tx_type"] == "Receita"]["value"].sum()) if not previous_tx.empty else 0.0
+    previous_out = float(previous_tx[previous_tx["tx_type"] == "Despesa"]["value"].sum()) if not previous_tx.empty else 0.0
+    previous_result = previous_in - previous_out
 
     st.markdown("### Hoje no seu MEI")
     st.caption("Uma visão curta do que entrou, do que saiu e do que precisa de atenção.")
 
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Entradas no mês", brl(month_in))
-    k2.metric("Saídas no mês", brl(month_out))
-    k3.metric("Resultado do mês", brl(month_result))
-    k4.metric("Faturamento no ano", brl(annual_revenue))
+    with st.container(key="dashboard_kpis"):
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Entradas no mês", brl(month_in), delta=brl(month_in - previous_in), help="Variação em relação ao mês anterior")
+        k2.metric("Saídas no mês", brl(month_out), delta=brl(month_out - previous_out), delta_color="inverse", help="Variação em relação ao mês anterior")
+        k3.metric("Resultado do mês", brl(month_result), delta=brl(month_result - previous_result), help="Variação em relação ao mês anterior")
+        limit_pct = (annual_revenue / annual_limit * 100) if annual_limit else 0.0
+        k4.metric("Faturamento no ano", brl(annual_revenue), help=f"{limit_pct:.1f}% do limite anual monitorado")
+
+    st.markdown(
+        '<div class="rz-command-bar"><div><strong>✦ Peça uma tarefa à Razync IA</strong>'
+        '<span>Consulte seus números ou prepare um lançamento, uma nota e outras ações para confirmação.</span></div>'
+        '<b class="rz-pill rz-pill-info">Sempre pede confirmação</b></div>',
+        unsafe_allow_html=True,
+    )
+    with st.form("dashboard_ai_command", border=False):
+        command_text, command_action = st.columns([5, 1.25])
+        command = command_text.text_input(
+            "Pedido para a Razync IA",
+            placeholder="Ex.: registre uma despesa de internet de R$ 120 paga hoje",
+            label_visibility="collapsed",
+        )
+        ask_ai = command_action.form_submit_button("Enviar à IA", type="primary", width="stretch")
+    if ask_ai:
+        if command.strip():
+            st.session_state["razync_ai_pending_question"] = command.strip()
+            navigate("Assistente Razync")
+        else:
+            st.warning("Escreva o que você precisa antes de enviar à IA.")
 
     projection = financial_projection(transactions, annual_limit, current_year, today)
     if projection.get("limit_risk"):
@@ -108,7 +140,6 @@ def render_dashboard_workspace(
         score, notes = _health_score(profile, annual_revenue, annual_limit, das_rows, obligations)
         st.metric("Índice de organização", f"{score}/100")
         st.progress(score / 100)
-        limit_pct = (annual_revenue / annual_limit * 100) if annual_limit else 0.0
         st.caption(f"Limite usado: {limit_pct:.1f}%")
         st.progress(min(max(limit_pct / 100, 0), 1.0))
         if notes:
@@ -144,14 +175,18 @@ def render_dashboard_workspace(
                     st.session_state["razync_ai_pending_question"] = insight["question"]
                     navigate("Assistente Razync")
 
-    section("Acesso rápido", "Entre direto nas duas áreas principais ou registre uma movimentação.")
-    q1, q2, q3 = st.columns(3)
-    if q1.button("Financeiro", key="dashv2_finance", width="stretch"):
-        navigate("Financeiro")
-    if q2.button("Fiscal MEI", key="dashv2_fiscal", width="stretch"):
-        navigate("Fiscal")
-    if q3.button("Nova movimentação", key="dashv2_new_tx", width="stretch"):
+    section("Ações rápidas", "Comece as rotinas mais frequentes sem procurar em outras telas.")
+    q1, q2, q3, q4 = st.columns(4)
+    if q1.button("Registrar receita", key="dashv2_new_income", icon=":material/add_circle:", width="stretch"):
+        st.session_state["_new_transaction_type"] = "Receita"
         navigate("Movimentações")
+    if q2.button("Registrar despesa", key="dashv2_new_expense", icon=":material/remove_circle:", width="stretch"):
+        st.session_state["_new_transaction_type"] = "Despesa"
+        navigate("Movimentações")
+    if q3.button("Importar extrato", key="dashv2_statement", icon=":material/upload_file:", width="stretch"):
+        navigate("Importar Extrato")
+    if q4.button("Abrir assistente", key="dashv2_assistant", icon=":material/auto_awesome:", width="stretch"):
+        navigate("Assistente Razync")
 
     deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
     left, right = st.columns([1.25, 1], gap="large")
@@ -178,7 +213,20 @@ def render_dashboard_workspace(
             recent["Valor"] = recent["value"].map(brl)
             recent["Descrição"] = recent["description"].fillna("Sem descrição")
             recent["Tipo"] = recent["tx_type"]
-            st.dataframe(recent[["Data", "Tipo", "Descrição", "Valor"]], hide_index=True, width="stretch")
+            mobile_rows = []
+            for _, transaction in recent.iterrows():
+                tx_type = str(transaction["Tipo"])
+                tone = "ok" if tx_type == "Receita" else "danger"
+                mobile_rows.append(
+                    '<div class="rz-mobile-card">'
+                    f'<div class="rz-mobile-card-head"><span>{escape(str(transaction["Data"]))}</span>'
+                    f'<b class="rz-pill rz-pill-{tone}">{escape(tx_type)}</b></div>'
+                    f'<div class="rz-mobile-card-title">{escape(str(transaction["Descrição"]))}</div>'
+                    f'<div class="rz-mobile-card-meta">{escape(str(transaction["Valor"]))}</div></div>'
+                )
+            st.markdown(f'<div class="rz-mobile-only"><div class="rz-mobile-list">{"".join(mobile_rows)}</div></div>', unsafe_allow_html=True)
+            with st.container(key="recent_desktop"):
+                st.dataframe(recent[["Data", "Tipo", "Descrição", "Valor"]], hide_index=True, width="stretch")
 
     if setup["percent"] < 100:
         with st.expander(f"Configuração do MEI · {setup['percent']}% concluída"):
@@ -186,3 +234,4 @@ def render_dashboard_workspace(
             st.caption("Complete o cadastro inicial para melhorar alertas, relatórios e automações.")
             if st.button("Continuar configuração", key="dashv2_onboarding", width="stretch"):
                 navigate("Primeiros Passos")
+

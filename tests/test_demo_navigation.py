@@ -26,3 +26,12 @@ def test_demo_can_return_to_the_real_system():
     assert "Entrar no sistema" in SOURCE
     assert "_leave_demo" in SOURCE
     assert 'st.session_state.pop("_demo_mode", None)' in SOURCE
+
+
+def test_demo_uses_official_brand_and_readable_statuses():
+    assert "brand_logo_data_uri" in SOURCE
+    assert "rz-brand-mark" in SOURCE
+    assert "rz-status-table" in SOURCE
+    assert "rz-pill-warn" in SOURCE
+    assert '"Valor (R$)"' in SOURCE
+

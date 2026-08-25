@@ -22,6 +22,15 @@ class WorkspaceV3Tests(unittest.TestCase):
         ]:
             self.assertIn(route, secondary)
 
+    def test_sidebar_has_six_direct_areas_and_mobile_core(self):
+        self.assertEqual(len(navigation_config.SIDEBAR_PRIMARY), 6)
+        for route in ["Dashboard", "Financeiro", "Fiscal", "Documentos", "Central de Automações", "Assistente Razync"]:
+            self.assertIn(route, navigation_config.SIDEBAR_PRIMARY)
+        self.assertEqual(
+            navigation_config.MOBILE_NAVIGATION,
+            ["Dashboard", "Financeiro", "Fiscal", "Assistente Razync"],
+        )
+
     def test_workspace_modules_are_separate_from_app(self):
         self.assertTrue(Path("finance_workspace.py").exists())
         self.assertTrue(Path("fiscal_workspace.py").exists())
@@ -30,3 +39,4 @@ class WorkspaceV3Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

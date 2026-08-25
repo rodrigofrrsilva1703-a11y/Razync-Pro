@@ -551,8 +551,9 @@ _snapshot_version_key = f"_mei_snapshot_version_{uid}"
 _current_data_version = data_version(uid)
 if _snapshot_key not in st.session_state or st.session_state.get(_snapshot_version_key) != _current_data_version:
     try:
-        st.session_state[_snapshot_key] = load_user_snapshot(uid)
-        st.session_state[_snapshot_version_key] = _current_data_version
+        with st.spinner("Sincronizando seus dados com segurança..."):
+            st.session_state[_snapshot_key] = load_user_snapshot(uid)
+            st.session_state[_snapshot_version_key] = _current_data_version
     except DatabaseConnectionError as exc:
         st.error("Não foi possível sincronizar os dados do Razync Pro.")
         st.warning(str(exc))
@@ -776,22 +777,34 @@ elif page == "Financeiro":
 
 elif page == "Movimentações":
     header("Movimentações","Registre o que entrou e saiu do MEI. Comece pelo essencial; os detalhes ficam opcionais.")
-    with st.container(border=True):
+    transaction_flash = st.session_state.pop("_transaction_flash", None)
+    if transaction_flash:
+        st.success(transaction_flash)
+    with st.container(border=True, key="new_transaction_panel"):
         st.caption("NOVO LANÇAMENTO")
+        helper_note("Preencha os três campos essenciais. Categoria, cliente e documento podem ser informados depois.")
         with st.form("tx_form", clear_on_submit=True):
+            transaction_intent = st.session_state.pop("_new_transaction_type", None)
+            if transaction_intent in {"Receita", "Despesa"}:
+                st.session_state["tx_type_new"] = transaction_intent
+            tx_type_options = ["Receita", "Despesa"]
+            tx_type_kwargs = {
+                "selection_mode": "single",
+                "format_func": lambda option: "Entrada · Receita" if option == "Receita" else "Saída · Despesa",
+                "key": "tx_type_new",
+                "width": "stretch",
+            }
+            if "tx_type_new" not in st.session_state:
+                tx_type_kwargs["default"] = "Receita"
             tx_type = st.segmented_control(
                 "Tipo do lançamento",
-                ["Receita", "Despesa"],
-                default="Receita",
-                selection_mode="single",
-                format_func=lambda option: "Entrada · Receita" if option == "Receita" else "Saída · Despesa",
-                key="tx_type_new",
-                width="stretch",
+                tx_type_options,
+                **tx_type_kwargs,
             ) or "Receita"
             a,b = st.columns(2)
-            value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
-            tx_date = b.date_input("Data", value=date.today())
-            desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente, compra de material...")
+            value = a.number_input("Valor *", min_value=0.0, step=10.0, format="%.2f")
+            tx_date = b.date_input("Data *", value=date.today(), format="DD/MM/YYYY")
+            desc = st.text_input("Descrição *", placeholder="Ex.: pagamento do cliente, compra de material...")
             with st.expander("Mais detalhes (opcional)"):
                 a,b = st.columns(2)
                 category = a.selectbox("Categoria", ["Serviços","Vendas","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
@@ -799,15 +812,20 @@ elif page == "Movimentações":
                 a,b = st.columns(2)
                 payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
                 doc = b.text_input("Nota ou documento")
-            submitted = st.form_submit_button("Salvar movimentação", type="primary", width="stretch")
+            submitted = st.form_submit_button("Salvar lançamento", type="primary", width="stretch")
             if submitted:
                 if value <= 0:
                     st.error("Informe um valor maior que zero.")
                 elif not desc.strip():
                     st.error("Informe uma descrição para identificar o lançamento.")
                 else:
-                    add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=value, document_number=doc.strip(), counterparty=counterparty.strip(), payment_method=payment)
-                    st.rerun()
+                    try:
+                        add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=value, document_number=doc.strip(), counterparty=counterparty.strip(), payment_method=payment)
+                    except Exception:
+                        st.error("Não foi possível salvar o lançamento agora. Seus dados preenchidos foram mantidos para você tentar novamente.")
+                    else:
+                        st.session_state["_transaction_flash"] = f"{tx_type} registrada com sucesso."
+                        st.rerun()
     section("Histórico")
     if transactions.empty:
         empty_state("Nenhuma movimentação registrada", "Quando você adicionar a primeira receita ou despesa, ela aparecerá aqui e alimentará automaticamente o Dashboard e os relatórios.", "↕")
@@ -2013,3 +2031,4 @@ elif page == "Backup":
 
 st.divider()
 st.caption("Razync Pro • Ecossistema Razync • ferramenta de organização contábil e financeira para MEI")
+
