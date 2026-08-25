@@ -223,4 +223,22 @@ def assistant_answer(
         return f"A receita registrada em {year} é {money(revenue)}."
     return "Posso analisar faturamento, limite do MEI, despesas, resultado, DAS e conciliação de notas usando os dados cadastrados no Razync Pro."
 
+
+def supports_instant_assistant_answer(question: str) -> bool:
+    """Return whether ``assistant_answer`` has a deterministic answer for the prompt."""
+    q = (question or "").lower().strip()
+    if not q:
+        return False
+    if "documento" in q and ("falta" in q or "sem" in q):
+        return True
+    return any(
+        term in q
+        for term in (
+            "limite", "quanto posso faturar", "lucro", "resultado", "sobrou",
+            "despesa", "gasto", "das", "nota", "nf", "trimestre",
+            "maior despesa", "compare", "mês anterior", "mes anterior",
+            "venc", "prazo", "fatur", "receita",
+        )
+    )
+
 # trigger product restructure

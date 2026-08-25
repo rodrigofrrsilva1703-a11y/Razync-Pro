@@ -12,6 +12,10 @@ from openai import OpenAI
 from assistant_skills import build_skill_directive
 
 
+AI_REQUEST_TIMEOUT_SECONDS = 10.0
+AI_MAX_OUTPUT_TOKENS = 650
+
+
 DEFAULT_MODEL = "gpt-5.6-luna"
 
 
@@ -336,13 +340,13 @@ def ask_razync_ai(
 
     payload = build_ai_prompt(question, context=context, conversation=conversation)
     try:
-        client = OpenAI(api_key=api_key.strip(), timeout=25.0, max_retries=1)
+        client = OpenAI(api_key=api_key.strip(), timeout=AI_REQUEST_TIMEOUT_SECONDS, max_retries=0)
         response = client.responses.create(
             model=(model or DEFAULT_MODEL).strip(),
             instructions=INSTRUCTIONS,
             input=payload,
             store=False,
-            max_output_tokens=1100,
+            max_output_tokens=AI_MAX_OUTPUT_TOKENS,
         )
         answer = (response.output_text or "").strip()
     except Exception as exc:

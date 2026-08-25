@@ -203,6 +203,60 @@ def append_message(
         raise AssistantHistoryError("A mensagem não pôde ser salva no histórico.") from exc
 
 
+def append_exchange(
+    user_id: int,
+    conversation_id: int,
+    question: str,
+    answer: str,
+    *,
+    assistant_metadata: dict[str, Any] | None = None,
+) -> None:
+    """Persist one user/assistant exchange in a single database transaction."""
+    safe_question = str(question or "").strip()[:16000]
+    safe_answer = str(answer or "").strip()[:16000]
+    if not safe_question or not safe_answer:
+        return
+    metadata_json = (
+        json.dumps(assistant_metadata, ensure_ascii=False, default=str)[:8000]
+        if assistant_metadata else None
+    )
+    try:
+        _ensure_sqlite_tables()
+        with engine.begin() as conn:
+            owned = conn.execute(
+                text("SELECT title FROM ai_conversations WHERE id = :cid AND user_id = :uid AND archived = false"),
+                {"cid": int(conversation_id), "uid": int(user_id)},
+            ).scalar_one_or_none()
+            if owned is None:
+                raise AssistantHistoryError("Esta conversa não está disponível para sua conta.")
+            conn.execute(
+                text("""
+                    INSERT INTO ai_messages (conversation_id, user_id, role, content, metadata_json, created_at)
+                    VALUES
+                        (:cid, :uid, 'user', :question, NULL, CURRENT_TIMESTAMP),
+                        (:cid, :uid, 'assistant', :answer, :metadata, CURRENT_TIMESTAMP)
+                """),
+                {
+                    "cid": int(conversation_id), "uid": int(user_id),
+                    "question": safe_question, "answer": safe_answer, "metadata": metadata_json,
+                },
+            )
+            values: dict[str, Any] = {"cid": int(conversation_id), "uid": int(user_id)}
+            title_sql = ""
+            if str(owned) == "Nova conversa":
+                values["title"] = _safe_title(safe_question)
+                title_sql = ", title = :title"
+            conn.execute(
+                text(f"UPDATE ai_conversations SET updated_at = CURRENT_TIMESTAMP{title_sql} WHERE id = :cid AND user_id = :uid"),
+                values,
+            )
+    except AssistantHistoryError:
+        raise
+    except SQLAlchemyError as exc:
+        safe_error("assistant_history_exchange_failed", exc, feature="assistant_history", operation="append_exchange")
+        raise AssistantHistoryError("A conversa não pôde ser salva no histórico.") from exc
+
+
 def archive_conversation(user_id: int, conversation_id: int) -> None:
     try:
         _ensure_sqlite_tables()
@@ -220,4 +274,3 @@ def serialize_timestamp(value: Any) -> str:
     if isinstance(value, datetime):
         return value.strftime("%d/%m/%Y %H:%M")
     return str(value or "")
-

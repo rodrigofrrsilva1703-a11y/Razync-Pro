@@ -142,7 +142,9 @@ class RazyncAIContextTests(unittest.TestCase):
         self.assertIsNotNone(_FakeClient.last)
         self.assertFalse(_FakeClient.last.responses.kwargs["store"])
         self.assertEqual(_FakeClient.last.responses.kwargs["model"], "gpt-5.6-luna")
-        self.assertEqual(_FakeClient.last.responses.kwargs["max_output_tokens"], 1100)
+        self.assertEqual(_FakeClient.last.responses.kwargs["max_output_tokens"], 650)
+        self.assertEqual(_FakeClient.last.kwargs["timeout"], 10.0)
+        self.assertEqual(_FakeClient.last.kwargs["max_retries"], 0)
 
 
 if __name__ == "__main__":

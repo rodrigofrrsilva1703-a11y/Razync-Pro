@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from assistant_resources import build_product_context, suggest_route
+from assistant_resources import build_product_context, should_prepare_resources, suggest_route
 from assistant_skills import select_response_skill
 
 
@@ -33,6 +33,13 @@ class AssistantResourceTests(unittest.TestCase):
         self.assertIn("Documentos", context["available_areas"])
         self.assertNotIn("segredo.pdf", rendered)
         self.assertNotIn("cliente-confidencial.pdf", rendered)
+
+    def test_resource_work_is_skipped_for_a_plain_open_question(self):
+        self.assertFalse(should_prepare_resources("Como está meu negócio hoje?"))
+
+    def test_resource_work_is_enabled_for_reports_and_navigation(self):
+        self.assertTrue(should_prepare_resources("Gere um relatório financeiro em PDF"))
+        self.assertTrue(should_prepare_resources("Onde cadastro uma receita?"))
 
 
 if __name__ == "__main__":
