@@ -242,11 +242,6 @@ def _current_user_id() -> int | None:
     user = st.session_state.get("user")
     if not isinstance(user, dict):
         return None
-    try:
-        user_id = int(user.get("id"))
-    except (TypeError, ValueError):
-        return None
-    return user_id if user_id > 0 else None
 
 
 def _remember_ai_usage(user_id: int, count: int) -> None:
@@ -268,6 +263,10 @@ def _cached_ai_usage(user_id: int, *, force: bool = False) -> int:
     count = get_ai_usage(user_id)
     _remember_ai_usage(user_id, count)
     return count
+    try:
+        return int(user.get("id"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _invalidate_session_snapshot(user_id: int) -> None:
@@ -1241,15 +1240,18 @@ def render_ai_assistant(
     if history_warning:
         st.warning(history_warning)
 
+    messages = _ensure_messages()
     suggested = None
-    with st.expander("Sugestões"):
+    suggestions_context = st.container() if len(messages) <= 1 else st.expander("Sugestões de tarefas")
+    with suggestions_context:
+        if len(messages) <= 1:
+            st.markdown('<div class="rz-ai-quick-title">Comece com uma tarefa</div>', unsafe_allow_html=True)
         with st.container(key="full_ai_quick_actions"):
             cols = st.columns(3)
             for idx, (label, prompt) in enumerate(SUGGESTED_ACTIONS):
                 if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
                     suggested = prompt
 
-    messages = _ensure_messages()
     with st.container(key="full_ai_messages"):
         for message in messages[-100:]:
             with st.chat_message(message["role"], avatar=_chat_avatar(message["role"])):
@@ -1318,3 +1320,4 @@ def render_ai_assistant(
     st.session_state["razync_ai_last_resource_question"] = question
     st.session_state["razync_ai_flash_notices"] = result["notices"]
     st.rerun()
+

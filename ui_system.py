@@ -18,6 +18,9 @@ THEMES = {
         "primary": "#08b9ef",
         "primary_hover": "#009dce",
         "primary_soft": "#ddf6ff",
+        "action": "#087fa7",
+        "action_hover": "#066884",
+        "action_text": "#ffffff",
         "success": "#3f8f69",
         "warning": "#b9853d",
         "danger": "#c65f67",
@@ -38,6 +41,9 @@ THEMES = {
         "primary": "#10bdf2",
         "primary_hover": "#43cdf7",
         "primary_soft": "rgba(19, 185, 232, .12)",
+        "action": "#10bdf2",
+        "action_hover": "#43cdf7",
+        "action_text": "#04101a",
         "success": "#56b98b",
         "warning": "#d4a457",
         "danger": "#df7b82",
@@ -55,7 +61,7 @@ def tokens(theme_name: str) -> dict:
 def inject_design_system(theme_name: str) -> None:
     t = tokens(theme_name)
     dark = theme_name == "Escuro"
-    primary_contrast = "#06131c" if dark else "#ffffff"
+    primary_contrast = t["action_text"]
 
     if dark:
         native = """
@@ -96,7 +102,7 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [role="option"]:hover, [role="option"][aria-selected="true"] { background:#ddf6ff !important; color:#007fa8 !important; }
 button:not([kind="primary"]) { background:#ffffff !important; color:#314657 !important; border-color:#cfdee8 !important; box-shadow:none !important; }
 button:not([kind="primary"]):hover { background:#e4f2f8 !important; color:#009dce !important; border-color:#75d9f5 !important; }
-button[kind="primary"] { background:#08b9ef !important; color:#ffffff !important; border-color:#08b9ef !important; }
+button[kind="primary"] { background:#087fa7 !important; color:#ffffff !important; border-color:#087fa7 !important; font-weight:750 !important; }
 [data-testid="stSidebar"] button:not([kind="primary"]) { background:transparent !important; border-color:transparent !important; }
 [data-testid="stSidebar"] button:not([kind="primary"]):hover { background:#ddf6ff !important; color:#009dce !important; }
 [data-testid="stSidebar"] [data-testid="stExpander"], [data-testid="stSidebar"] details, [data-testid="stSidebar"] summary { background:transparent !important; border-color:transparent !important; }
@@ -126,6 +132,9 @@ hr { border-color:#cfdee8 !important; }
   --rz-control-bg:{t['control_bg']};
   --rz-primary:{t['primary']};
   --rz-primary-soft:{t['primary_soft']};
+  --rz-action:{t['action']};
+  --rz-action-hover:{t['action_hover']};
+  --rz-action-text:{t['action_text']};
   --rz-success:{t['success']};
   --rz-danger:{t['danger']};
   --rz-shadow:{t['shadow']};
@@ -162,6 +171,7 @@ html, body, [class*="css"] {{ font-family:Inter, ui-sans-serif, system-ui, -appl
   border:1px solid rgba(16,189,242,.42);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.025), 0 5px 16px rgba(16,189,242,.08);
 }}
+.rz-brand-mark {{ position:absolute; z-index:1; left:.18rem; top:.34rem; width:38px; height:38px; border-radius:11px; object-fit:cover; border:1px solid rgba(16,189,242,.42); box-shadow:0 5px 16px rgba(16,189,242,.13); }}
 .rz-brand {{ font-size:1.44rem; line-height:1; font-weight:900; letter-spacing:-.052em; color:var(--rz-text); }}
 .rz-brand span {{ color:var(--rz-primary); font-size:.72rem; letter-spacing:.09em; margin-left:.22rem; vertical-align:.18rem; }}
 .rz-brand-sub {{ margin-top:.38rem; font-size:.73rem; color:var(--rz-muted); }}
@@ -201,6 +211,16 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 [data-testid="stMetric"] {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:13px; padding:16px 17px; box-shadow:var(--rz-shadow-soft); min-height:105px; }}
 [data-testid="stMetricLabel"] p {{ color:var(--rz-muted)!important; font-size:.8rem; font-weight:650; }}
 [data-testid="stMetricValue"] {{ color:var(--rz-text)!important; font-size:1.48rem; font-weight:800; letter-spacing:-.035em; }}
+.st-key-dashboard_kpis [data-testid="column"]:nth-child(1) [data-testid="stMetric"],
+.st-key-financial_kpis [data-testid="column"]:nth-child(1) [data-testid="stMetric"] {{ border-top:3px solid var(--rz-success); }}
+.st-key-dashboard_kpis [data-testid="column"]:nth-child(2) [data-testid="stMetric"],
+.st-key-financial_kpis [data-testid="column"]:nth-child(2) [data-testid="stMetric"] {{ border-top:3px solid var(--rz-danger); }}
+.st-key-dashboard_kpis [data-testid="column"]:nth-child(3) [data-testid="stMetric"],
+.st-key-financial_kpis [data-testid="column"]:nth-child(3) [data-testid="stMetric"] {{ border-top:3px solid var(--rz-primary); }}
+.st-key-fiscal_kpis [data-testid="column"]:nth-child(1) [data-testid="stMetric"] {{ border-top:3px solid var(--rz-danger); }}
+.st-key-fiscal_kpis [data-testid="column"]:nth-child(2) [data-testid="stMetric"] {{ border-top:3px solid {t['warning']}; }}
+.st-key-fiscal_kpis [data-testid="column"]:nth-child(3) [data-testid="stMetric"],
+.st-key-fiscal_kpis [data-testid="column"]:nth-child(4) [data-testid="stMetric"] {{ border-top:3px solid var(--rz-primary); }}
 
 .rz-alert {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:11px; padding:12px 14px; margin-bottom:8px; box-shadow:var(--rz-shadow-soft); }}
 .rz-alert-title {{ font-size:.9rem; font-weight:740; color:var(--rz-text); }}
@@ -218,7 +238,9 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 
 div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button {{ border-radius:9px; min-height:2.55rem; border:1px solid var(--rz-border); background:var(--rz-surface); color:var(--rz-text); font-weight:660; box-shadow:none; }}
 div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover {{ border-color:var(--rz-primary); color:var(--rz-primary); }}
-div[data-testid="stFormSubmitButton"] button[kind="primary"], button[kind="primary"] {{ background:var(--rz-primary)!important; border-color:var(--rz-primary)!important; }}
+div[data-testid="stFormSubmitButton"] button[kind^="primary"], button[kind^="primary"] {{ background:var(--rz-action)!important; border-color:var(--rz-action)!important; color:var(--rz-action-text)!important; }}
+div[data-testid="stFormSubmitButton"] button[kind^="primary"] *, button[kind^="primary"] * {{ color:var(--rz-action-text)!important; }}
+div[data-testid="stFormSubmitButton"] button[kind^="primary"]:hover, button[kind^="primary"]:hover {{ background:var(--rz-action-hover)!important; border-color:var(--rz-action-hover)!important; }}
 [data-baseweb="select"] > div, [data-baseweb="input"] > div, input, textarea {{ background:var(--rz-surface)!important; color:var(--rz-text)!important; border-color:var(--rz-border)!important; border-radius:9px!important; }}
 [data-testid="stDataFrame"] {{ border:1px solid var(--rz-border); border-radius:11px; overflow:hidden; background:var(--rz-surface); }}
 [data-testid="stExpander"] {{ background:var(--rz-surface); border:1px solid var(--rz-border); border-radius:11px; box-shadow:var(--rz-shadow-soft); }}
@@ -279,25 +301,50 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-baseweb="input"] {{ background:var(--rz-soft)!important; border:1px solid var(--rz-border)!important; border-radius:10px!important; overflow:hidden; }}
 .stApp:has(.rz-login-shell) input {{ min-height:2.75rem; border-radius:10px; background:transparent!important; padding-left:.78rem!important; }}
 .stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(8,185,239,.12)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:white!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-action),var(--rz-action-hover))!important; color:var(--rz-action-text)!important; border:0!important; box-shadow:0 10px 24px rgba(8,127,167,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:var(--rz-action-text)!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(8,185,239,.30)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {{ min-height:2.85rem; display:flex; align-items:center; justify-content:center; border:0!important; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:{primary_contrast}!important; font-weight:800; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {{ min-height:2.85rem; display:flex; align-items:center; justify-content:center; border:0!important; background:linear-gradient(135deg,var(--rz-action),var(--rz-action-hover))!important; color:{primary_contrast}!important; font-weight:800; box-shadow:0 10px 24px rgba(8,127,167,.22)!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a p {{ color:{primary_contrast}!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a:hover {{ filter:brightness(1.04); transform:translateY(-1px); }}
 .rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
 .stApp:has(.rz-demo-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
-.stApp:has(.rz-demo-shell) [data-testid="stMain"] {{ background:linear-gradient(150deg,var(--rz-bg),var(--rz-soft))!important; }}
+.stApp:has(.rz-demo-shell) [data-testid="stMain"] {{ background:radial-gradient(circle at 90% 5%,var(--rz-primary-soft),transparent 28rem),var(--rz-bg)!important; }}
 .rz-demo-shell {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.2rem 0 1rem; }}
 .rz-demo-brand {{ font-size:1.18rem; font-weight:900; letter-spacing:-.04em; }}
 .rz-demo-brand span {{ color:var(--rz-primary); font-size:.62rem; letter-spacing:.12em; margin-left:.25rem; }}
+.rz-demo-context {{ color:var(--rz-muted); font-size:.72rem; font-weight:720; letter-spacing:.04em; }}
 .rz-demo-badge {{ color:var(--rz-primary); background:var(--rz-primary-soft); border:1px solid color-mix(in srgb,var(--rz-primary) 28%,transparent); border-radius:999px; padding:.38rem .68rem; font-size:.7rem; font-weight:760; }}
 .rz-next-action {{ background:linear-gradient(135deg,var(--rz-surface),var(--rz-soft)); border:1px solid var(--rz-border); border-left:4px solid var(--rz-primary); border-radius:14px; padding:15px 17px; box-shadow:var(--rz-shadow-soft); }}
 .rz-next-action strong {{ display:block; font-size:.92rem; margin-bottom:.22rem; }}
 .rz-next-action span {{ color:var(--rz-muted); font-size:.79rem; line-height:1.45; }}
+.rz-status-table {{ overflow:hidden; border:1px solid var(--rz-border); border-radius:13px; background:var(--rz-surface); box-shadow:var(--rz-shadow-soft); }}
+.rz-status-row {{ display:grid; grid-template-columns:1.35fr 1fr .9fr; align-items:center; gap:1rem; min-height:3.15rem; padding:.7rem .9rem; border-bottom:1px solid var(--rz-border); color:var(--rz-text); font-size:.8rem; }}
+.rz-status-row:last-child {{ border-bottom:0; }}
+.rz-status-head {{ min-height:2.55rem; color:var(--rz-muted); background:var(--rz-soft); font-size:.72rem; font-weight:760; }}
+.rz-pill {{ display:inline-flex; width:max-content; align-items:center; border:1px solid transparent; border-radius:999px; padding:.25rem .52rem; font-size:.69rem; font-weight:780; line-height:1; }}
+.rz-pill-ok {{ color:var(--rz-success); background:color-mix(in srgb,var(--rz-success) 13%,var(--rz-surface)); border-color:color-mix(in srgb,var(--rz-success) 34%,transparent); }}
+.rz-pill-warn {{ color:{t['warning']}; background:color-mix(in srgb,{t['warning']} 13%,var(--rz-surface)); border-color:color-mix(in srgb,{t['warning']} 34%,transparent); }}
+.rz-pill-danger {{ color:var(--rz-danger); background:color-mix(in srgb,var(--rz-danger) 13%,var(--rz-surface)); border-color:color-mix(in srgb,var(--rz-danger) 34%,transparent); }}
+.rz-pill-info {{ color:var(--rz-primary); background:var(--rz-primary-soft); border-color:color-mix(in srgb,var(--rz-primary) 34%,transparent); }}
+.rz-command-bar {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:.25rem 0 0; padding:.82rem 1rem; border:1px solid color-mix(in srgb,var(--rz-primary) 30%,var(--rz-border)); border-bottom:0; border-radius:14px 14px 0 0; background:linear-gradient(135deg,var(--rz-surface),var(--rz-primary-soft)); box-shadow:var(--rz-shadow-soft); }}
+.rz-command-bar strong {{ display:block; color:var(--rz-text); font-size:.88rem; }}
+.rz-command-bar span {{ display:block; margin-top:.12rem; color:var(--rz-muted); font-size:.74rem; }}
+.st-key-new_transaction_panel {{ padding:1rem 1.1rem; border-color:var(--rz-control-border)!important; border-radius:15px!important; background:var(--rz-surface); box-shadow:var(--rz-shadow-soft); }}
+.st-key-new_transaction_panel [data-testid="stForm"] {{ padding:.7rem 0 0!important; border:0!important; box-shadow:none!important; }}
+.st-key-new_transaction_panel [data-testid="stFormSubmitButton"] {{ margin-top:.25rem; }}
+.st-key-dashboard_ai_command [data-testid="stForm"] {{ margin-top:0; padding:.78rem!important; border:1px solid color-mix(in srgb,var(--rz-primary) 26%,var(--rz-border))!important; border-radius:0 0 14px 14px!important; background:var(--rz-surface)!important; box-shadow:var(--rz-shadow-soft)!important; }}
 
 {native}
+
+/* O texto de ações primárias precisa vencer as regras tipográficas nativas. */
+button[kind^="primary"],
+button[kind^="primary"] p,
+button[kind^="primary"] span,
+button[kind^="primary"] [data-testid="stMarkdownContainer"],
+[data-testid="stLinkButton"] a,
+[data-testid="stLinkButton"] a p {{ color:var(--rz-action-text)!important; }}
 
 /* Campos com limites claros em ambos os temas. Os seletores usam data-testid
    e data-baseweb, evitando classes internas geradas pelo Streamlit. */
@@ -444,6 +491,11 @@ input::placeholder, textarea::placeholder {{ color:var(--rz-muted)!important; op
   .rz-status-grid {{ grid-template-columns:1fr; }}
   .rz-routine-meta {{ gap:.3rem; }}
   .rz-demo-shell {{ align-items:flex-start; flex-direction:column; }}
+  .rz-command-bar {{ align-items:flex-start; flex-direction:column; }}
+  .rz-status-head {{ display:none; }}
+  .rz-status-row {{ grid-template-columns:1fr auto; gap:.28rem .7rem; padding:.78rem .85rem; }}
+  .rz-status-row > strong {{ grid-column:1 / -1; }}
+  .rz-status-row > span:last-child {{ justify-self:end; }}
 }}
 @media (max-width:480px) {{
   .block-container {{ padding-left:.58rem; padding-right:.58rem; }}
@@ -525,6 +577,9 @@ def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None
         "font": {"color": t["text"], "family": "Inter, system-ui, sans-serif"},
         "margin": dict(l=8, r=8, t=18, b=8),
         "legend_title_text": "",
+        "hovermode": "x unified",
+        "separators": ",.",
+        "legend": dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         "colorway": colorway,
         "hoverlabel": dict(
             bgcolor=hover_bg,
@@ -553,3 +608,4 @@ def apply_plot_theme(fig, theme_name: str, *, height: int | None = None) -> None
         tickfont=dict(color=t["muted"]),
         title_font=dict(color=t["muted"]),
     )
+

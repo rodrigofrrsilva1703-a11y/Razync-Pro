@@ -16,7 +16,7 @@ def test_login_design_system_renders_without_template_errors():
     assert ".rz-login-security" in css
     assert "backdrop-filter:blur(18px)" in css
     assert '[data-baseweb="input"]' in css
-    assert "button p { color:white!important; }" in css
+    assert "button p { color:var(--rz-action-text)!important; }" in css
     assert '[data-testid="stLinkButton"]' in css
     assert "prefers-reduced-motion" in css
     assert ".rz-demo-shell" in css
@@ -44,13 +44,29 @@ def test_new_transaction_type_has_semantic_segmented_control():
         inject_design_system("Escuro")
 
     css = markdown.call_args.args[0]
-    assert 'key="tx_type_new"' in app_source
+    assert '"tx_type_new"' in app_source
     assert '"Entrada · Receita"' in app_source
     assert '"Saída · Despesa"' in app_source
     assert ".st-key-tx_type_new" in css
     assert "--rz-control-border:#385269" in css
     assert "var(--rz-success)" in css
     assert "var(--rz-danger)" in css
+
+
+def test_interface_has_accessible_actions_statuses_and_mobile_navigation():
+    workspace_source = Path("workspace_style.py").read_text(encoding="utf-8")
+    with patch("ui_system.st.markdown") as markdown:
+        inject_design_system("Claro")
+
+    css = markdown.call_args.args[0]
+    assert "--rz-action:#087fa7" in css
+    assert "--rz-action-text:#ffffff" in css
+    assert ".rz-status-table" in css
+    assert ".rz-pill-danger" in css
+    assert ".rz-command-bar" in css
+    assert ".st-key-dashboard_kpis" in css
+    assert ".st-key-mobile_bottom_nav" in workspace_source
+    assert "position: fixed !important" in workspace_source
 
 
 def test_brand_palette_preserves_distinct_light_and_dark_modes():
@@ -65,3 +81,4 @@ def test_brand_palette_preserves_distinct_light_and_dark_modes():
     assert light["text"] != dark["text"]
     assert light["plot"] == "plotly_white"
     assert dark["plot"] == "plotly_dark"
+

@@ -15,6 +15,18 @@ def inject_workspace_style() -> None:
             color: var(--rz-muted);
         }
 
+        .rz-sidebar-label {
+            margin: .2rem .7rem .35rem;
+            color: var(--rz-muted);
+            font-size: .64rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+        }
+
+        .st-key-mobile_bottom_nav {
+            display: none;
+        }
+
         [data-testid="stAppViewContainer"] .block-container {
             max-width: 1380px;
         }
@@ -68,6 +80,59 @@ def inject_workspace_style() -> None:
             h3 {
                 font-size: 1.08rem !important;
             }
+            .st-key-mobile_bottom_nav {
+                position: fixed !important;
+                z-index: 999980 !important;
+                right: .45rem !important;
+                bottom: .42rem !important;
+                left: .45rem !important;
+                display: block !important;
+                padding: .34rem !important;
+                border: 1px solid var(--rz-border) !important;
+                border-radius: 16px !important;
+                background: color-mix(in srgb, var(--rz-surface) 94%, transparent) !important;
+                box-shadow: 0 14px 40px rgba(2, 23, 34, .2) !important;
+                backdrop-filter: blur(16px);
+            }
+            .st-key-mobile_bottom_nav > div,
+            .st-key-mobile_bottom_nav [data-testid="stHorizontalBlock"] {
+                gap: .22rem !important;
+            }
+            .st-key-mobile_bottom_nav [data-testid="column"] {
+                min-width: 0 !important;
+                flex: 1 1 0 !important;
+            }
+            .st-key-mobile_bottom_nav [data-testid="stButton"] button {
+                min-height: 3.18rem !important;
+                gap: .08rem !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                padding: .22rem .12rem !important;
+                border: 0 !important;
+                border-radius: 11px !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+            .st-key-mobile_bottom_nav [data-testid="stButton"] button:disabled {
+                color: var(--rz-primary) !important;
+                background: var(--rz-primary-soft) !important;
+                opacity: 1 !important;
+            }
+            .st-key-mobile_bottom_nav [data-testid="stButton"] button p {
+                font-size: .61rem !important;
+                line-height: 1.05 !important;
+                white-space: nowrap !important;
+            }
+            .st-key-mobile_bottom_nav [data-testid="stButton"] button span {
+                font-size: 1.12rem !important;
+            }
+            .st-key-floating_ai_launcher {
+                display: none !important;
+            }
+            .st-key-floating_ai_v7_shell {
+                bottom: 4.35rem !important;
+                max-height: calc(100vh - 5rem) !important;
+            }
         }
 
         @media (max-width: 480px) {
@@ -107,3 +172,4 @@ def inject_workspace_style() -> None:
         """,
         unsafe_allow_html=True,
     )
+

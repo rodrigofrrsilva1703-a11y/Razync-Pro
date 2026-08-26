@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 
 import pandas as pd
 import streamlit as st
@@ -8,6 +9,26 @@ import streamlit as st
 from business_tools import monthly_closing
 from fiscal_rules import das_status
 from ui_system import alert_card, section
+
+
+def _display_date(value) -> str:
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value)
+        except ValueError:
+            return value or "—"
+    return value.strftime("%d/%m/%Y") if hasattr(value, "strftime") else "—"
+
+
+def _status_tone(status: str) -> str:
+    normalized = status.casefold()
+    if normalized in {"pago", "concluído", "concluido"}:
+        return "ok"
+    if normalized in {"atrasado", "vencido"}:
+        return "danger"
+    if normalized in {"pendente", "a vencer"}:
+        return "warn"
+    return "info"
 
 
 def render_fiscal_workspace(
@@ -39,14 +60,13 @@ def render_fiscal_workspace(
         if row.get("status") != "Concluído" and due and due < today:
             overdue_obligations.append(row)
 
-    st.markdown("### Fiscal MEI")
-    st.caption("DAS, notas, obrigações e declaração anual reunidos em uma única rotina.")
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("DAS em atraso", len(overdue_das))
-    c2.metric("DAS pendentes", len(pending_das))
-    c3.metric("Notas emitidas", len(invoices))
-    c4.metric("Limite usado", f"{(annual_revenue / annual_limit * 100) if annual_limit else 0:.1f}%")
+    section("Resumo fiscal", "Situação atual do DAS, notas e limite anual monitorado.")
+    with st.container(key="fiscal_kpis"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("DAS em atraso", len(overdue_das))
+        c2.metric("DAS pendentes", len(pending_das))
+        c3.metric("Notas emitidas", len(invoices))
+        c4.metric("Limite usado", f"{(annual_revenue / annual_limit * 100) if annual_limit else 0:.1f}%")
 
     if overdue_das:
         alert_card("danger", "DAS em atraso", f"Existem {len(overdue_das)} competência(s) vencida(s) para revisar.")
@@ -57,13 +77,13 @@ def render_fiscal_workspace(
 
     section("Rotina fiscal", "Comece pela tarefa que corresponde ao que você precisa fazer agora.")
     a1, a2, a3, a4 = st.columns(4)
-    if a1.button("DAS mensal", width="stretch"):
+    if a1.button("DAS mensal", icon=":material/receipt_long:", width="stretch"):
         navigate("DAS")
-    if a2.button("Notas fiscais", width="stretch"):
+    if a2.button("Notas fiscais", icon=":material/request_quote:", width="stretch"):
         navigate("Notas Fiscais")
-    if a3.button("Prazos e obrigações", width="stretch"):
+    if a3.button("Prazos e obrigações", icon=":material/event:", width="stretch"):
         navigate("Obrigações")
-    if a4.button("Declaração anual", width="stretch"):
+    if a4.button("Declaração anual", icon=":material/description:", width="stretch"):
         navigate("DASN-SIMEI")
 
     left, right = st.columns([1.35, 1], gap="large")
@@ -74,21 +94,38 @@ def render_fiscal_workspace(
         else:
             rows = []
             for row in das_rows:
+                status = das_status(row.get("status", "Pendente"), row.get("due_date"), today)
                 rows.append({
                     "Competência": row.get("competence"),
                     "Vencimento": row.get("due_date"),
                     "Valor": float(row.get("amount") or 0),
-                    "Situação": das_status(row.get("status", "Pendente"), row.get("due_date"), today),
+                    "Situação": status,
                 })
-            st.dataframe(
-                pd.DataFrame(rows).tail(12),
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Vencimento": st.column_config.DateColumn(format="DD/MM/YYYY"),
-                    "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
-                },
+            status_rows = []
+            for row in rows[-6:]:
+                status = str(row["Situação"])
+                status_rows.append(
+                    '<div class="rz-status-row" role="row">'
+                    f'<strong>{escape(str(row["Competência"] or "Sem competência"))}</strong>'
+                    f'<span>{escape(_display_date(row["Vencimento"]))}<br><small>{escape(brl(row["Valor"]))}</small></span>'
+                    f'<span><b class="rz-pill rz-pill-{_status_tone(status)}">{escape(status)}</b></span></div>'
+                )
+            st.markdown(
+                '<div class="rz-status-table" role="table" aria-label="Competências do DAS">'
+                '<div class="rz-status-row rz-status-head" role="row"><span>Competência</span><span>Vencimento e valor</span><span>Situação</span></div>'
+                f'{"".join(status_rows)}</div>',
+                unsafe_allow_html=True,
             )
+            with st.expander("Ver histórico completo do DAS"):
+                st.dataframe(
+                    pd.DataFrame(rows).tail(12),
+                    width="stretch",
+                    hide_index=True,
+                    column_config={
+                        "Vencimento": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                        "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
+                    },
+                )
 
     with right:
         section("Fechamento atual", "Resumo do mês para saber se a documentação está organizada.")
@@ -125,3 +162,4 @@ def render_fiscal_workspace(
             navigate("Fechamento Mensal")
         if b2.button("Espaço do contador", width="stretch"):
             navigate("Espaço do Contador")
+

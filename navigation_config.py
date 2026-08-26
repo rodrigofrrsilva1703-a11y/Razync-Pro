@@ -38,6 +38,19 @@ SIDEBAR_LABELS = {
     "Backup": "Backup dos dados",
 }
 
+# As seis áreas mais importantes permanecem sempre visíveis. As rotas
+# especializadas continuam disponíveis em ``SIDEBAR_SECONDARY_GROUPS``.
+SIDEBAR_PRIMARY = [
+    "Dashboard",
+    "Financeiro",
+    "Fiscal",
+    "Documentos",
+    "Central de Automações",
+    "Assistente Razync",
+]
+
+MOBILE_NAVIGATION = ["Dashboard", "Financeiro", "Fiscal", "Assistente Razync"]
+
 SIDEBAR_GROUPS = {
     "Rotina": ["Financeiro", "Fiscal"],
     "Gestão": ["Documentos", "Clientes e Fornecedores"],
@@ -47,7 +60,7 @@ SIDEBAR_GROUPS = {
 SIDEBAR_SECONDARY_GROUPS = {
     "Financeiro detalhado": ["Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
     "Fiscal detalhado": ["DAS", "Notas Fiscais", "Importar NFS-e", "Obrigações", "DASN-SIMEI", "Fechamento Mensal", "Relatório Mensal"],
-    "Gestão avançada": ["Empregado", "Espaço do Contador"],
+    "Gestão e organização": ["Clientes e Fornecedores", "Empregado", "Espaço do Contador", "Produtividade"],
 }
 
 SIDEBAR_ICONS = {
@@ -84,3 +97,4 @@ SIDEBAR_ICONS = {
     "Status do Sistema": ":material/health_and_safety:",
     "Backup": ":material/backup:",
 }
+

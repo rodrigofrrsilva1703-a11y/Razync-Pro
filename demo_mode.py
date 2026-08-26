@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from brand_assets import brand_logo_data_uri
 from ui_system import alert_card, apply_plot_theme, page_header, section
 
 
@@ -20,10 +21,11 @@ def _leave_demo() -> None:
 
 def _demo_sidebar() -> str:
     """Keep the product navigation visible while using the public preview."""
+    logo = brand_logo_data_uri()
     with st.sidebar:
         st.markdown(
-            '<div class="rz-brand-wrap"><div class="rz-brand">Razync<span>PRO</span></div>'
-            '<div class="rz-brand-sub">Demonstração segura</div></div>',
+            f'<div class="rz-brand-wrap"><img class="rz-brand-mark" src="{logo}" alt="Razync Pro">'
+            '<div class="rz-brand">Razync<span>PRO</span></div><div class="rz-brand-sub">Demonstração segura</div></div>',
             unsafe_allow_html=True,
         )
         st.caption("Explore o sistema com dados fictícios.")
@@ -56,7 +58,7 @@ def render_demo() -> None:
     theme = st.session_state.get("ui_theme", "Claro")
     demo_section = _demo_sidebar()
     st.markdown(
-        '<div class="rz-demo-shell"><div class="rz-demo-brand">Razync<span>PRO</span></div><div class="rz-demo-badge">DEMONSTRAÇÃO · DADOS FICTÍCIOS</div></div>',
+        '<div class="rz-demo-shell"><div class="rz-demo-context">Demonstração interativa</div><div class="rz-demo-badge">DADOS FICTÍCIOS · NADA É SALVO</div></div>',
         unsafe_allow_html=True,
     )
     subtitles = {
@@ -79,7 +81,7 @@ def render_demo() -> None:
         a.metric("Entradas no ano", _brl(revenue))
         b.metric("Saídas no ano", _brl(expenses))
         c.metric("Resultado", _brl(balance))
-        d.metric("Limite MEI usado", f"{limit_used:.1f}%")
+        d.metric("Limite MEI usado", f"{limit_used:.1f}%".replace(".", ","))
 
     if demo_section == "Visão geral":
         action_col, status_col = st.columns([1.65, 1], gap="large")
@@ -96,8 +98,16 @@ def render_demo() -> None:
         overview_tab, automation_tab, fiscal_tab = st.tabs(["Financeiro", "Automações", "Fiscal"])
         with overview_tab:
             section("Evolução financeira", "Receitas e despesas fictícias dos últimos seis meses.")
-            fig = px.area(data, x="Mês", y=["Receitas", "Despesas"], markers=True, color_discrete_sequence=["#08b9ef", "#607487"])
+            fig = px.line(
+                data,
+                x="Mês",
+                y=["Receitas", "Despesas"],
+                markers=True,
+                labels={"value": "Valor (R$)", "variable": "Movimentação"},
+                color_discrete_sequence=["#3f8f69", "#c65f67"],
+            )
             apply_plot_theme(fig, theme, height=310)
+            fig.update_traces(line={"width": 3}, hovertemplate="%{x}<br>R$ %{y:,.2f}<extra>%{fullData.name}</extra>")
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
         with automation_tab:
             alert_card("warn", "1 tarefa pede confirmação", "O sistema encontrou um possível pagamento de DAS no extrato.")
@@ -107,8 +117,16 @@ def render_demo() -> None:
             _render_fiscal_preview()
     elif demo_section == "Financeiro":
         section("Evolução financeira", "Receitas e despesas fictícias dos últimos seis meses.")
-        fig = px.area(data, x="Mês", y=["Receitas", "Despesas"], markers=True, color_discrete_sequence=["#08b9ef", "#607487"])
+        fig = px.line(
+            data,
+            x="Mês",
+            y=["Receitas", "Despesas"],
+            markers=True,
+            labels={"value": "Valor (R$)", "variable": "Movimentação"},
+            color_discrete_sequence=["#3f8f69", "#c65f67"],
+        )
         apply_plot_theme(fig, theme, height=310)
+        fig.update_traces(line={"width": 3}, hovertemplate="%{x}<br>R$ %{y:,.2f}<extra>%{fullData.name}</extra>")
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     elif demo_section == "Automações":
         alert_card("warn", "1 tarefa pede confirmação", "O sistema encontrou um possível pagamento de DAS no extrato.")
@@ -124,11 +142,15 @@ def render_demo() -> None:
 
 
 def _render_fiscal_preview() -> None:
-    st.dataframe(
-        pd.DataFrame([
-            {"Obrigação": "DAS · Agosto", "Vencimento": "21/09/2026", "Situação": "Pendente"},
-            {"Obrigação": "DAS · Julho", "Vencimento": "20/08/2026", "Situação": "Pago"},
-            {"Obrigação": "DASN-SIMEI", "Vencimento": "31/05/2027", "Situação": "Planejado"},
-        ]),
-        width="stretch", hide_index=True,
+    st.markdown(
+        """
+        <div class="rz-status-table" role="table" aria-label="Obrigações fiscais da demonstração">
+          <div class="rz-status-row rz-status-head" role="row"><span>Obrigação</span><span>Vencimento</span><span>Situação</span></div>
+          <div class="rz-status-row" role="row"><strong>DAS · Agosto</strong><span>21/09/2026</span><span><b class="rz-pill rz-pill-warn">Pendente</b></span></div>
+          <div class="rz-status-row" role="row"><strong>DAS · Julho</strong><span>20/08/2026</span><span><b class="rz-pill rz-pill-ok">Pago</b></span></div>
+          <div class="rz-status-row" role="row"><strong>DASN-SIMEI</strong><span>31/05/2027</span><span><b class="rz-pill rz-pill-info">Planejado</b></span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+

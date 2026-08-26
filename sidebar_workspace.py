@@ -6,11 +6,26 @@ import pandas as pd
 import streamlit as st
 
 from floating_chat_v7_host import render_isolated_chat_v7
-from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
+from navigation_config import MOBILE_NAVIGATION, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_PRIMARY, SIDEBAR_SECONDARY_GROUPS
 from onboarding_tools import onboarding_progress
 
 
 _FLOATING_OPEN_KEY = "razync_floating_open"
+
+
+def _render_mobile_navigation(page: str, navigate) -> None:
+    """Expose the four essential areas as a thumb-friendly mobile bar."""
+    with st.container(key="mobile_bottom_nav"):
+        cols = st.columns(len(MOBILE_NAVIGATION))
+        for col, destination in zip(cols, MOBILE_NAVIGATION):
+            if col.button(
+                SIDEBAR_LABELS[destination],
+                key=f"mobile_nav_{destination}",
+                icon=SIDEBAR_ICONS[destination],
+                disabled=page == destination,
+                width="stretch",
+            ):
+                navigate(destination)
 
 
 def _floating_chat_shell_styles() -> None:
@@ -35,6 +50,9 @@ def _floating_chat_shell_styles() -> None:
             box-shadow: 0 10px 28px rgba(2,49,69,.20) !important;
             font-size: .78rem !important;
             font-weight: 700 !important;
+        }
+        .st-key-floating_ai_launcher [data-testid="stButton"] button * {
+            color: #fff !important;
         }
         .st-key-floating_ai_v7_shell {
             position: fixed !important;
@@ -125,26 +143,16 @@ def render_sidebar(
         )
 
         with st.container(key="sidebar_navigation"):
-            if st.button(
-                SIDEBAR_LABELS["Dashboard"],
-                key="grouped_nav_dashboard",
-                icon=SIDEBAR_ICONS["Dashboard"],
-                disabled=page == "Dashboard",
-                width="stretch",
-            ):
-                navigate("Dashboard")
-
-            for group_title, destinations in SIDEBAR_GROUPS.items():
-                with st.expander(group_title, expanded=page in destinations):
-                    for destination in destinations:
-                        if st.button(
-                            SIDEBAR_LABELS[destination],
-                            key=f"grouped_nav_{destination}",
-                            icon=SIDEBAR_ICONS[destination],
-                            disabled=page == destination,
-                            width="stretch",
-                        ):
-                            navigate(destination)
+            st.markdown('<div class="rz-sidebar-label">PRINCIPAL</div>', unsafe_allow_html=True)
+            for destination in SIDEBAR_PRIMARY:
+                if st.button(
+                    SIDEBAR_LABELS[destination],
+                    key=f"primary_nav_{destination}",
+                    icon=SIDEBAR_ICONS[destination],
+                    disabled=page == destination,
+                    width="stretch",
+                ):
+                    navigate(destination)
 
             secondary_pages = [item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages]
             with st.expander("Mais ferramentas", expanded=page in secondary_pages):
@@ -182,7 +190,17 @@ def render_sidebar(
             st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
             if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
                 refresh_data()
+            if st.button(
+                "Conta e sistema",
+                key="sidebar_account_system",
+                icon=SIDEBAR_ICONS["Conta e Sistema"],
+                disabled=page == "Conta e Sistema",
+                width="stretch",
+            ):
+                navigate("Conta e Sistema")
             if st.button("Sair", key="sidebar_logout", width="stretch"):
                 logout()
 
+    _render_mobile_navigation(page, navigate)
     _render_floating_assistant(page, user, navigate)
+

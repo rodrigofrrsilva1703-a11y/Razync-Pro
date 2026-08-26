@@ -14,7 +14,12 @@ def test_official_logo_is_available_for_streamlit_and_browser():
 
 def test_app_uses_official_logo_for_favicon_login_and_sidebar():
     app_source = Path("app.py").read_text(encoding="utf-8")
+    sidebar_source = Path("sidebar_workspace.py").read_text(encoding="utf-8")
+    demo_source = Path("demo_mode.py").read_text(encoding="utf-8")
 
     assert "page_icon=BRAND_LOGO_PATH" in app_source
     assert 'alt="Logo Razync Pro"' in app_source
-    assert "st.image(BRAND_LOGO_PATH, width=58)" in app_source
+    assert 'alt="Razync Pro"' in sidebar_source
+    assert "brand_logo_data_uri" in demo_source
+    assert "rz-brand-mark" in demo_source
+
