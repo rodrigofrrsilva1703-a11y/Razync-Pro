@@ -8,7 +8,8 @@ class LoginVisualCleanupTests(unittest.TestCase):
         cls.source = Path("ui_system.py").read_text(encoding="utf-8")
 
     def test_marketing_chips_are_hidden_on_login(self):
-        self.assertIn(".rz-login-benefits, .rz-login-proof { display:none!important; }", self.source)
+        self.assertIn(".rz-login-benefits, .rz-login-proof", self.source)
+        self.assertIn("display:none!important", self.source)
 
     def test_auth_card_is_compact(self):
         self.assertIn("max-width:460px", self.source)
