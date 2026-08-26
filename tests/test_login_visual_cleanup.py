@@ -2,22 +2,28 @@ from pathlib import Path
 import unittest
 
 
-class LoginVisualCleanupTests(unittest.TestCase):
+class LoginVisualMarketingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = Path("ui_system.py").read_text(encoding="utf-8")
+        cls.base_source = Path("ui_system.py").read_text(encoding="utf-8")
+        cls.workspace_source = Path("workspace_style.py").read_text(encoding="utf-8")
 
-    def test_marketing_chips_are_hidden_on_login(self):
-        self.assertIn(".rz-login-benefits, .rz-login-proof", self.source)
-        self.assertIn("display:none!important", self.source)
+    def test_base_login_structure_is_preserved(self):
+        self.assertIn(".rz-login-benefits", self.base_source)
+        self.assertIn(".rz-login-proof", self.base_source)
 
-    def test_auth_card_is_compact(self):
-        self.assertIn("max-width:460px", self.source)
-        self.assertIn("max-width:620px", self.source)
+    def test_workspace_reactivates_marketing_with_controlled_layout(self):
+        self.assertIn(".rz-login-benefits", self.workspace_source)
+        self.assertIn("display: grid !important", self.workspace_source)
+        self.assertIn("max-width: 820px !important", self.workspace_source)
 
-    def test_demo_action_is_visually_secondary(self):
-        self.assertIn("[data-testid=\"stButton\"] button", self.source)
-        self.assertIn("background:transparent!important", self.source)
+    def test_authentication_remains_visually_compact(self):
+        self.assertIn("max-width: 460px !important", self.workspace_source)
+        self.assertIn("border-radius: 22px !important", self.workspace_source)
+
+    def test_demo_action_is_secondary(self):
+        self.assertIn("border-radius: 999px !important", self.workspace_source)
+        self.assertIn("color: var(--rz-muted) !important", self.workspace_source)
 
 
 if __name__ == "__main__":
