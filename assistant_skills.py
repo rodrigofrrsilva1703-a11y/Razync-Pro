@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 
 from assistant_personality import build_conversation_directive
+from assistant_response_policy import response_policy_directive
 
 
 @dataclass(frozen=True)
@@ -165,6 +166,7 @@ def build_skill_directive(question: str) -> tuple[str, str]:
     style_label, style_directive = build_conversation_directive(question)
     combined = (
         _HUMANIZED_CORE
+        + "\n\nPolítica comum de resposta: " + response_policy_directive()
         + "\n\nEstilo de comunicação desta resposta: " + style_label + ". " + style_directive
         + "\n\nEspecialidade desta resposta: " + skill.label + ". " + skill.directive
     )

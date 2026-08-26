@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from assistant_actions import ActionDraft
+from assistant_response_policy import humanize_local_response
 from reconciliation_tools import duplicate_groups, smart_invoice_matches
 
 
@@ -59,7 +60,6 @@ def search_business_records(
     documents: list[dict],
     limit: int = 8,
 ) -> list[dict[str, Any]]:
-    """Busca local e multiárea; nenhum dado pessoal é enviado a um provedor externo."""
     needle = _plain(query)
     ignored = {"buscar", "busque", "procure", "procurar", "mostrar", "mostre", "encontre", "achar", "por", "de", "da", "do", "o", "a"}
     tokens = [token for token in re.findall(r"[a-z0-9@._/-]+", needle) if len(token) > 1 and token not in ignored]
@@ -90,9 +90,19 @@ def answer_record_search(question: str, **snapshot: Any) -> dict[str, Any] | Non
         return None
     rows = search_business_records(question, **snapshot)
     if not rows:
-        return {"answer": "Não encontrei registros com esses termos. Tente informar número, valor, cliente ou descrição.", "confidence": "Alta", "reason": "Busca exata nos dados cadastrados."}
+        answer = humanize_local_response(
+            "Não encontrei registros com esses termos. Tente informar número, valor, cliente ou descrição.",
+            question=question,
+            source="search",
+        )
+        return {"answer": answer, "confidence": "Alta", "reason": "Busca exata nos dados cadastrados."}
     lines = [f"• **{row['kind']} — {row['title']}**: {row['detail']}" for row in rows]
-    return {"answer": f"Encontrei {len(rows)} resultado(s):\n\n" + "\n".join(lines), "confidence": "Alta", "reason": "Busca local por termos nos seus registros.", "route": rows[0]["route"]}
+    answer = humanize_local_response(
+        f"Encontrei {len(rows)} resultado(s) que combinam com o seu pedido:\n\n" + "\n".join(lines),
+        question=question,
+        source="search",
+    )
+    return {"answer": answer, "confidence": "Alta", "reason": "Busca local por termos nos seus registros.", "route": rows[0]["route"]}
 
 
 def _transaction_target(question: str, transactions: pd.DataFrame, *, today: date) -> dict[str, Any] | None:
@@ -178,5 +188,6 @@ def proactive_answer(*, transactions: pd.DataFrame, invoices: pd.DataFrame, obli
         items.append(f"{len(matches)} nota(s) com sugestão de conciliação")
     if not duplicates.empty:
         items.append(f"{len(duplicates)} lançamento(s) em possíveis duplicidades")
-    answer = "Prioridades encontradas:\n\n" + "\n".join(f"• {item}" for item in items) if items else "Seus dados não mostram pendências críticas ou duplicidades agora."
+    raw = "Hoje eu priorizaria estes pontos:\n\n" + "\n".join(f"• {item}" for item in items) if items else "Seus dados não mostram pendências críticas ou duplicidades agora."
+    answer = humanize_local_response(raw, question="Ver minhas prioridades", source="proactive")
     return {"answer": answer, "confidence": "Alta", "reason": f"Verificação local em DAS, obrigações, notas e movimentações em {today.strftime('%d/%m/%Y')}."}

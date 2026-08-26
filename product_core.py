@@ -5,6 +5,7 @@ from typing import Iterable
 
 import pandas as pd
 
+from assistant_response_policy import humanize_local_response
 from fiscal_rules import das_status
 
 NAV_GROUPS = {
@@ -144,57 +145,52 @@ def assistant_answer(
     def money(v: float) -> str:
         return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    def reply(text: str) -> str:
+        return humanize_local_response(text, question=question, source="product")
+
     if "limite" in q or "quanto posso faturar" in q:
         remaining = max(annual_limit - revenue, 0)
-        return f"Em {year}, o Razync Pro tem {money(revenue)} de receita registrada. O limite monitorado é {money(annual_limit)} e restam {money(remaining)}."
+        return reply(f"Em {year}, o Razync Pro tem {money(revenue)} de receita registrada. O limite monitorado é {money(annual_limit)} e restam {money(remaining)}.")
     if "lucro" in q or "resultado" in q or "sobrou" in q:
-        return f"O resultado estimado de {year} é {money(result)}: {money(revenue)} de receitas menos {money(expense)} de despesas registradas."
+        return reply(f"O resultado estimado de {year} é {money(result)}: {money(revenue)} de receitas menos {money(expense)} de despesas registradas.")
     if ("despesa" in q or "gasto" in q) and "maior despesa" not in q:
         if year_tx.empty:
-            return f"Ainda não há despesas registradas em {year}."
+            return reply(f"Ainda não há despesas registradas em {year}.")
         d = year_tx[year_tx["tx_type"] == "Despesa"]
         if d.empty:
-            return f"Ainda não há despesas registradas em {year}."
+            return reply(f"Ainda não há despesas registradas em {year}.")
         top = d.groupby("category")["value"].sum().sort_values(ascending=False).head(3)
         parts = [f"{idx}: {money(val)}" for idx, val in top.items()]
-        return f"As despesas registradas em {year} somam {money(expense)}. Maiores categorias: " + "; ".join(parts) + "."
+        return reply(f"As despesas registradas em {year} somam {money(expense)}. Maiores categorias: " + "; ".join(parts) + ".")
     if "das" in q:
         overdue = [r for r in das_rows if das_status(r.get("status", "Pendente"), r.get("due_date")) == "Atrasado"]
         pending = [r for r in das_rows if das_status(r.get("status", "Pendente"), r.get("due_date")) == "Pendente"]
-        return f"O controle atual mostra {len(overdue)} DAS em atraso e {len(pending)} pendente(s)."
+        return reply(f"O controle atual mostra {len(overdue)} DAS em atraso e {len(pending)} pendente(s).")
     if "nota" in q or "nf" in q:
         rec = reconciliation_summary(transactions, invoices)
-        return f"Existem {rec['total_invoices']} nota(s) emitida(s) cadastrada(s), sendo {rec['reconciled_invoices']} conciliada(s) com receitas e {len(rec['pending_invoices'])} pendente(s)."
+        return reply(f"Existem {rec['total_invoices']} nota(s) emitida(s) cadastrada(s), sendo {rec['reconciled_invoices']} conciliada(s) com receitas e {len(rec['pending_invoices'])} pendente(s).")
     if "trimestre" in q:
         quarter = (today.month - 1) // 3 + 1
         start_month = (quarter - 1) * 3 + 1
         if year_tx.empty:
             quarter_revenue = quarter_expense = 0.0
         else:
-            quarter_tx = year_tx[
-                (year_tx["tx_date"].dt.month >= start_month)
-                & (year_tx["tx_date"].dt.month <= start_month + 2)
-            ]
+            quarter_tx = year_tx[(year_tx["tx_date"].dt.month >= start_month) & (year_tx["tx_date"].dt.month <= start_month + 2)]
             quarter_revenue = float(quarter_tx[quarter_tx["tx_type"] == "Receita"]["value"].sum())
             quarter_expense = float(quarter_tx[quarter_tx["tx_type"] == "Despesa"]["value"].sum())
-        return (
-            f"No {quarter}º trimestre de {year}, há {money(quarter_revenue)} em receitas "
-            f"e {money(quarter_expense)} em despesas registradas."
-        )
+        return reply(f"No {quarter}º trimestre de {year}, há {money(quarter_revenue)} em receitas e {money(quarter_expense)} em despesas registradas.")
     if "maior despesa" in q:
         expenses = year_tx[year_tx["tx_type"] == "Despesa"] if not year_tx.empty else year_tx
         if expenses.empty:
-            return f"Ainda não há despesas registradas em {year}."
+            return reply(f"Ainda não há despesas registradas em {year}.")
         row = expenses.loc[expenses["value"].astype(float).idxmax()]
-        return f"A maior despesa registrada em {year} foi {row['description']}, no valor de {money(float(row['value']))}."
+        return reply(f"A maior despesa registrada em {year} foi {row['description']}, no valor de {money(float(row['value']))}.")
     if "documento" in q and ("falta" in q or "sem" in q):
-        missing = int(
-            year_tx["document_number"].fillna("").astype(str).str.strip().eq("").sum()
-        ) if not year_tx.empty else 0
-        return f"Existem {missing} lançamento(s) de {year} sem número de documento informado e {len(list(documents))} documento(s) armazenado(s)."
+        missing = int(year_tx["document_number"].fillna("").astype(str).str.strip().eq("").sum()) if not year_tx.empty else 0
+        return reply(f"Existem {missing} lançamento(s) de {year} sem número de documento informado e {len(list(documents))} documento(s) armazenado(s).")
     if "compare" in q or "mês anterior" in q or "mes anterior" in q:
         if year_tx.empty:
-            return "Ainda não há dados suficientes para comparar os dois últimos meses."
+            return reply("Ainda não há dados suficientes para comparar os dois últimos meses.")
         current_month = today.month
         previous_month = 12 if current_month == 1 else current_month - 1
         previous_year = year - 1 if current_month == 1 else year
@@ -203,7 +199,7 @@ def assistant_answer(
         previous_value = float(source[(source["tx_type"] == "Receita") & (source["tx_date"].dt.month == previous_month)]["value"].sum()) if not source.empty else 0.0
         difference = current_value - previous_value
         direction = "a mais" if difference >= 0 else "a menos"
-        return f"O mês atual tem {money(current_value)} em receitas, {money(abs(difference))} {direction} que o mês anterior ({money(previous_value)})."
+        return reply(f"O mês atual tem {money(current_value)} em receitas, {money(abs(difference))} {direction} que o mês anterior ({money(previous_value)}).")
     if "venc" in q or "prazo" in q:
         future = []
         for item in obligations:
@@ -216,12 +212,12 @@ def assistant_answer(
             if due and due >= today and item.get("status") != "Concluído":
                 future.append((due, item.get("title") or "Obrigação"))
         if not future:
-            return "Nenhuma obrigação futura personalizada foi encontrada."
+            return reply("Nenhuma obrigação futura personalizada foi encontrada.")
         due, title = sorted(future)[0]
-        return f"O próximo prazo personalizado é {title}, em {due.strftime('%d/%m/%Y')}."
+        return reply(f"O próximo prazo personalizado é {title}, em {due.strftime('%d/%m/%Y')}.")
     if "fatur" in q or "receita" in q:
-        return f"A receita registrada em {year} é {money(revenue)}."
-    return "Posso analisar faturamento, limite do MEI, despesas, resultado, DAS e conciliação de notas usando os dados cadastrados no Razync Pro."
+        return reply(f"A receita registrada em {year} é {money(revenue)}.")
+    return reply("Posso analisar faturamento, limite do MEI, despesas, resultado, DAS e conciliação de notas usando os dados cadastrados no Razync Pro.")
 
 
 def supports_instant_assistant_answer(question: str) -> bool:

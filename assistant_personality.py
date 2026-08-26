@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Iterable
 
 
 @dataclass(frozen=True)
@@ -17,7 +18,7 @@ _STYLES = {
         label="Acolhedor e resolutivo",
         directive=(
             "Use um tom humano, calmo e acolhedor, sem soar artificial. Reconheça a preocupação ou dificuldade em uma "
-            "frase curta quando isso ajudar, e avance rapidamente para a solução. Não dramatize, não infantilize e não use "
+            "frase curta quando isso ajudar e avance rapidamente para a solução. Não dramatize, não infantilize e não use "
             "frases vazias de motivação."
         ),
     ),
@@ -45,6 +46,15 @@ _STYLES = {
             "impacto para o negócio. Não despeje métricas sem explicar por que elas importam."
         ),
     ),
+    "continuation": ConversationStyle(
+        key="continuation",
+        label="Continuidade natural",
+        directive=(
+            "Trate a mensagem como continuação da conversa. Recupere o assunto recente antes de responder, não repita "
+            "explicações já dadas e não peça novamente informações que já estejam no histórico. Se a referência continuar "
+            "ambígua e houver risco de agir sobre o item errado, faça somente a pergunta mínima necessária."
+        ),
+    ),
     "neutral": ConversationStyle(
         key="neutral",
         label="Natural e profissional",
@@ -61,9 +71,26 @@ def _plain(value: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def select_conversation_style(question: str) -> ConversationStyle:
-    text = _plain(question)
+def _recent_text(conversation: Iterable[dict] | None, limit: int = 4) -> str:
+    parts: list[str] = []
+    for item in list(conversation or [])[-limit:]:
+        role = str(item.get("role") or "")
+        if role not in {"user", "assistant"}:
+            continue
+        content = _plain(str(item.get("content") or ""))
+        if content:
+            parts.append(content[:500])
+    return " ".join(parts)
 
+
+def select_conversation_style(question: str, conversation: Iterable[dict] | None = None) -> ConversationStyle:
+    text = _plain(question)
+    recent = _recent_text(conversation)
+
+    continuation_terms = (
+        "e agora", "e depois", "e antes", "e o outro", "e o anterior", "e aquele", "e esse", "e isso",
+        "qual deles", "qual delas", "por que isso", "e no mes passado", "e no mês passado", "continua", "pode continuar",
+    )
     supportive_terms = (
         "não sei", "nao sei", "não entendi", "nao entendi", "me ajuda", "estou perdido", "to perdido",
         "estou preocupado", "preocupado", "deu errado", "erro", "problema", "socorro",
@@ -81,6 +108,8 @@ def select_conversation_style(question: str) -> ConversationStyle:
         "projeção", "projecao", "tendência", "tendencia", "porcentagem", "percentual",
     )
 
+    if any(term in text for term in continuation_terms) or (len(text.split()) <= 4 and recent and text in {"e agora?", "e agora", "e depois?", "e depois", "qual deles?", "qual deles"}):
+        return _STYLES["continuation"]
     if any(term in text for term in supportive_terms):
         return _STYLES["supportive"]
     if any(term in text for term in teaching_terms):
@@ -89,9 +118,15 @@ def select_conversation_style(question: str) -> ConversationStyle:
         return _STYLES["decisive"]
     if any(term in text for term in analytical_terms):
         return _STYLES["analytical"]
+
+    if recent:
+        if any(term in recent for term in supportive_terms):
+            return _STYLES["supportive"]
+        if any(term in recent for term in analytical_terms):
+            return _STYLES["analytical"]
     return _STYLES["neutral"]
 
 
-def build_conversation_directive(question: str) -> tuple[str, str]:
-    style = select_conversation_style(question)
+def build_conversation_directive(question: str, conversation: Iterable[dict] | None = None) -> tuple[str, str]:
+    style = select_conversation_style(question, conversation)
     return style.label, style.directive
