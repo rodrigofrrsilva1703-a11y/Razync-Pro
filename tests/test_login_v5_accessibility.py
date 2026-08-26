@@ -3,6 +3,8 @@ import unittest
 
 
 class LoginV5AccessibilityTests(unittest.TestCase):
+    """Protege acessibilidade e interações não obrigatórias do login V5."""
+
     @classmethod
     def setUpClass(cls):
         cls.source = Path("workspace_style.py").read_text(encoding="utf-8")
