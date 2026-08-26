@@ -5,6 +5,8 @@ from typing import Iterable
 
 import pandas as pd
 
+from assistant_context_resolution import resolve_contextual_question
+from assistant_query_engine import analyze_business_question
 from assistant_response_policy import humanize_local_response
 from fiscal_rules import das_status
 
@@ -121,6 +123,16 @@ def reconciliation_summary(transactions: pd.DataFrame, invoices: pd.DataFrame) -
     }
 
 
+def _conversation_history() -> list[dict]:
+    """Read only the already-loaded chat memory; never triggers a database call."""
+    try:
+        import streamlit as st
+        messages = st.session_state.get("razync_ai_messages", [])
+    except Exception:
+        return []
+    return list(messages) if isinstance(messages, list) else []
+
+
 def assistant_answer(
     question: str,
     transactions: pd.DataFrame,
@@ -132,7 +144,11 @@ def assistant_answer(
     documents: Iterable[dict] = (),
     today: date | None = None,
 ) -> str:
-    q = (question or "").lower().strip()
+    original_question = str(question or "").strip()
+    conversation = _conversation_history()
+    resolution = resolve_contextual_question(original_question, conversation, default_year=year)
+    question = resolution.resolved_question
+    q = question.lower().strip()
     today = today or date.today()
     if transactions.empty:
         year_tx = transactions
@@ -146,7 +162,12 @@ def assistant_answer(
         return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     def reply(text: str) -> str:
-        return humanize_local_response(text, question=question, source="product")
+        return humanize_local_response(text, question=original_question, source="product", conversation=conversation)
+
+    if resolution.used_context:
+        contextual = analyze_business_question(question, transactions, default_year=year)
+        if contextual.handled:
+            return reply(contextual.summary)
 
     if "limite" in q or "quanto posso faturar" in q:
         remaining = max(annual_limit - revenue, 0)
@@ -189,6 +210,9 @@ def assistant_answer(
         missing = int(year_tx["document_number"].fillna("").astype(str).str.strip().eq("").sum()) if not year_tx.empty else 0
         return reply(f"Existem {missing} lançamento(s) de {year} sem número de documento informado e {len(list(documents))} documento(s) armazenado(s).")
     if "compare" in q or "mês anterior" in q or "mes anterior" in q:
+        explicit_comparison = analyze_business_question(question, transactions, default_year=year)
+        if explicit_comparison.handled:
+            return reply(explicit_comparison.summary)
         if year_tx.empty:
             return reply("Ainda não há dados suficientes para comparar os dois últimos meses.")
         current_month = today.month
@@ -216,15 +240,22 @@ def assistant_answer(
         due, title = sorted(future)[0]
         return reply(f"O próximo prazo personalizado é {title}, em {due.strftime('%d/%m/%Y')}.")
     if "fatur" in q or "receita" in q:
+        contextual = analyze_business_question(question, transactions, default_year=year)
+        if contextual.handled:
+            return reply(contextual.summary)
         return reply(f"A receita registrada em {year} é {money(revenue)}.")
     return reply("Posso analisar faturamento, limite do MEI, despesas, resultado, DAS e conciliação de notas usando os dados cadastrados no Razync Pro.")
 
 
 def supports_instant_assistant_answer(question: str) -> bool:
     """Return whether ``assistant_answer`` has a deterministic answer for the prompt."""
-    q = (question or "").lower().strip()
-    if not q:
+    original = str(question or "").strip()
+    if not original:
         return False
+    resolution = resolve_contextual_question(original, _conversation_history(), default_year=date.today().year)
+    if resolution.used_context:
+        return True
+    q = original.lower()
     if "documento" in q and ("falta" in q or "sem" in q):
         return True
     return any(
