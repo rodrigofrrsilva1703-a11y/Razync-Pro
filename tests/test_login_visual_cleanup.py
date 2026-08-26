@@ -31,6 +31,11 @@ class LoginVisualMarketingTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(0, 1.08fr)", self.workspace_source)
         self.assertIn("linear-gradient(112deg, #071522", self.workspace_source)
 
+    def test_desktop_background_fills_the_viewport(self):
+        self.assertIn("min-height: 100vh !important", self.workspace_source)
+        self.assertIn("max-width: none !important", self.workspace_source)
+        self.assertIn("border-radius: 0 !important", self.workspace_source)
+
     def test_demo_action_is_secondary(self):
         self.assertIn("border-radius: 999px !important", self.workspace_source)
         self.assertIn("color: var(--rz-muted) !important", self.workspace_source)
