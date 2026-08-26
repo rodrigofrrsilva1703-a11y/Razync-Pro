@@ -241,51 +241,50 @@ hr {{ border-color:var(--rz-border); }}
 .stApp:has(.rz-login-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
 .stApp:has(.rz-login-shell) [data-testid="stMain"] {{
   background:
-    radial-gradient(circle at 8% 8%, rgba(8,185,239,.16), transparent 27rem),
-    radial-gradient(circle at 92% 86%, rgba(8,127,167,.11), transparent 30rem),
+    radial-gradient(circle at 8% 8%, rgba(8,185,239,.11), transparent 24rem),
+    radial-gradient(circle at 92% 86%, rgba(8,127,167,.07), transparent 28rem),
     linear-gradient(160deg, var(--rz-bg) 0%, var(--rz-soft) 100%)!important;
 }}
 .stApp:has(.rz-login-shell) [data-testid="stMain"]::before {{
-  content:""; position:fixed; inset:0; pointer-events:none; opacity:.28;
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:.16;
   background-image:linear-gradient(var(--rz-border) 1px,transparent 1px),linear-gradient(90deg,var(--rz-border) 1px,transparent 1px);
-  background-size:54px 54px; mask-image:linear-gradient(to bottom,black,transparent 72%);
+  background-size:54px 54px; mask-image:linear-gradient(to bottom,black,transparent 68%);
 }}
-.stApp:has(.rz-login-shell) .block-container {{ position:relative; z-index:1; max-width:1040px; padding-top:clamp(1.5rem,4.5vh,3.5rem); padding-bottom:2.5rem; }}
-.rz-login-shell {{ max-width:780px; margin:0 auto 1.35rem; text-align:center; }}
-.rz-login-brand {{ display:inline-flex; align-items:center; justify-content:center; gap:.68rem; margin-bottom:1.35rem; padding:.42rem .72rem .42rem .48rem; border:1px solid var(--rz-border); border-radius:999px; background:color-mix(in srgb,var(--rz-surface) 88%,transparent); box-shadow:var(--rz-shadow-soft); backdrop-filter:blur(12px); }}
-.rz-login-brand strong {{ font-size:1.08rem; letter-spacing:-.045em; font-weight:900; }}
-.rz-login-brand span {{ color:var(--rz-primary); font-size:.57rem; font-weight:850; letter-spacing:.13em; margin-left:.25rem; vertical-align:.17rem; }}
-.rz-login-mark {{ width:32px; height:32px; display:block; object-fit:cover; border-radius:9px; border:1px solid rgba(16,189,242,.45);
-  box-shadow:0 8px 24px rgba(8,185,239,.18);
-}}
-.rz-login-kicker {{ color:var(--rz-primary); font-size:.68rem; font-weight:850; letter-spacing:.14em; text-transform:uppercase; margin-bottom:.65rem; }}
-.rz-login-shell h1 {{ font-size:clamp(2rem,4.5vw,3.35rem); line-height:1.02; letter-spacing:-.055em; margin:0; font-weight:900; }}
+.stApp:has(.rz-login-shell) .block-container {{ position:relative; z-index:1; max-width:620px; padding-top:clamp(1.15rem,3vh,2.25rem); padding-bottom:2rem; }}
+.rz-login-shell {{ max-width:520px; margin:0 auto .65rem; text-align:center; }}
+.rz-login-brand {{ display:inline-flex; align-items:center; justify-content:center; gap:.58rem; margin-bottom:.72rem; padding:.34rem .62rem .34rem .4rem; border:1px solid var(--rz-border); border-radius:999px; background:color-mix(in srgb,var(--rz-surface) 90%,transparent); box-shadow:var(--rz-shadow-soft); backdrop-filter:blur(12px); }}
+.rz-login-brand strong {{ font-size:1.02rem; letter-spacing:-.045em; font-weight:900; }}
+.rz-login-brand span {{ color:var(--rz-primary); font-size:.54rem; font-weight:850; letter-spacing:.13em; margin-left:.22rem; vertical-align:.16rem; }}
+.rz-login-mark {{ width:29px; height:29px; display:block; object-fit:cover; border-radius:8px; border:1px solid rgba(16,189,242,.4); box-shadow:0 6px 18px rgba(8,185,239,.13); }}
+.rz-login-kicker {{ color:var(--rz-primary); font-size:.63rem; font-weight:820; letter-spacing:.12em; text-transform:uppercase; margin-bottom:.42rem; }}
+.rz-login-shell h1 {{ font-size:clamp(1.72rem,3.4vw,2.35rem); line-height:1.06; letter-spacing:-.05em; margin:0; font-weight:880; }}
 .rz-login-shell h1 em {{ color:var(--rz-primary); font-style:normal; }}
-.rz-login-lead {{ max-width:610px; margin:.9rem auto .9rem; color:var(--rz-muted)!important; font-size:.96rem; line-height:1.6; }}
-.rz-login-benefits {{ display:flex; justify-content:center; flex-wrap:wrap; gap:.48rem; }}
-.rz-login-benefits span {{ color:var(--rz-text); background:color-mix(in srgb,var(--rz-surface) 91%,transparent); border:1px solid var(--rz-border); border-radius:999px; padding:.42rem .68rem; font-size:.72rem; font-weight:650; box-shadow:var(--rz-shadow-soft); }}
-.rz-login-benefits b {{ color:var(--rz-primary); font-size:.61rem; letter-spacing:.06em; margin-right:.25rem; }}
-.rz-login-proof {{ display:flex; align-items:center; justify-content:center; gap:.62rem; color:var(--rz-muted); font-size:.68rem; margin-top:.72rem; }}
-.rz-login-proof i {{ width:3px; height:3px; border-radius:50%; background:var(--rz-primary); }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ max-width:520px; margin:0 auto; background:color-mix(in srgb,var(--rz-surface) 96%,transparent); border:1px solid var(--rz-border); border-radius:20px; padding:.82rem 1.15rem 1.05rem; box-shadow:0 24px 75px rgba(29,42,51,.13),0 2px 8px rgba(29,42,51,.05); backdrop-filter:blur(18px); }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {{ gap:.2rem; background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:11px; padding:.22rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {{ flex:1; justify-content:center; border-radius:8px; min-height:2.35rem; font-weight:680; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{ color:var(--rz-primary)!important; background:var(--rz-surface); box-shadow:0 2px 7px rgba(29,42,51,.09); }}
-.rz-auth-heading {{ text-align:left; padding:.85rem 0 .05rem; }}
-.rz-auth-heading strong {{ display:block; color:var(--rz-text); font-size:1.18rem; letter-spacing:-.025em; margin-bottom:.18rem; }}
-.rz-auth-heading span {{ color:var(--rz-muted); font-size:.79rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.65rem 0 0; box-shadow:none!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {{ font-size:.76rem; font-weight:720; color:var(--rz-text)!important; }}
-.stApp:has(.rz-login-shell) [data-baseweb="input"] {{ background:var(--rz-soft)!important; border:1px solid var(--rz-border)!important; border-radius:10px!important; overflow:hidden; }}
-.stApp:has(.rz-login-shell) input {{ min-height:2.75rem; border-radius:10px; background:transparent!important; padding-left:.78rem!important; }}
-.stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(8,185,239,.12)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.85rem; border-radius:10px; font-weight:800; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; transition:transform .16s ease,box-shadow .16s ease; }}
+.rz-login-lead {{ max-width:475px; margin:.52rem auto .72rem; color:var(--rz-muted)!important; font-size:.87rem; line-height:1.48; }}
+.rz-login-benefits, .rz-login-proof {{ display:none!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stButton"] {{ max-width:460px; margin:.08rem auto .42rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stButton"] button {{ min-height:2.1rem; background:transparent!important; border-color:transparent!important; color:var(--rz-muted)!important; box-shadow:none!important; font-size:.75rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stButton"] button:hover {{ background:var(--rz-primary-soft)!important; color:var(--rz-primary)!important; border-color:transparent!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ max-width:460px; margin:0 auto; background:color-mix(in srgb,var(--rz-surface) 97%,transparent); border:1px solid var(--rz-border); border-radius:16px; padding:.65rem .9rem .82rem; box-shadow:0 16px 46px rgba(29,42,51,.10),0 2px 6px rgba(29,42,51,.04); backdrop-filter:blur(16px); }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {{ gap:.16rem; background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:9px; padding:.18rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {{ flex:1; justify-content:center; border-radius:7px; min-height:2.12rem; font-weight:680; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.76rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{ color:var(--rz-primary)!important; background:var(--rz-surface); box-shadow:0 1px 5px rgba(29,42,51,.08); }}
+.rz-auth-heading {{ text-align:left; padding:.52rem 0 0; }}
+.rz-auth-heading strong {{ display:block; color:var(--rz-text); font-size:1.04rem; letter-spacing:-.02em; margin-bottom:.1rem; }}
+.rz-auth-heading span {{ color:var(--rz-muted); font-size:.73rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.42rem 0 0; box-shadow:none!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {{ font-size:.73rem; font-weight:710; color:var(--rz-text)!important; }}
+.stApp:has(.rz-login-shell) [data-baseweb="input"] {{ background:var(--rz-soft)!important; border:1px solid var(--rz-border)!important; border-radius:9px!important; overflow:hidden; }}
+.stApp:has(.rz-login-shell) input {{ min-height:2.58rem; border-radius:9px; background:transparent!important; padding-left:.74rem!important; }}
+.stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(8,185,239,.10)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.62rem; border-radius:9px; font-weight:780; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 8px 20px rgba(8,185,239,.18)!important; transition:transform .16s ease,box-shadow .16s ease; }}
 .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:white!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(8,185,239,.30)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {{ min-height:2.85rem; display:flex; align-items:center; justify-content:center; border:0!important; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:{primary_contrast}!important; font-weight:800; box-shadow:0 10px 24px rgba(8,185,239,.22)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a p {{ color:{primary_contrast}!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a:hover {{ filter:brightness(1.04); transform:translateY(-1px); }}
-.rz-login-security {{ max-width:520px; margin:.72rem auto 0; text-align:center; color:var(--rz-muted); font-size:.67rem; }}
+.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 11px 25px rgba(8,185,239,.24)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {{ min-height:2.62rem; display:flex; align-items:center; justify-content:center; border:1px solid var(--rz-border)!important; background:var(--rz-surface)!important; color:var(--rz-text)!important; font-weight:720; box-shadow:none!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a p {{ color:var(--rz-text)!important; }}
+.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a:hover {{ border-color:var(--rz-primary)!important; color:var(--rz-primary)!important; transform:none; }}
+.stApp:has(.rz-login-shell) [data-testid="stExpander"] {{ max-width:460px; margin:.55rem auto 0; box-shadow:none; background:transparent; }}
+.rz-login-security {{ max-width:460px; margin:.52rem auto 0; text-align:center; color:var(--rz-muted); font-size:.64rem; }}
 .stApp:has(.rz-login-shell) footer {{ display:none; }}
 .stApp:has(.rz-demo-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
 .stApp:has(.rz-demo-shell) [data-testid="stMain"] {{ background:linear-gradient(150deg,var(--rz-bg),var(--rz-soft))!important; }}
@@ -426,12 +425,12 @@ input::placeholder, textarea::placeholder {{ color:var(--rz-muted)!important; op
   [data-testid="stMetricValue"] {{ font-size:1.25rem; }}
   [data-testid="stDataFrame"] {{ max-width:calc(100vw - 1.44rem); overflow-x:auto; }}
   .stButton button, [data-testid="stFormSubmitButton"] button, [data-testid="stDownloadButton"] button {{ min-height:44px; }}
-  .stApp:has(.rz-login-shell) .block-container {{ padding:.8rem .8rem 2rem; }}
-  .rz-login-shell {{ margin-bottom:1.2rem; }} .rz-login-brand {{ margin-bottom:1.35rem; }}
-  .rz-login-lead {{ font-size:.91rem; }} .rz-login-benefits {{ gap:.35rem; }}
-  .rz-login-benefits span {{ font-size:.68rem; padding:.35rem .55rem; }}
-  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.7rem .75rem 1rem; border-radius:14px; }}
-  .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.78rem; }}
+  .stApp:has(.rz-login-shell) .block-container {{ padding:.65rem .75rem 1.5rem; }}
+  .rz-login-shell {{ margin-bottom:.55rem; }}
+  .rz-login-brand {{ margin-bottom:.62rem; }}
+  .rz-login-lead {{ font-size:.84rem; }}
+  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.6rem .7rem .82rem; border-radius:13px; }}
+  .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.72rem; }}
   [data-testid="stTabs"] [role="tablist"] {{ overflow-x:auto; scrollbar-width:thin; justify-content:flex-start; }}
   [data-testid="stTabs"] [role="tab"] {{ flex:0 0 auto; white-space:nowrap; }}
   [data-testid="stFileUploaderDropzone"] {{ padding:.75rem; }}
@@ -449,9 +448,8 @@ input::placeholder, textarea::placeholder {{ color:var(--rz-muted)!important; op
   .block-container {{ padding-left:.58rem; padding-right:.58rem; }}
   .rz-page-title {{ font-size:1.34rem; }}
   .rz-page-sub {{ font-size:.84rem; margin-bottom:.9rem; }}
-  .rz-login-shell h1 {{ font-size:1.82rem; }}
-  .rz-login-proof {{ flex-wrap:wrap; }}
-  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.58rem; }}
+  .rz-login-shell h1 {{ font-size:1.62rem; }}
+  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.52rem; }}
   [data-testid="stMetric"] {{ min-height:82px; }}
 }}
 </style>
