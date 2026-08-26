@@ -416,22 +416,23 @@ def inject_workspace_style() -> None:
         /* Login V4: composição SaaS em dois painéis, compacta e focada. */
         @media (min-width: 981px) {
             .stApp:has(.rz-login-shell) .block-container {
-                max-width: 1160px !important;
-                padding: clamp(1.5rem, 4vh, 3rem) 1rem !important;
+                max-width: none !important;
+                width: 100% !important;
+                padding: 0 !important;
             }
             .stApp:has(.rz-login-shell) .stMainBlockContainer > [data-testid="stVerticalBlock"]:has(.rz-login-shell) {
                 display: grid !important;
                 grid-template-columns: minmax(0, 1.08fr) minmax(410px, .92fr) !important;
                 grid-template-rows: auto auto auto auto 1fr !important;
                 column-gap: clamp(2rem, 4vw, 4.5rem) !important;
-                min-height: min(760px, calc(100vh - 3rem)) !important;
-                padding: clamp(2rem, 4vw, 4.25rem) !important;
-                border: 1px solid color-mix(in srgb, var(--rz-border) 88%, transparent) !important;
-                border-radius: 32px !important;
+                min-height: 100vh !important;
+                padding: clamp(2.25rem, 5vw, 5.5rem) clamp(2.5rem, 8vw, 9.5rem) !important;
+                border: 0 !important;
+                border-radius: 0 !important;
                 background:
                     radial-gradient(circle at 12% 12%, rgba(18, 184, 232, .16), transparent 25rem),
                     linear-gradient(112deg, #071522 0%, #0b2132 50%, var(--rz-surface) 50.1%, var(--rz-surface) 100%) !important;
-                box-shadow: 0 40px 100px rgba(8, 25, 39, .16) !important;
+                box-shadow: none !important;
                 overflow: hidden !important;
             }
             .stApp:has(.rz-login-shell) .stMainBlockContainer > [data-testid="stVerticalBlock"]:has(.rz-login-shell) > [data-testid="stElementContainer"]:has(style) {
