@@ -44,8 +44,10 @@ def inject_workspace_style() -> None:
             box-shadow: none !important;
         }
         .stApp:has(.rz-login-shell) .rz-login-brand {
-            display: inline-flex !important;
+            display: flex !important;
             align-items: center !important;
+            justify-content: center !important;
+            width: fit-content !important;
             gap: .64rem !important;
             margin: 0 auto .95rem !important;
             padding: 0 !important;
@@ -69,9 +71,10 @@ def inject_workspace_style() -> None:
             font-size: .6rem !important;
         }
         .stApp:has(.rz-login-shell) .rz-login-kicker {
-            display: inline-flex !important;
+            display: flex !important;
             align-items: center !important;
             justify-content: center !important;
+            width: fit-content !important;
             margin: 0 auto .8rem !important;
             padding: .38rem .7rem !important;
             border: 1px solid color-mix(in srgb, var(--rz-primary) 28%, var(--rz-border)) !important;
@@ -157,8 +160,13 @@ def inject_workspace_style() -> None:
             background: var(--rz-primary) !important;
         }
 
-        .stApp:has(.rz-login-shell) > div [data-testid="stCaptionContainer"] {
+        .stApp:has(.rz-login-shell) .rz-demo-note {
+            max-width: 460px !important;
+            margin: .7rem auto 0 !important;
+            text-align: center !important;
             color: var(--rz-muted) !important;
+            font-size: .7rem !important;
+            line-height: 1.45 !important;
         }
         .stApp:has(.rz-login-shell) [data-testid="stTabs"] {
             max-width: 460px !important;

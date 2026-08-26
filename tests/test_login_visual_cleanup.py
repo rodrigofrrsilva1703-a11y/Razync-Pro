@@ -21,6 +21,11 @@ class LoginVisualMarketingTests(unittest.TestCase):
         self.assertIn("max-width: 460px !important", self.workspace_source)
         self.assertIn("border-radius: 22px !important", self.workspace_source)
 
+    def test_login_blocks_share_the_same_center_axis(self):
+        self.assertIn("width: fit-content !important", self.workspace_source)
+        self.assertIn("text-align: center !important", self.workspace_source)
+        self.assertIn(".rz-demo-note", self.workspace_source)
+
     def test_demo_action_is_secondary(self):
         self.assertIn("border-radius: 999px !important", self.workspace_source)
         self.assertIn("color: var(--rz-muted) !important", self.workspace_source)
