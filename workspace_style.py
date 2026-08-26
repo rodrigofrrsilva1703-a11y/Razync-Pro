@@ -44,8 +44,10 @@ def inject_workspace_style() -> None:
             box-shadow: none !important;
         }
         .stApp:has(.rz-login-shell) .rz-login-brand {
-            display: inline-flex !important;
+            display: flex !important;
             align-items: center !important;
+            justify-content: center !important;
+            width: fit-content !important;
             gap: .64rem !important;
             margin: 0 auto .95rem !important;
             padding: 0 !important;
@@ -69,9 +71,10 @@ def inject_workspace_style() -> None:
             font-size: .6rem !important;
         }
         .stApp:has(.rz-login-shell) .rz-login-kicker {
-            display: inline-flex !important;
+            display: flex !important;
             align-items: center !important;
             justify-content: center !important;
+            width: fit-content !important;
             margin: 0 auto .8rem !important;
             padding: .38rem .7rem !important;
             border: 1px solid color-mix(in srgb, var(--rz-primary) 28%, var(--rz-border)) !important;
@@ -157,8 +160,13 @@ def inject_workspace_style() -> None:
             background: var(--rz-primary) !important;
         }
 
-        .stApp:has(.rz-login-shell) > div [data-testid="stCaptionContainer"] {
+        .stApp:has(.rz-login-shell) .rz-demo-note {
+            max-width: 460px !important;
+            margin: .7rem auto 0 !important;
+            text-align: center !important;
             color: var(--rz-muted) !important;
+            font-size: .7rem !important;
+            line-height: 1.45 !important;
         }
         .stApp:has(.rz-login-shell) [data-testid="stTabs"] {
             max-width: 460px !important;
@@ -402,6 +410,144 @@ def inject_workspace_style() -> None:
             }
             .stApp:has(.rz-login-shell) .rz-auth-heading strong {
                 font-size: 1.2rem !important;
+            }
+        }
+
+        /* Login V4: composição SaaS em dois painéis, compacta e focada. */
+        @media (min-width: 981px) {
+            .stApp:has(.rz-login-shell) .block-container {
+                max-width: 1160px !important;
+                padding: clamp(1.5rem, 4vh, 3rem) 1rem !important;
+            }
+            .stApp:has(.rz-login-shell) .stMainBlockContainer > [data-testid="stVerticalBlock"]:has(.rz-login-shell) {
+                display: grid !important;
+                grid-template-columns: minmax(0, 1.08fr) minmax(410px, .92fr) !important;
+                grid-template-rows: auto auto auto auto 1fr !important;
+                column-gap: clamp(2rem, 4vw, 4.5rem) !important;
+                min-height: min(760px, calc(100vh - 3rem)) !important;
+                padding: clamp(2rem, 4vw, 4.25rem) !important;
+                border: 1px solid color-mix(in srgb, var(--rz-border) 88%, transparent) !important;
+                border-radius: 32px !important;
+                background:
+                    radial-gradient(circle at 12% 12%, rgba(18, 184, 232, .16), transparent 25rem),
+                    linear-gradient(112deg, #071522 0%, #0b2132 50%, var(--rz-surface) 50.1%, var(--rz-surface) 100%) !important;
+                box-shadow: 0 40px 100px rgba(8, 25, 39, .16) !important;
+                overflow: hidden !important;
+            }
+            .stApp:has(.rz-login-shell) .stMainBlockContainer > [data-testid="stVerticalBlock"]:has(.rz-login-shell) > [data-testid="stElementContainer"]:has(style) {
+                display: none !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(> .stMarkdown > .rz-login-shell) {
+                grid-column: 1 !important;
+                grid-row: 1 !important;
+                align-self: center !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-shell {
+                max-width: 520px !important;
+                margin: 0 !important;
+                text-align: left !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-brand,
+            .stApp:has(.rz-login-shell) .rz-login-kicker {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-brand strong,
+            .stApp:has(.rz-login-shell) .rz-login-shell h1 {
+                color: #fff !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-shell h1 a {
+                color: inherit !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-kicker {
+                border-color: rgba(77, 211, 255, .28) !important;
+                background: rgba(36, 191, 237, .1) !important;
+                color: #6edcff !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-shell h1 {
+                margin: 0 !important;
+                font-size: clamp(2.65rem, 4.25vw, 4.4rem) !important;
+                line-height: .98 !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-shell h1 em {
+                color: #34c8f5 !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-lead {
+                max-width: 500px !important;
+                margin: 1.25rem 0 1.65rem !important;
+                color: rgba(231, 243, 250, .72) !important;
+                font-size: 1rem !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-benefits {
+                grid-template-columns: 1fr !important;
+                gap: .55rem !important;
+                max-width: 450px !important;
+                margin: 0 0 1.15rem !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-benefits span {
+                min-height: 54px !important;
+                border-color: rgba(255, 255, 255, .1) !important;
+                background: rgba(255, 255, 255, .055) !important;
+                color: rgba(255, 255, 255, .92) !important;
+                box-shadow: none !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-benefits b {
+                background: rgba(52, 200, 245, .14) !important;
+                color: #6edcff !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-proof {
+                justify-content: flex-start !important;
+                margin: 0 !important;
+                color: rgba(231, 243, 250, .58) !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-login-proof span {
+                color: inherit !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(button[kind="secondary"]) {
+                grid-column: 1 !important;
+                grid-row: 2 !important;
+                align-self: end !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stButton"] {
+                max-width: 450px !important;
+                margin: 1.5rem 0 0 !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stButton"] button {
+                min-height: 3rem !important;
+                border-color: rgba(77, 211, 255, .3) !important;
+                background: rgba(52, 200, 245, .11) !important;
+                color: #dff7ff !important;
+                font-weight: 720 !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(.rz-demo-note) {
+                grid-column: 1 !important;
+                grid-row: 3 !important;
+            }
+            .stApp:has(.rz-login-shell) .rz-demo-note {
+                max-width: 450px !important;
+                margin: .65rem 0 0 !important;
+                text-align: left !important;
+                color: rgba(231, 243, 250, .48) !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stTabs"] {
+                grid-column: 2 !important;
+                grid-row: 1 / span 3 !important;
+                align-self: center !important;
+                width: 100% !important;
+                max-width: 470px !important;
+                margin: 0 auto !important;
+                padding: 1.15rem 1.35rem 1.4rem !important;
+                border-color: color-mix(in srgb, var(--rz-border) 72%, transparent) !important;
+                box-shadow: 0 24px 70px rgba(8, 25, 39, .12) !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) {
+                grid-column: 2 !important;
+                grid-row: 4 !important;
+            }
+            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(.rz-login-security) {
+                grid-column: 2 !important;
+                grid-row: 5 !important;
+                align-self: start !important;
             }
         }
         </style>

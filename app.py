@@ -287,7 +287,10 @@ def ensure_login() -> dict:
     if st.button("Explorar demonstração sem criar conta", width="stretch"):
         st.session_state["_demo_mode"] = True
         st.rerun()
-    st.caption("A demonstração usa somente dados fictícios e não grava informações.")
+    st.markdown(
+        '<p class="rz-demo-note">A demonstração usa somente dados fictícios e não grava informações.</p>',
+        unsafe_allow_html=True,
+    )
 
     login_tab, signup_tab, recovery_tab = st.tabs(
         ["Entrar", "Criar conta", "Recuperar senha"]

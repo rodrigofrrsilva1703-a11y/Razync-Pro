@@ -21,6 +21,16 @@ class LoginVisualMarketingTests(unittest.TestCase):
         self.assertIn("max-width: 460px !important", self.workspace_source)
         self.assertIn("border-radius: 22px !important", self.workspace_source)
 
+    def test_login_blocks_share_the_same_center_axis(self):
+        self.assertIn("width: fit-content !important", self.workspace_source)
+        self.assertIn("text-align: center !important", self.workspace_source)
+        self.assertIn(".rz-demo-note", self.workspace_source)
+
+    def test_desktop_login_uses_a_modern_split_layout(self):
+        self.assertIn("Login V4: composição SaaS em dois painéis", self.workspace_source)
+        self.assertIn("grid-template-columns: minmax(0, 1.08fr)", self.workspace_source)
+        self.assertIn("linear-gradient(112deg, #071522", self.workspace_source)
+
     def test_demo_action_is_secondary(self):
         self.assertIn("border-radius: 999px !important", self.workspace_source)
         self.assertIn("color: var(--rz-muted) !important", self.workspace_source)
