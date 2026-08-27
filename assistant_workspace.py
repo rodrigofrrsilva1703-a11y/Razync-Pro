@@ -1256,6 +1256,12 @@ def render_ai_assistant(
                 st.markdown(message["content"])
     _render_last_answer_feedback(user_id, messages)
 
+    pending_context = st.session_state.pop("razync_ai_pending_context", None)
+    if isinstance(pending_context, dict) and pending_context.get("source") == "dashboard_insight":
+        st.info(
+            f"Contexto recebido do painel: **{pending_context.get('title', 'Insight')}** — "
+            f"{pending_context.get('detail', '')}"
+        )
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
     with st.container(key="full_ai_composer"):
         typed_question = st.chat_input("Escreva uma mensagem...", key="full_ai_chat_input")

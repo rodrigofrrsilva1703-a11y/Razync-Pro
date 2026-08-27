@@ -1825,17 +1825,14 @@ elif page == "Central de Notificações":
         st.success("Nenhum alerta importante identificado agora.")
     else:
         for idx, item in enumerate(notification_items):
-            alert_content, alert_action = st.columns([4.8, 1.1])
-            with alert_content:
-                alert_card(
-                    "danger" if item["level"] == "urgent" else "warn",
-                    item["title"],
-                    item["detail"],
-                )
-            with alert_action:
-                if st.button("Resolver", key=f"notification_action_{idx}", width="stretch"):
-                    st.session_state["_navigate_to"] = item["page"]
-                    st.rerun()
+            level = "danger" if item["level"] == "urgent" else "warn"
+            if st.button(
+                f"**{item['title']}**\n\n{item['detail']}\n\nResolver agora →",
+                key=f"rz_action_card_{level}_notification_{idx}",
+                width="stretch",
+            ):
+                st.session_state["_navigate_to"] = item["page"]
+                st.rerun()
         calendar_file = notification_calendar(notification_items, "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/")
         st.download_button("Adicionar prazos ao calendário (.ics)", calendar_file, file_name="agenda_razync_mei.ics", mime="text/calendar", width="stretch")
     st.caption("Os alertas são calculados com os dados cadastrados. Confirme sempre datas e valores nos documentos oficiais.")
