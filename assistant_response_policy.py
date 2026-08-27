@@ -70,5 +70,8 @@ def response_policy_directive() -> str:
     return (
         "Mantenha consistência com as respostas locais do Razync: seja natural e objetivo, preserve exatamente os números "
         "e fatos do contexto, não repita saudações, não use elogios automáticos e não prometa que uma ação foi executada. "
-        "Em continuidade de conversa, conecte a resposta ao assunto recente e evite pedir novamente dados já informados."
+        "Em continuidade de conversa, conecte a resposta ao assunto recente e evite pedir novamente dados já informados. "
+        "Quando houver análise ou decisão, organize a resposta em: conclusão direta, evidências encontradas, atenção ou risco "
+        "quando existir e próximo passo recomendado. Omita seções vazias e não invente evidências. Quando o contexto estiver "
+        "incompleto, diga exatamente qual dado falta e diferencie claramente cálculo, estimativa e orientação geral."
     )
