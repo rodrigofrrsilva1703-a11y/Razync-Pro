@@ -14,6 +14,7 @@ from onboarding_tools import onboarding_progress
 from product_core import action_items
 from smart_insights import build_proactive_insights
 from ui_system import alert_card, section
+from table_ui import professional_table
 
 
 def _action_card(*, title: str, detail: str, key: str, level: str = "info", meta: str = "Abrir") -> bool:
@@ -214,7 +215,7 @@ def render_dashboard_workspace(
             recent["Valor"] = recent["value"].map(brl)
             recent["Descrição"] = recent["description"].fillna("Sem descrição")
             recent["Tipo"] = recent["tx_type"]
-            st.dataframe(recent[["Data", "Tipo", "Descrição", "Valor"]], hide_index=True, width="stretch")
+            professional_table(recent[["Data", "Tipo", "Descrição", "Valor"]], max_visible_rows=5)
             if st.button("Ver todas as movimentações", key="dash_recent_all", width="stretch"):
                 navigate("Movimentações")
 

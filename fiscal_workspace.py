@@ -9,6 +9,7 @@ from business_tools import monthly_closing
 from compact_cards import metric_card
 from fiscal_rules import das_status
 from ui_system import alert_card, section
+from table_ui import professional_table
 
 
 def render_fiscal_workspace(
@@ -94,10 +95,9 @@ def render_fiscal_workspace(
                     "Valor": float(row.get("amount") or 0),
                     "Situação": das_status(row.get("status", "Pendente"), row.get("due_date"), today),
                 })
-            st.dataframe(
+            professional_table(
                 pd.DataFrame(rows).tail(12),
-                width="stretch",
-                hide_index=True,
+                max_visible_rows=8,
                 column_config={
                     "Vencimento": st.column_config.DateColumn(format="DD/MM/YYYY"),
                     "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
