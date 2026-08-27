@@ -77,6 +77,85 @@ SUGGESTED_ACTIONS = (
 )
 
 
+def _dynamic_suggestions(
+    *, mode: str, profile: dict, transactions: pd.DataFrame, das_rows: list[dict],
+    obligations: list[dict], documents: list[dict], annual_limit: float, current_year: int,
+) -> list[tuple[str, str]]:
+    """Prioritize useful prompts from the user's current business state."""
+    if mode == "Fazer":
+        suggestions = [
+            ("Registrar despesa", "Registrar uma despesa"),
+            ("Registrar receita", "Registrar uma receita"),
+            ("Criar lembrete", "Criar um lembrete"),
+            ("Despesa mensal", "Criar uma despesa mensal"),
+            ("Cadastrar nota", "Cadastrar uma nota"),
+            ("Novo cliente", "Cadastrar um cliente"),
+        ]
+        if not profile.get("cnpj") or not profile.get("main_activity"):
+            suggestions.insert(0, ("Completar meu MEI", "Quero completar os dados essenciais do meu MEI"))
+        if not documents:
+            suggestions.insert(1, ("Organizar documentos", "Quero analisar e organizar um documento"))
+        return suggestions[:6]
+
+    suggestions = [
+        ("Minhas prioridades", "Verifique tudo e mostre minhas prioridades"),
+        ("Analisar negócio", "Analise meu negócio e indique riscos e próximas ações"),
+        ("Resumo do mês", "Resuma minhas receitas, despesas e resultado deste mês"),
+        ("Limite do MEI", f"Quanto do limite anual de {annual_limit:.2f} já usei em {current_year}?"),
+        ("Despesas", "Quais despesas mais pesam e o que devo revisar?"),
+        ("Documentos", "Quais lançamentos estão sem documento?"),
+    ]
+    if das_rows:
+        suggestions.insert(0, ("Revisar DAS", "Revise meus DAS e destaque atrasos ou próximos vencimentos"))
+    if obligations:
+        suggestions.insert(1, ("Obrigações", "Quais obrigações estão vencidas ou próximas?"))
+    if transactions.empty:
+        suggestions = [
+            ("Começar agora", "O que preciso configurar primeiro no Razync?"),
+            ("Como registrar", "Como registrar minha primeira movimentação?"),
+            ("Organizar MEI", "Crie um roteiro simples para organizar meu MEI"),
+        ] + suggestions
+    return suggestions[:6]
+
+
+def _pending_overview(
+    *, profile: dict, transactions: pd.DataFrame, das_rows: list[dict], obligations: list[dict],
+    documents: list[dict], current_year: int,
+) -> list[tuple[str, str, str]]:
+    """Return a compact deterministic approval-safe work queue."""
+    def is_overdue(value) -> bool:
+        if not value:
+            return False
+        try:
+            parsed = pd.to_datetime(value, errors="coerce")
+            return not pd.isna(parsed) and parsed.date() < date.today()
+        except (TypeError, ValueError, OverflowError):
+            return False
+
+    items: list[tuple[str, str, str]] = []
+    if not profile.get("cnpj") or not profile.get("main_activity"):
+        items.append(("Cadastro do MEI", "Dados essenciais ainda incompletos", "Quero completar os dados do meu MEI"))
+    overdue_das = [row for row in das_rows if str(row.get("status") or "").lower() not in {"pago", "concluído"} and is_overdue(row.get("due_date"))]
+    if overdue_das:
+        items.append(("DAS", f"{len(overdue_das)} competência(s) possivelmente em atraso", "Revise meus DAS em atraso e diga o que fazer"))
+    overdue_obligations = [row for row in obligations if str(row.get("status") or "") != "Concluído" and is_overdue(row.get("due_date"))]
+    if overdue_obligations:
+        items.append(("Obrigações", f"{len(overdue_obligations)} obrigação(ões) vencida(s)", "Revise minhas obrigações vencidas"))
+    if not transactions.empty and "document_number" in transactions.columns:
+        missing_docs = int(transactions["document_number"].fillna("").astype(str).str.strip().eq("").sum())
+        if missing_docs:
+            items.append(("Documentos", f"{missing_docs} lançamento(s) sem documento informado", "Mostre os lançamentos sem documento"))
+    if not documents:
+        items.append(("Arquivos", "Nenhum documento armazenado", "Como devo organizar os documentos do meu MEI?"))
+    return items[:5]
+
+
+def _trace_caption(result: dict, *, current_year: int, elapsed: float) -> str:
+    provider = str(result.get("provider") or "Local")
+    model = str(result.get("model") or "Razync local")
+    return f"Fonte: {provider} · Motor: {model} · Dados da conta: {current_year} · {elapsed:.1f}s"
+
+
 def _inject_assistant_style() -> None:
     st.markdown(
         """
@@ -151,6 +230,9 @@ def _inject_assistant_style() -> None:
         .st-key-full_ai_composer { margin: .72rem 0 .3rem; }
         .st-key-full_ai_composer [data-testid="stChatInput"] textarea { min-height: 3.15rem !important; }
         .rz-ai-composer-help { color: var(--rz-muted); font-size: .68rem; text-align: center; margin: .2rem 0 .75rem; }
+        .rz-ai-mode-help { color: var(--rz-muted); font-size: .72rem; margin: -.2rem 0 .65rem; }
+        .rz-ai-trace { color: var(--rz-muted); font-size: .68rem; padding: .5rem .7rem; margin: -.4rem 0 .75rem; border-left: 3px solid var(--rz-primary); background: var(--rz-soft); border-radius: 0 9px 9px 0; }
+        .rz-ai-memory-note { color: var(--rz-muted); font-size: .74rem; line-height: 1.55; }
 
         /* Conversa minimalista: estrutura inspirada em mensageiros móveis. */
         [data-testid="stPopoverBody"]:has(.rz-ai-shell-marker) {
@@ -401,6 +483,7 @@ def _activate_conversation(conversation_id: int) -> None:
     st.session_state.pop("razync_ai_messages", None)
     st.session_state.pop("razync_ai_history_loaded_for", None)
     st.session_state.pop("razync_ai_last_resources", None)
+    st.session_state.pop("razync_ai_last_trace", None)
     st.session_state.pop("razync_ai_pending_action", None)
 
 
@@ -416,6 +499,7 @@ def _start_new_conversation() -> None:
     st.session_state.pop("razync_ai_history_loaded_for", None)
     st.session_state.pop("razync_ai_last_resources", None)
     st.session_state.pop("razync_ai_last_resource_question", None)
+    st.session_state.pop("razync_ai_last_trace", None)
     st.session_state.pop("razync_ai_pending_action", None)
     st.session_state.pop("razync_ai_last_receipt", None)
 
@@ -1241,11 +1325,54 @@ def render_ai_assistant(
     if history_warning:
         st.warning(history_warning)
 
+    mode = st.radio(
+        "Como você quer usar o Razync?",
+        ["Perguntar", "Fazer"],
+        horizontal=True,
+        key="razync_ai_mode",
+        help="Perguntar analisa e explica. Fazer prepara uma ação e sempre pede confirmação antes de salvar.",
+    )
+    st.markdown(
+        '<div class="rz-ai-mode-help">'
+        + ("Analise números, riscos e prioridades com base nos dados cadastrados." if mode == "Perguntar" else "Prepare cadastros e tarefas. Você revisa tudo antes de confirmar.")
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+    pending_items = _pending_overview(
+        profile=profile,
+        transactions=transactions,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=documents,
+        current_year=current_year,
+    )
+    pending_prompt = None
+    with st.expander(f"Central de pendências · {len(pending_items)} item(ns)", expanded=bool(pending_items)):
+        if not pending_items:
+            st.success("Nenhuma pendência automática importante encontrada agora.")
+        for idx, (title, detail, prompt) in enumerate(pending_items):
+            row, action = st.columns([4, 1.2])
+            row.markdown(f"**{title}**")
+            row.caption(detail)
+            if action.button("Analisar", key=f"ai_pending_overview_{idx}", width="stretch"):
+                pending_prompt = prompt
+
     suggested = None
-    with st.expander("Sugestões"):
+    suggestions = _dynamic_suggestions(
+        mode=mode,
+        profile=profile,
+        transactions=transactions,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=documents,
+        annual_limit=annual_limit,
+        current_year=current_year,
+    )
+    with st.expander("Sugestões para agora", expanded=not bool(st.session_state.get("razync_ai_messages"))):
         with st.container(key="full_ai_quick_actions"):
             cols = st.columns(3)
-            for idx, (label, prompt) in enumerate(SUGGESTED_ACTIONS):
+            for idx, (label, prompt) in enumerate(suggestions):
                 if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
                     suggested = prompt
 
@@ -1256,6 +1383,20 @@ def render_ai_assistant(
                 st.markdown(message["content"])
     _render_last_answer_feedback(user_id, messages)
 
+    last_trace = st.session_state.get("razync_ai_last_trace")
+    if last_trace:
+        st.markdown(f'<div class="rz-ai-trace">{escape(str(last_trace))}</div>', unsafe_allow_html=True)
+
+    with st.expander("Contexto e memória usados"):
+        st.markdown(
+            f'<div class="rz-ai-memory-note">Área atual: <strong>Assistente Razync</strong><br>'
+            f'Contexto recente: até 6 mensagens desta conversa<br>'
+            f'Dados disponíveis: {len(transactions)} movimentações, {len(invoices)} notas, '
+            f'{len(das_rows)} DAS, {len(obligations)} obrigações e {len(documents)} documentos.<br>'
+            'Documentos brutos, credenciais e identificadores diretos não são enviados ao provedor externo.</div>',
+            unsafe_allow_html=True,
+        )
+
     pending_context = st.session_state.pop("razync_ai_pending_context", None)
     if isinstance(pending_context, dict) and pending_context.get("source") == "dashboard_insight":
         st.info(
@@ -1264,9 +1405,12 @@ def render_ai_assistant(
         )
     pending_question = st.session_state.pop("razync_ai_pending_question", None)
     with st.container(key="full_ai_composer"):
-        typed_question = st.chat_input("Escreva uma mensagem...", key="full_ai_chat_input")
+        typed_question = st.chat_input(
+            "Pergunte sobre seu MEI..." if mode == "Perguntar" else "Descreva a ação que deseja preparar...",
+            key="full_ai_chat_input",
+        )
     st.markdown('<div class="rz-ai-composer-help">Enter para enviar · as alterações só são salvas com sua confirmação</div>', unsafe_allow_html=True)
-    incoming_question = suggested or pending_question or typed_question
+    incoming_question = pending_prompt or suggested or pending_question or typed_question
     _render_notices(st.session_state.pop("razync_ai_flash_notices", []))
     if incoming_question and not st.session_state.get("razync_ai_processing_question"):
         incoming_question = str(incoming_question).strip()
@@ -1291,6 +1435,7 @@ def render_ai_assistant(
         st.caption("O Razync prepara as ações; você sempre confirma antes de qualquer alteração.")
         return
 
+    started_at = monotonic()
     with st.status("Analisando sua solicitação…", expanded=True) as status:
         st.write("Consultando somente os dados necessários da sua conta.")
         result = _answer_question(
@@ -1319,7 +1464,20 @@ def render_ai_assistant(
         )
         status.update(label="Resposta pronta", state="complete", expanded=False)
 
-    _append_message("assistant", result["answer"], metadata={"resources": bool(resources)})
+    elapsed = monotonic() - started_at
+    trace = _trace_caption(result, current_year=current_year, elapsed=elapsed)
+    _append_message(
+        "assistant",
+        result["answer"],
+        metadata={
+            "resources": bool(resources),
+            "provider": result.get("provider"),
+            "model": result.get("model"),
+            "elapsed_seconds": round(elapsed, 3),
+            "mode": mode,
+        },
+    )
+    st.session_state["razync_ai_last_trace"] = trace
     st.session_state["razync_ai_last_resources"] = resources or {}
     st.session_state["razync_ai_last_resource_question"] = question
     st.session_state["razync_ai_flash_notices"] = result["notices"]
