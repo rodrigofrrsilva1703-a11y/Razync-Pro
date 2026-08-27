@@ -65,3 +65,14 @@ def test_brand_palette_preserves_distinct_light_and_dark_modes():
     assert light["text"] != dark["text"]
     assert light["plot"] == "plotly_white"
     assert dark["plot"] == "plotly_dark"
+
+
+def test_authenticated_tools_share_compact_layout_tokens():
+    with patch("ui_system.st.markdown") as markdown:
+        inject_design_system("Claro")
+
+    css = markdown.call_args.args[0]
+    assert 'min-height:78px' in css
+    assert '[data-testid="stVerticalBlockBorderWrapper"]' in css
+    assert 'gap:.72rem!important' in css
+    assert 'box-shadow:none!important' in css

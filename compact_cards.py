@@ -23,7 +23,7 @@ def inject_compact_cards() -> None:
 
         [class*="st-key-rz_action_card_"] button,
         [class*="st-key-rz_quick_card_"] button {
-            min-height: 82px !important;
+            min-height: 58px !important;
             padding: 10px 13px !important;
             border-radius: 11px !important;
         }
@@ -34,7 +34,7 @@ def inject_compact_cards() -> None:
         }
 
         [class*="st-key-rz_metric_card_"] button {
-            min-height: 82px !important;
+            min-height: 58px !important;
             height: auto !important;
             padding: 10px 13px !important;
             justify-content: flex-start !important;
@@ -42,13 +42,14 @@ def inject_compact_cards() -> None:
             border-radius: 11px !important;
             border: 1px solid var(--rz-border) !important;
             background: var(--rz-surface) !important;
-            box-shadow: var(--rz-shadow-soft) !important;
-            transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease !important;
+            box-shadow: none !important;
+            transition: transform .16s ease, border-color .16s ease, background .16s ease !important;
         }
         [class*="st-key-rz_metric_card_"] button:hover {
-            transform: translateY(-2px) !important;
+            transform: translateY(-1px) !important;
             border-color: var(--rz-primary) !important;
-            box-shadow: 0 10px 24px rgba(20,45,68,.09) !important;
+            background: var(--rz-primary-soft) !important;
+            box-shadow: none !important;
         }
         [class*="st-key-rz_metric_card_"] button p {
             width: 100% !important;
@@ -57,15 +58,6 @@ def inject_compact_cards() -> None:
             line-height: 1.22 !important;
             font-size: .76rem !important;
         }
-        [class*="st-key-rz_metric_card_"] button p strong {
-            display: inline-block !important;
-            margin-top: .18rem !important;
-            font-size: 1.28rem !important;
-            line-height: 1.05 !important;
-            letter-spacing: -.03em !important;
-            color: var(--rz-text) !important;
-        }
-
         .rz-alert {
             padding: 9px 12px !important;
             margin-bottom: 6px !important;
@@ -83,10 +75,7 @@ def inject_compact_cards() -> None:
             [class*="st-key-rz_metric_card_"] button,
             [class*="st-key-rz_action_card_"] button,
             [class*="st-key-rz_quick_card_"] button {
-                min-height: 76px !important;
-            }
-            [class*="st-key-rz_metric_card_"] button p strong {
-                font-size: 1.18rem !important;
+                min-height: 54px !important;
             }
         }
         </style>
@@ -98,7 +87,7 @@ def inject_compact_cards() -> None:
 def metric_card(label: str, value: str, *, key: str, help_text: str | None = None) -> bool:
     """Render a compact, full-surface metric that can lead to a related workspace."""
     return st.button(
-        f"{label}\n\n**{value}**\n\nVer detalhes →",
+        f"{label}  ·  {value}  →",
         key=f"rz_metric_card_{key}",
         width="stretch",
         help=help_text,
