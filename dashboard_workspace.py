@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from automation_tools import financial_projection, upcoming_deadlines
-from compact_cards import inject_compact_cards, metric_card
+from compact_cards import metric_card
 from customer_experience import build_today_plan
 from fiscal_rules import das_status
 from growth_tools import build_notifications
@@ -74,7 +74,6 @@ def render_dashboard_workspace(
     brl,
     navigate,
 ) -> None:
-    inject_compact_cards()
     today = date.today()
     month_tx = transactions[
         (transactions["tx_date"].dt.year == current_year)

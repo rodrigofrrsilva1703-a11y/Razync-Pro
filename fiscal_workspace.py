@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from business_tools import monthly_closing
-from compact_cards import inject_compact_cards, metric_card
+from compact_cards import metric_card
 from fiscal_rules import das_status
 from ui_system import alert_card, section
 
@@ -26,7 +26,6 @@ def render_fiscal_workspace(
     navigate,
 ) -> None:
     """Integrated fiscal workspace for the core MEI routine."""
-    inject_compact_cards()
     today = date.today()
     overdue_das = [row for row in das_rows if das_status(row.get("status", "Pendente"), row.get("due_date"), today) == "Atrasado"]
     pending_das = [row for row in das_rows if das_status(row.get("status", "Pendente"), row.get("due_date"), today) == "Pendente"]
@@ -122,25 +121,25 @@ def render_fiscal_workspace(
         else:
             st.success("Fechamento do mês sem pendências no checklist.")
 
-    section("Notas e documentos", "Acompanhe emissão e organização sem navegar por várias telas.")
-    n1, n2, n3 = st.columns(3)
-    with n1:
-        if metric_card("Notas cadastradas", str(len(invoices)), key="fiscal_notes_total", help_text="Abrir Notas Fiscais"):
-            navigate("Notas Fiscais")
-    with n2:
-        if metric_card("Documentos armazenados", str(len(documents)), key="fiscal_documents", help_text="Abrir Documentos"):
-            navigate("Documentos")
-    with n3:
-        if metric_card("Faturamento no ano", brl(annual_revenue), key="fiscal_revenue", help_text="Abrir relatório mensal"):
-            navigate("Relatório Mensal")
+    with st.expander("Notas, documentos e relatórios"):
+        n1, n2, n3 = st.columns(3)
+        with n1:
+            if metric_card("Notas cadastradas", str(len(invoices)), key="fiscal_notes_total", help_text="Abrir Notas Fiscais"):
+                navigate("Notas Fiscais")
+        with n2:
+            if metric_card("Documentos armazenados", str(len(documents)), key="fiscal_documents", help_text="Abrir Documentos"):
+                navigate("Documentos")
+        with n3:
+            if metric_card("Faturamento no ano", brl(annual_revenue), key="fiscal_revenue", help_text="Abrir relatório mensal"):
+                navigate("Relatório Mensal")
 
-    q1, q2, q3 = st.columns(3)
-    if q1.button("Importar NFS-e", width="stretch"):
-        navigate("Importar NFS-e")
-    if q2.button("Relatório mensal", width="stretch"):
-        navigate("Relatório Mensal")
-    if q3.button("Documentos", width="stretch"):
-        navigate("Documentos")
+        q1, q2, q3 = st.columns(3)
+        if q1.button("Importar NFS-e", width="stretch"):
+            navigate("Importar NFS-e")
+        if q2.button("Relatório mensal", width="stretch"):
+            navigate("Relatório Mensal")
+        if q3.button("Documentos", width="stretch"):
+            navigate("Documentos")
 
     with st.expander("Mais recursos fiscais"):
         st.caption("Use estas ferramentas quando precisar de uma conferência mais detalhada.")
