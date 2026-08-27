@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from business_tools import monthly_closing
+from compact_cards import inject_compact_cards, metric_card
 from fiscal_rules import das_status
 from ui_system import alert_card, section
 
@@ -25,6 +26,7 @@ def render_fiscal_workspace(
     navigate,
 ) -> None:
     """Integrated fiscal workspace for the core MEI routine."""
+    inject_compact_cards()
     today = date.today()
     overdue_das = [row for row in das_rows if das_status(row.get("status", "Pendente"), row.get("due_date"), today) == "Atrasado"]
     pending_das = [row for row in das_rows if das_status(row.get("status", "Pendente"), row.get("due_date"), today) == "Pendente"]
@@ -43,10 +45,23 @@ def render_fiscal_workspace(
     st.caption("DAS, notas, obrigações e declaração anual reunidos em uma única rotina.")
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("DAS em atraso", len(overdue_das))
-    c2.metric("DAS pendentes", len(pending_das))
-    c3.metric("Notas emitidas", len(invoices))
-    c4.metric("Limite usado", f"{(annual_revenue / annual_limit * 100) if annual_limit else 0:.1f}%")
+    with c1:
+        if metric_card("DAS em atraso", str(len(overdue_das)), key="fiscal_overdue_das", help_text="Abrir o controle do DAS"):
+            navigate("DAS")
+    with c2:
+        if metric_card("DAS pendentes", str(len(pending_das)), key="fiscal_pending_das", help_text="Abrir o controle do DAS"):
+            navigate("DAS")
+    with c3:
+        if metric_card("Notas emitidas", str(len(invoices)), key="fiscal_invoices", help_text="Abrir Notas Fiscais"):
+            navigate("Notas Fiscais")
+    with c4:
+        if metric_card(
+            "Limite usado",
+            f"{(annual_revenue / annual_limit * 100) if annual_limit else 0:.1f}%",
+            key="fiscal_limit",
+            help_text="Abrir a declaração e o acompanhamento do faturamento",
+        ):
+            navigate("DASN-SIMEI")
 
     if overdue_das:
         alert_card("danger", "DAS em atraso", f"Existem {len(overdue_das)} competência(s) vencida(s) para revisar.")
@@ -89,11 +104,14 @@ def render_fiscal_workspace(
                     "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
                 },
             )
+            if st.button("Abrir controle completo do DAS", key="fiscal_open_das", width="stretch"):
+                navigate("DAS")
 
     with right:
         section("Fechamento atual", "Resumo do mês para saber se a documentação está organizada.")
         closing = monthly_closing(transactions, invoices, documents, das_rows, today.year, today.month)
-        st.metric("Organização do mês", f"{closing['score']}%")
+        if metric_card("Organização do mês", f"{closing['score']}%", key="fiscal_closing", help_text="Abrir fechamento mensal"):
+            navigate("Fechamento Mensal")
         st.progress(closing["score"] / 100)
         pending = [item for item in closing["checklist"] if not item["OK"]]
         if pending:
@@ -106,9 +124,15 @@ def render_fiscal_workspace(
 
     section("Notas e documentos", "Acompanhe emissão e organização sem navegar por várias telas.")
     n1, n2, n3 = st.columns(3)
-    n1.metric("Notas cadastradas", len(invoices))
-    n2.metric("Documentos armazenados", len(documents))
-    n3.metric("Faturamento no ano", brl(annual_revenue))
+    with n1:
+        if metric_card("Notas cadastradas", str(len(invoices)), key="fiscal_notes_total", help_text="Abrir Notas Fiscais"):
+            navigate("Notas Fiscais")
+    with n2:
+        if metric_card("Documentos armazenados", str(len(documents)), key="fiscal_documents", help_text="Abrir Documentos"):
+            navigate("Documentos")
+    with n3:
+        if metric_card("Faturamento no ano", brl(annual_revenue), key="fiscal_revenue", help_text="Abrir relatório mensal"):
+            navigate("Relatório Mensal")
 
     q1, q2, q3 = st.columns(3)
     if q1.button("Importar NFS-e", width="stretch"):
