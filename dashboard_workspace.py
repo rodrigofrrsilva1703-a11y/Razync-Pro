@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from automation_tools import financial_projection, upcoming_deadlines
+from compact_cards import inject_compact_cards, metric_card
 from customer_experience import build_today_plan
 from fiscal_rules import das_status
 from growth_tools import build_notifications
@@ -72,6 +73,7 @@ def render_dashboard_workspace(
     brl,
     navigate,
 ) -> None:
+    inject_compact_cards()
     today = date.today()
     month_tx = transactions[
         (transactions["tx_date"].dt.year == current_year)
@@ -85,10 +87,18 @@ def render_dashboard_workspace(
     st.caption("Uma visão curta do que entrou, do que saiu e do que precisa de atenção.")
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Entradas no mês", brl(month_in))
-    k2.metric("Saídas no mês", brl(month_out))
-    k3.metric("Resultado do mês", brl(month_result))
-    k4.metric("Faturamento no ano", brl(annual_revenue))
+    with k1:
+        if metric_card("Entradas no mês", brl(month_in), key="dash_month_in", help_text="Abrir a área Financeiro"):
+            navigate("Financeiro")
+    with k2:
+        if metric_card("Saídas no mês", brl(month_out), key="dash_month_out", help_text="Abrir a área Financeiro"):
+            navigate("Financeiro")
+    with k3:
+        if metric_card("Resultado do mês", brl(month_result), key="dash_month_result", help_text="Abrir a análise financeira"):
+            navigate("Financeiro")
+    with k4:
+        if metric_card("Faturamento no ano", brl(annual_revenue), key="dash_year_revenue", help_text="Abrir a visão fiscal do faturamento"):
+            navigate("Fiscal")
 
     projection = financial_projection(transactions, annual_limit, current_year, today)
     if projection.get("limit_risk"):
@@ -205,6 +215,8 @@ def render_dashboard_workspace(
             recent["Descrição"] = recent["description"].fillna("Sem descrição")
             recent["Tipo"] = recent["tx_type"]
             st.dataframe(recent[["Data", "Tipo", "Descrição", "Valor"]], hide_index=True, width="stretch")
+            if st.button("Ver todas as movimentações", key="dash_recent_all", width="stretch"):
+                navigate("Movimentações")
 
     if setup["percent"] < 100:
         with st.expander(f"Configuração do MEI · {setup['percent']}% concluída"):

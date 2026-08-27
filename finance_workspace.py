@@ -8,6 +8,7 @@ import streamlit as st
 
 from automation_tools import financial_projection
 from business_tools import financial_analysis
+from compact_cards import inject_compact_cards, metric_card
 from product_core import reconciliation_summary
 from ui_system import alert_card, apply_plot_theme, section, tokens
 
@@ -23,6 +24,7 @@ def render_finance_workspace(
     navigate,
 ) -> None:
     """Integrated daily financial workspace for the MEI."""
+    inject_compact_cards()
     today = date.today()
     year_tx = transactions[transactions["tx_date"].dt.year == current_year] if not transactions.empty else transactions
     month_tx = year_tx[year_tx["tx_date"].dt.month == today.month] if not year_tx.empty else year_tx
@@ -35,10 +37,18 @@ def render_finance_workspace(
     st.caption("Registre, confira e entenda o dinheiro do MEI em uma única área.")
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Entradas no mês", brl(month_in))
-    c2.metric("Saídas no mês", brl(month_out))
-    c3.metric("Resultado no mês", brl(month_in - month_out))
-    c4.metric("Resultado no ano", brl(year_in - year_out))
+    with c1:
+        if metric_card("Entradas no mês", brl(month_in), key="fin_month_in", help_text="Ver os lançamentos financeiros"):
+            navigate("Movimentações")
+    with c2:
+        if metric_card("Saídas no mês", brl(month_out), key="fin_month_out", help_text="Ver os lançamentos financeiros"):
+            navigate("Movimentações")
+    with c3:
+        if metric_card("Resultado no mês", brl(month_in - month_out), key="fin_month_result", help_text="Abrir a análise financeira"):
+            navigate("Análise Financeira")
+    with c4:
+        if metric_card("Resultado no ano", brl(year_in - year_out), key="fin_year_result", help_text="Abrir a análise financeira completa"):
+            navigate("Análise Financeira")
 
     projection = financial_projection(transactions, annual_limit, current_year, today)
     if projection.get("limit_risk"):
@@ -68,26 +78,31 @@ def render_finance_workspace(
                     grouped[col] = 0.0
             grouped["Resultado"] = grouped["Receita"] - grouped["Despesa"]
             fig = px.line(grouped, x="Mês", y=["Receita", "Despesa", "Resultado"], markers=True)
-            apply_plot_theme(fig, theme, height=330)
+            apply_plot_theme(fig, theme, height=300)
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     with right:
         section("Conciliação", "Notas e lançamentos que ainda merecem revisão.")
         rec = reconciliation_summary(transactions, invoices)
-        st.metric("Notas pendentes", len(rec["pending_invoices"]))
-        st.metric("Possíveis duplicidades", rec["possible_duplicate_transactions"])
-        if len(rec["pending_invoices"]) or rec["possible_duplicate_transactions"]:
-            if st.button("Abrir conciliação financeira", width="stretch"):
-                navigate("Conciliação")
-        else:
+        if metric_card("Notas pendentes", str(len(rec["pending_invoices"])), key="fin_pending_invoices", help_text="Abrir conciliação"):
+            navigate("Conciliação")
+        if metric_card("Possíveis duplicidades", str(rec["possible_duplicate_transactions"]), key="fin_duplicates", help_text="Abrir conciliação"):
+            navigate("Conciliação")
+        if not len(rec["pending_invoices"]) and not rec["possible_duplicate_transactions"]:
             st.success("Nenhuma pendência evidente encontrada.")
 
     section("Leitura financeira", "Uma visão resumida para decidir sem abrir várias telas.")
     analysis = financial_analysis(transactions, current_year)
     x1, x2, x3 = st.columns(3)
-    x1.metric("Receitas no ano", brl(analysis["revenue"]))
-    x2.metric("Despesas no ano", brl(analysis["expense"]))
-    x3.metric("Margem", f"{analysis['margin']:.1f}%")
+    with x1:
+        if metric_card("Receitas no ano", brl(analysis["revenue"]), key="fin_year_revenue", help_text="Abrir análise financeira"):
+            navigate("Análise Financeira")
+    with x2:
+        if metric_card("Despesas no ano", brl(analysis["expense"]), key="fin_year_expense", help_text="Abrir análise financeira"):
+            navigate("Análise Financeira")
+    with x3:
+        if metric_card("Margem", f"{analysis['margin']:.1f}%", key="fin_margin", help_text="Abrir análise financeira"):
+            navigate("Análise Financeira")
 
     if not transactions.empty:
         recent = transactions.sort_values("tx_date", ascending=False).head(6).copy()
@@ -102,6 +117,8 @@ def render_finance_workspace(
                 "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
             },
         )
+        if st.button("Ver todas as movimentações", key="finance_all_transactions", width="stretch"):
+            navigate("Movimentações")
 
     with st.expander("Ferramentas financeiras avançadas"):
         b1, b2 = st.columns(2)
