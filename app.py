@@ -284,23 +284,23 @@ def ensure_login() -> dict:
             "O acesso temporário de migração está ativo."
         )
 
-    if st.button("Explorar demonstração sem criar conta", width="stretch"):
+    if st.button("Conhecer o Razync com dados de exemplo", width="stretch"):
         st.session_state["_demo_mode"] = True
         st.rerun()
     st.markdown(
-        '<p class="rz-demo-note">A demonstração usa somente dados fictícios e não grava informações.</p>',
+        '<p class="rz-demo-note">Sem cadastro · dados fictícios · nenhuma informação é salva</p>',
         unsafe_allow_html=True,
     )
 
     login_tab, signup_tab, recovery_tab = st.tabs(
-        ["Entrar", "Criar conta", "Recuperar senha"]
+        ["Entrar", "Criar minha conta", "Recuperar acesso"]
     )
 
     with login_tab:
-        st.markdown('<div class="rz-auth-heading"><strong>Bem-vindo de volta</strong><span>Entre para continuar cuidando do seu negócio.</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="rz-auth-heading"><strong>Acesse sua conta</strong><span>Use seu e-mail e senha para continuar de onde parou.</span></div>', unsafe_allow_html=True)
         if is_developer_github_configured():
             st.link_button(
-                "Entrar como desenvolvedor com GitHub",
+                "Acesso administrativo com GitHub",
                 github_authorization_url(),
                 width="stretch",
                 type="primary",
@@ -310,10 +310,14 @@ def ensure_login() -> dict:
             )
             st.divider()
         with st.form("login_form"):
-            email = st.text_input("E-mail", key="login_email").strip()
-            password = st.text_input("Senha", type="password", key="login_password")
+            email = st.text_input(
+                "E-mail", placeholder="voce@exemplo.com", key="login_email"
+            ).strip()
+            password = st.text_input(
+                "Senha", type="password", placeholder="Digite sua senha", key="login_password"
+            )
             keep_connected = st.checkbox(
-                "Manter conectado neste dispositivo",
+                "Continuar conectado neste dispositivo",
                 value=True,
                 disabled=session_controller is None,
                 help="Sua sessão é renovada pelo Supabase e removida ao sair.",
@@ -369,10 +373,10 @@ def ensure_login() -> dict:
                         st.error("E-mail ou senha inválidos, ou e-mail ainda não confirmado.")
 
     with signup_tab:
-        st.markdown('<div class="rz-auth-heading"><strong>Crie sua conta</strong><span>Comece a organizar seu MEI em poucos minutos.</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="rz-auth-heading"><strong>Crie sua conta</strong><span>É rápido: informe seus dados para começar a organizar seu MEI.</span></div>', unsafe_allow_html=True)
         with st.form("signup_form"):
-            name = st.text_input("Nome", key="signup_name").strip()
-            email = st.text_input("E-mail", key="signup_email").strip()
+            name = st.text_input("Nome", placeholder="Como podemos chamar você?", key="signup_name").strip()
+            email = st.text_input("E-mail", placeholder="voce@exemplo.com", key="signup_email").strip()
             password = st.text_input(
                 "Senha", type="password", key="signup_password",
                 help="Use pelo menos 8 caracteres.",
@@ -423,7 +427,7 @@ def ensure_login() -> dict:
                         st.error(message)
 
     with recovery_tab:
-        st.markdown('<div class="rz-auth-heading"><strong>Recupere o acesso</strong><span>Informe seu e-mail para receber as instruções.</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="rz-auth-heading"><strong>Recupere o acesso</strong><span>Informe o e-mail da sua conta. Enviaremos o próximo passo.</span></div>', unsafe_allow_html=True)
         if auth_enabled:
             with st.form("password_recovery_form"):
                 email = st.text_input("E-mail", key="recovery_email").strip()
