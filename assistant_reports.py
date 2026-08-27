@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from numbers import Real
 
 import pandas as pd
 from reportlab.lib import colors
@@ -15,8 +16,8 @@ def _safe_text(value) -> str:
 
 
 def _format_value(value) -> str:
-    if isinstance(value, float):
-        return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    if isinstance(value, Real) and not isinstance(value, bool):
+        return f"{float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return _safe_text(value)
 
 

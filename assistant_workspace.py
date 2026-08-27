@@ -99,6 +99,9 @@ def _dynamic_suggestions(
 
     suggestions = [
         ("Minhas prioridades", "Verifique tudo e mostre minhas prioridades"),
+        ("Relatório do mês", "Gere um relatório das minhas receitas e despesas deste mês"),
+        ("Faturamento", "Gere um relatório do meu faturamento mensal deste ano"),
+        ("Clientes", "Gere um relatório dos meus clientes deste ano"),
         ("Analisar negócio", "Analise meu negócio e indique riscos e próximas ações"),
         ("Resumo do mês", "Resuma minhas receitas, despesas e resultado deste mês"),
         ("Limite do MEI", f"Quanto do limite anual de {annual_limit:.2f} já usei em {current_year}?"),
