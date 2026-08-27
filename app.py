@@ -615,8 +615,8 @@ st.markdown(
         margin-bottom: .18rem;
     }
     .rz-side-brand img {
-        width: 44px;
-        height: 44px;
+        width: 38px;
+        height: 38px;
         border-radius: 11px;
         object-fit: cover;
         box-shadow: 0 5px 14px rgba(3, 174, 238, .17);
@@ -649,10 +649,10 @@ st.markdown(
         margin: .06rem 0;
     }
     .st-key-sidebar_navigation [data-testid="stButton"] button {
-        min-height: 2.72rem;
+        min-height: 2.35rem;
         justify-content: flex-start;
         gap: .68rem;
-        padding: .5rem .7rem;
+        padding: .38rem .62rem;
         border: 0 !important;
         border-radius: 11px;
         color: var(--rz-muted);
@@ -671,7 +671,7 @@ st.markdown(
         cursor: default;
     }
     .st-key-sidebar_navigation [data-testid="stButton"] button p {
-        font-size: .91rem;
+        font-size: .84rem;
         font-weight: 530;
         letter-spacing: -.004em;
     }
@@ -685,8 +685,8 @@ st.markdown(
         background: transparent;
     }
     .st-key-sidebar_navigation [data-testid="stExpander"] summary {
-        min-height: 2.75rem;
-        padding: .42rem .55rem;
+        min-height: 2.4rem;
+        padding: .34rem .5rem;
         border-radius: 11px;
         color: var(--rz-text);
         font-size: .92rem;

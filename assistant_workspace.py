@@ -1351,7 +1351,7 @@ def render_ai_assistant(
         current_year=current_year,
     )
     pending_prompt = None
-    with st.expander(f"Central de pendências · {len(pending_items)} item(ns)", expanded=bool(pending_items)):
+    with st.expander(f"Central de pendências · {len(pending_items)} item(ns)", expanded=False):
         if not pending_items:
             st.success("Nenhuma pendência automática importante encontrada agora.")
         for idx, (title, detail, prompt) in enumerate(pending_items):
@@ -1375,7 +1375,7 @@ def render_ai_assistant(
     with st.expander("Sugestões para agora", expanded=not bool(st.session_state.get("razync_ai_messages"))):
         with st.container(key="full_ai_quick_actions"):
             cols = st.columns(3)
-            for idx, (label, prompt) in enumerate(suggestions):
+            for idx, (label, prompt) in enumerate(suggestions[:3]):
                 if cols[idx % 3].button(label, key=f"ai_suggestion_{idx}", width="stretch"):
                     suggested = prompt
 

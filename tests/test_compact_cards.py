@@ -10,6 +10,8 @@ class CompactCardsTests(unittest.TestCase):
         cls.finance = Path("finance_workspace.py").read_text(encoding="utf-8")
         cls.fiscal = Path("fiscal_workspace.py").read_text(encoding="utf-8")
         cls.app = Path("app.py").read_text(encoding="utf-8")
+        cls.account = Path("account_workspace.py").read_text(encoding="utf-8")
+        cls.productivity = Path("productivity_workspace.py").read_text(encoding="utf-8")
 
     def test_metric_cards_are_compact(self):
         self.assertIn('min-height: 58px !important', self.compact)
@@ -36,6 +38,12 @@ class CompactCardsTests(unittest.TestCase):
         for source in (self.dashboard, self.finance, self.fiscal):
             self.assertNotIn('delete_', source)
             self.assertNotIn('confirm_action(', source)
+
+    def test_secondary_hubs_use_calm_navigation_cards(self):
+        self.assertIn("def navigation_card", self.compact)
+        self.assertIn("navigation_card(", self.account)
+        self.assertIn("navigation_card(", self.productivity)
+        self.assertNotIn("st.container(border=True)", self.productivity)
 
 
 if __name__ == "__main__":
