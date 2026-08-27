@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from compact_cards import navigation_card
+
 
 def render_productivity_workspace(*, navigate) -> None:
     st.caption("AUTOMAÇÃO E PRODUTIVIDADE")
@@ -14,7 +16,5 @@ def render_productivity_workspace(*, navigate) -> None:
     columns = st.columns(3)
     for column, (title, detail, page) in zip(columns, cards):
         with column:
-            with st.container(border=True):
-                st.markdown(f"**{title}**")
-                if st.button("Abrir  →", key=f"productivity_{page}", width="stretch", help=detail):
-                    navigate(page)
+            if navigation_card(title, key=f"productivity_{page}", help_text=detail):
+                navigate(page)

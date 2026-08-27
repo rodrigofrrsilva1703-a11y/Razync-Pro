@@ -58,6 +58,26 @@ def inject_compact_cards() -> None:
             line-height: 1.22 !important;
             font-size: .76rem !important;
         }
+        [class*="st-key-rz_nav_card_"] button {
+            min-height: 52px !important;
+            justify-content: flex-start !important;
+            padding: 9px 12px !important;
+            text-align: left !important;
+            border-radius: 10px !important;
+            border: 1px solid var(--rz-border) !important;
+            background: var(--rz-surface) !important;
+            box-shadow: none !important;
+        }
+        [class*="st-key-rz_nav_card_"] button:hover {
+            color: var(--rz-primary) !important;
+            border-color: var(--rz-primary) !important;
+            background: var(--rz-primary-soft) !important;
+        }
+        [class*="st-key-rz_nav_card_"] button p {
+            width: 100% !important;
+            text-align: left !important;
+            font-size: .8rem !important;
+        }
         .rz-alert {
             padding: 9px 12px !important;
             margin-bottom: 6px !important;
@@ -136,6 +156,16 @@ def metric_card(label: str, value: str, *, key: str, help_text: str | None = Non
     return st.button(
         f"{label}  ·  {value}  →",
         key=f"rz_metric_card_{key}",
+        width="stretch",
+        help=help_text,
+    )
+
+
+def navigation_card(label: str, *, key: str, help_text: str | None = None) -> bool:
+    """Render a calm full-surface link for a product tool."""
+    return st.button(
+        f"{label}  →",
+        key=f"rz_nav_card_{key}",
         width="stretch",
         help=help_text,
     )

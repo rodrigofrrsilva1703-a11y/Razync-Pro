@@ -6,6 +6,7 @@ from account_deletion import AccountDeletionError, delete_account
 from commercial_readiness import PLAN_CATALOG, data_rights_summary
 from monitoring import safe_error
 from session_persistence import clear_persisted_session, persistent_session_controller
+from compact_cards import navigation_card
 
 
 def _finish_deleted_session() -> None:
@@ -21,37 +22,25 @@ def render_account_workspace(*, navigate, developer_access: bool) -> None:
     st.caption("CONTA, PRIVACIDADE E SISTEMA")
     st.caption("Dados do MEI, segurança, plano e privacidade em um só lugar.")
 
-    a, b, c = st.columns(3)
-    with a:
-        with st.container(border=True):
-            st.markdown("**Dados e segurança**")
-            st.caption("Cadastro e proteção da conta.")
-            if st.button("Dados do MEI", key="account_mei", width="stretch"):
-                navigate("Meu MEI")
-            if st.button("Segurança", key="account_security", width="stretch"):
-                navigate("Segurança da Conta")
-    with b:
-        with st.container(border=True):
-            st.markdown("**Dados e privacidade**")
-            st.caption("Histórico, backup e direitos.")
-            if st.button("Histórico", key="account_history", width="stretch"):
-                navigate("Histórico de Atividades")
-            if st.button("Backup / exportação", key="account_backup", width="stretch"):
-                navigate("Backup")
-    with c:
-        with st.container(border=True):
-            st.markdown("**Operação**")
-            st.caption("Integrações e assinatura.")
-            if st.button("Integrações", key="account_integrations", width="stretch"):
-                navigate("Integrações")
-            if st.button("Status do sistema", key="account_status", width="stretch"):
-                navigate("Status do Sistema")
+    tools = (
+        ("Dados do MEI", "Meu MEI", "Cadastro e informações do negócio"),
+        ("Segurança", "Segurança da Conta", "Senha e proteção da conta"),
+        ("Histórico", "Histórico de Atividades", "Ações registradas no sistema"),
+        ("Backup e exportação", "Backup", "Baixar uma cópia dos seus dados"),
+        ("Integrações", "Integrações", "Recursos e serviços conectados"),
+        ("Status do sistema", "Status do Sistema", "Saúde dos serviços do Razync"),
+    )
+    columns = st.columns(3)
+    for index, (label, page, help_text) in enumerate(tools):
+        with columns[index % 3]:
+            if navigation_card(label, key=f"account_{index}", help_text=help_text):
+                navigate(page)
 
     st.markdown("#### Plano")
     current = "Pro" if developer_access else "Essencial"
     plan = PLAN_CATALOG[current]
     st.info(f"Plano atual: {current} — {plan['description']}")
-    if st.button("Ver plano e assinatura", key="account_plan", width="stretch"):
+    if navigation_card("Ver plano e assinatura", key="account_plan", help_text="Detalhes do plano atual"):
         navigate("Plano e Assinatura")
 
     with st.expander("Seus direitos sobre os dados"):
