@@ -252,6 +252,95 @@ def _top_counterparties(frame: pd.DataFrame, tx_type: str, label: str) -> Busine
     return BusinessQueryResult(True, "counterparty", summary, table=grouped.head(20))
 
 
+def _counterparty_report(frame: pd.DataFrame, tx_type: str, label: str, period: Period) -> BusinessQueryResult:
+    rows = frame[frame["tx_type"] == tx_type].copy() if not frame.empty else frame
+    if rows.empty or "counterparty" not in rows.columns:
+        return BusinessQueryResult(True, "counterparty_report", f"Não há {label.lower()} identificados no período {period.label}.", period)
+    rows["counterparty"] = rows["counterparty"].fillna("").astype(str).str.strip()
+    rows = rows[rows["counterparty"].ne("")]
+    if rows.empty:
+        return BusinessQueryResult(True, "counterparty_report", f"Há movimentações no período {period.label}, mas os {label.lower()} não foram informados nos lançamentos.", period)
+    grouped = rows.groupby("counterparty")["value"].agg(["sum", "count"]).sort_values("sum", ascending=False).reset_index()
+    singular = {"Clientes": "Cliente", "Fornecedores": "Fornecedor"}.get(label, label[:-1] if label.endswith("s") else label)
+    grouped.columns = [singular, "Valor", "Movimentações"]
+    total = float(grouped["Valor"].sum())
+    return BusinessQueryResult(
+        True,
+        "counterparty_report",
+        f"No período {period.label}, encontrei {len(grouped)} {label.lower()}, totalizando {_money(total)} em {int(grouped['Movimentações'].sum())} movimentação(ões).",
+        period,
+        grouped.head(200),
+    )
+
+
+def _transaction_report(frame: pd.DataFrame, tx_type: str, label: str, period: Period) -> BusinessQueryResult:
+    rows = frame[frame["tx_type"] == tx_type].copy() if not frame.empty else frame
+    total = float(rows["value"].sum()) if not rows.empty else 0.0
+    if rows.empty:
+        return BusinessQueryResult(True, "transaction_report", f"Não há {label.lower()} no período {period.label}.", period)
+    columns = [column for column in ("tx_date", "description", "category", "counterparty", "document_number", "payment_method", "value") if column in rows.columns]
+    visible = rows[columns].sort_values("tx_date", ascending=False).copy()
+    if "tx_date" in visible:
+        visible["tx_date"] = pd.to_datetime(visible["tx_date"], errors="coerce").dt.date
+    visible = visible.rename(columns={
+        "tx_date": "Data", "description": "Descrição", "category": "Categoria",
+        "counterparty": "Cliente/Fornecedor", "document_number": "Documento",
+        "payment_method": "Pagamento", "value": "Valor",
+    })
+    return BusinessQueryResult(
+        True,
+        "transaction_report",
+        f"No período {period.label}, encontrei {len(rows)} registro(s) de {label.lower()}, totalizando {_money(total)}.",
+        period,
+        visible.head(500),
+    )
+
+
+def _financial_report(frame: pd.DataFrame, period: Period) -> BusinessQueryResult:
+    if frame.empty:
+        return BusinessQueryResult(True, "financial_report", f"Não há movimentações no período {period.label}.", period)
+    revenue, expense, result = _period_totals(frame)
+    columns = [column for column in ("tx_date", "tx_type", "description", "category", "counterparty", "document_number", "payment_method", "value") if column in frame.columns]
+    visible = frame[columns].sort_values("tx_date", ascending=False).copy()
+    if "tx_date" in visible:
+        visible["tx_date"] = pd.to_datetime(visible["tx_date"], errors="coerce").dt.date
+    visible = visible.rename(columns={
+        "tx_date": "Data", "tx_type": "Tipo", "description": "Descrição", "category": "Categoria",
+        "counterparty": "Cliente/Fornecedor", "document_number": "Documento",
+        "payment_method": "Pagamento", "value": "Valor",
+    })
+    summary = f"No período {period.label}, as receitas somam {_money(revenue)}, as despesas {_money(expense)} e o resultado é {_money(result)}, em {len(frame)} movimentação(ões)."
+    return BusinessQueryResult(True, "financial_report", summary, period, visible.head(500))
+
+
+def _revenue_timeline_report(frame: pd.DataFrame, frequency: str, period: Period) -> BusinessQueryResult:
+    rows = frame[frame["tx_type"] == "Receita"].copy() if not frame.empty else frame
+    labels = {"daily": "diário", "monthly": "mensal", "annual": "anual"}
+    if rows.empty:
+        return BusinessQueryResult(True, "revenue_timeline", f"Não há faturamento registrado para o relatório {labels[frequency]} no período {period.label}.", period)
+    dates = pd.to_datetime(rows["tx_date"], errors="coerce")
+    if frequency == "daily":
+        rows["Período"] = dates.dt.strftime("%d/%m/%Y")
+        sort_key = dates.dt.strftime("%Y-%m-%d")
+    elif frequency == "annual":
+        rows["Período"] = dates.dt.strftime("%Y")
+        sort_key = rows["Período"]
+    else:
+        rows["Período"] = dates.dt.strftime("%m/%Y")
+        sort_key = dates.dt.strftime("%Y-%m")
+    rows["_ordem"] = sort_key
+    grouped = rows.groupby(["_ordem", "Período"])["value"].agg(["sum", "count"]).reset_index().sort_values("_ordem")
+    grouped = grouped.drop(columns=["_ordem"]).rename(columns={"sum": "Faturamento", "count": "Receitas"})
+    total = float(grouped["Faturamento"].sum())
+    return BusinessQueryResult(
+        True,
+        "revenue_timeline",
+        f"O faturamento {labels[frequency]} no período {period.label} soma {_money(total)} em {int(grouped['Receitas'].sum())} receita(s).",
+        period,
+        grouped,
+    )
+
+
 def _category_analysis(frame: pd.DataFrame, tx_type: str) -> BusinessQueryResult:
     rows = frame[frame["tx_type"] == tx_type].copy() if not frame.empty else frame
     noun = "despesas" if tx_type == "Despesa" else "receitas"
@@ -311,6 +400,29 @@ def analyze_business_question(
 
     period = parse_period(question, today=today, default_year=default_year)
     frame = _filter_period(transactions, period)
+
+    report_requested = any(term in text for term in ("relatorio", "pdf", "csv", "planilha", "arquivo", "baixar", "mande", "envie", "gerar"))
+    if report_requested and any(term in text for term in ("clientes", "cliente")):
+        return _counterparty_report(frame, "Receita", "Clientes", period)
+    if report_requested and any(term in text for term in ("fornecedores", "fornecedor")):
+        return _counterparty_report(frame, "Despesa", "Fornecedores", period)
+    asks_expenses = any(term in text for term in ("despesas", "despesa", "gastos", "gasto"))
+    asks_revenues = any(term in text for term in ("receitas", "receita"))
+    if report_requested and asks_expenses and asks_revenues:
+        return _financial_report(frame, period)
+    if report_requested and asks_expenses:
+        return _transaction_report(frame, "Despesa", "Despesas", period)
+    if report_requested and asks_revenues and "faturamento" not in text:
+        return _transaction_report(frame, "Receita", "Receitas", period)
+    if report_requested and "faturamento" in text:
+        frequency = "daily" if any(term in text for term in ("diario", "por dia", "dia a dia")) else "annual" if any(term in text for term in ("anual", "por ano", "ano a ano")) else "monthly"
+        timeline_frame = transactions if frequency == "annual" and not re.search(r"\b20\d{2}\b", text) else frame
+        timeline_period = period
+        if frequency == "annual" and not timeline_frame.empty and not re.search(r"\b20\d{2}\b", text):
+            valid_dates = pd.to_datetime(timeline_frame["tx_date"], errors="coerce").dropna()
+            if not valid_dates.empty:
+                timeline_period = Period(valid_dates.min().date(), valid_dates.max().date(), "todo o histórico")
+        return _revenue_timeline_report(timeline_frame, frequency, timeline_period)
 
     if any(term in text for term in ("por que meu caixa caiu", "porque meu caixa caiu", "por que o caixa caiu", "caixa caiu", "resultado caiu", "resultado piorou")):
         return _why_cash_changed(transactions, today=today, default_year=default_year)

@@ -48,6 +48,9 @@ PRODUCT_AREAS = {
 REPORT_TYPES = (
     "Análise financeira em PDF",
     "Relatório mensal de receitas em PDF",
+    "Despesas ou receitas detalhadas em PDF/CSV",
+    "Clientes ou fornecedores consolidados em PDF/CSV",
+    "Faturamento diário, mensal ou anual em PDF/CSV",
     "Fechamento do mês em PDF",
     "Resumo DASN-SIMEI em PDF",
     "Relatório personalizado da consulta em PDF/CSV",
@@ -305,17 +308,24 @@ def _query_assets(question: str, transactions: pd.DataFrame, year: int) -> tuple
     csv_data = result.csv_bytes()
     text = _normalize(question)
     wants_file = any(term in text for term in ("relatório", "relatorio", "baixar", "download", "csv", "excel", "pdf", "arquivo"))
+    report_names = {
+        "financial_report": ("Relatório financeiro", "relatorio_financeiro_razync"),
+        "transaction_report": ("Relatório de movimentações", "relatorio_movimentacoes_razync"),
+        "counterparty_report": ("Relatório de clientes e fornecedores", "relatorio_clientes_fornecedores_razync"),
+        "revenue_timeline": ("Relatório de faturamento", "relatorio_faturamento_razync"),
+    }
+    report_title, report_file = report_names.get(result.kind, ("Relatório personalizado do Assistente Razync", "relatorio_personalizado_razync"))
     if csv_data and wants_file:
         assets.append({
-            "label": "Baixar dados da consulta em CSV",
+            "label": "Baixar dados do relatório em CSV",
             "data": csv_data,
-            "file_name": "consulta_razync.csv",
+            "file_name": f"{report_file}.csv",
             "mime": "text/csv",
         })
     if wants_file:
         try:
             pdf = custom_query_pdf(
-                title="Relatório personalizado do Copiloto Razync",
+                title=report_title,
                 summary=result.summary,
                 period_label=result.period.label if result.period else None,
                 table=result.table,
@@ -324,9 +334,9 @@ def _query_assets(question: str, transactions: pd.DataFrame, year: int) -> tuple
             pdf = b""
         if pdf:
             assets.append({
-                "label": "Baixar relatório personalizado em PDF",
+                "label": "Baixar relatório em PDF",
                 "data": pdf,
-                "file_name": "relatorio_personalizado_razync.pdf",
+                "file_name": f"{report_file}.pdf",
                 "mime": "application/pdf",
             })
     return assets, result.summary
