@@ -11,6 +11,7 @@ from business_tools import financial_analysis
 from compact_cards import metric_card
 from product_core import reconciliation_summary
 from ui_system import alert_card, apply_plot_theme, section, tokens
+from table_ui import professional_table
 
 
 def render_finance_workspace(
@@ -105,10 +106,9 @@ def render_finance_workspace(
 
         if not transactions.empty:
             recent = transactions.sort_values("tx_date", ascending=False).head(6).copy()
-            st.dataframe(
+            professional_table(
                 recent[["tx_date", "tx_type", "description", "value"]],
-                width="stretch",
-                hide_index=True,
+                max_visible_rows=6,
                 column_config={
                     "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                     "tx_type": "Tipo",

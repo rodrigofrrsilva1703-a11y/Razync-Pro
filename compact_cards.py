@@ -111,7 +111,22 @@ def inject_compact_cards() -> None:
         }
         [data-testid="stMain"] [data-testid="stDataFrame"] {
             border-radius: 10px !important;
+            border: 1px solid var(--rz-border) !important;
+            background: var(--rz-surface) !important;
             box-shadow: none !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stMain"] [data-testid="stDataFrame"] button {
+            min-height: 1.9rem !important;
+            border-radius: 7px !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stMain"] [data-testid="stDataFrame"] [data-testid="stElementToolbar"] {
+            opacity: .35;
+            transition: opacity .15s ease;
+        }
+        [data-testid="stMain"] [data-testid="stDataFrame"]:hover [data-testid="stElementToolbar"] {
+            opacity: 1;
         }
         [data-testid="stMain"] [data-testid="stTabs"] [role="tablist"] {
             gap: .2rem !important;

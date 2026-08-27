@@ -69,6 +69,7 @@ from finance_workspace import render_finance_workspace
 from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
 from compact_cards import inject_compact_cards
+from table_ui import professional_table
 from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
 from productivity_workspace import render_productivity_workspace
@@ -842,7 +843,7 @@ elif page == "Movimentações":
         page_size = 50
         st.caption(f"{total_tx} lançamento(s) encontrado(s) no histórico completo.")
         view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
-        st.dataframe(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], width="stretch", hide_index=True, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+        professional_table(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], max_visible_rows=10, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
         if total_tx > page_size:
             pprev, pinfo, pnext = st.columns([1,2,1])
             if pprev.button("← Anterior", disabled=current_tx_page <= 1, width="stretch"):
@@ -1062,7 +1063,7 @@ elif page == "Conciliação":
         empty_state("Nenhuma correspondência forte encontrada", "Você pode importar um extrato ou registrar receitas para o Razync encontrar possíveis vínculos com as notas.", "≈")
     else:
         show_matches = matches.rename(columns={"invoice_number":"Nota","customer":"Cliente","invoice_value":"Valor da nota","tx_date":"Data do lançamento","tx_description":"Lançamento","tx_value":"Valor lançado","score":"Pontuação","confidence":"Confiança","reasons":"Motivos"})
-        st.dataframe(show_matches[["Nota","Cliente","Valor da nota","Data do lançamento","Lançamento","Valor lançado","Confiança","Pontuação","Motivos"]], width="stretch", hide_index=True, column_config={"Valor da nota":st.column_config.NumberColumn("Valor da nota", format="R$ %.2f"), "Valor lançado":st.column_config.NumberColumn("Valor lançado", format="R$ %.2f"), "Data do lançamento":st.column_config.DateColumn("Data do lançamento", format="DD/MM/YYYY"), "Pontuação":st.column_config.ProgressColumn("Pontuação", min_value=0, max_value=100)})
+        professional_table(show_matches[["Nota","Cliente","Valor da nota","Data do lançamento","Lançamento","Valor lançado","Confiança","Pontuação","Motivos"]], max_visible_rows=8, column_config={"Valor da nota":st.column_config.NumberColumn("Valor da nota", format="R$ %.2f"), "Valor lançado":st.column_config.NumberColumn("Valor lançado", format="R$ %.2f"), "Data do lançamento":st.column_config.DateColumn("Data do lançamento", format="DD/MM/YYYY"), "Pontuação":st.column_config.ProgressColumn("Pontuação", min_value=0, max_value=100)})
         option_labels = {int(r.tx_id): f"Nota {r.invoice_number or r.invoice_id} → {r.tx_description} • R$ {r.tx_value:,.2f} • confiança {r.confidence}" for r in matches.itertuples()}
         selected_tx = st.selectbox("Sugestão para revisar", list(option_labels.keys()), format_func=lambda x: option_labels[x], key="smart_match")
         selected = matches[matches["tx_id"] == selected_tx].iloc[0]
@@ -1077,7 +1078,7 @@ elif page == "Conciliação":
     if pending_inv.empty:
         st.success("Todas as notas numeradas estão conciliadas com receitas cadastradas.")
     else:
-        st.dataframe(pending_inv, width="stretch", hide_index=True, column_config={"Valor":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        professional_table(pending_inv, max_visible_rows=8, column_config={"Valor":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
         with st.expander("Criar receita a partir de uma nota sem correspondência"):
             selected_invoice = st.selectbox("Nota", pending_inv["ID"].tolist(), key="rec_invoice")
             source = invoices[invoices["id"] == selected_invoice].iloc[0]
@@ -1092,7 +1093,7 @@ elif page == "Conciliação":
     if duplicates.empty:
         st.success("Nenhuma duplicidade evidente foi encontrada nas movimentações.")
     else:
-        st.dataframe(duplicates, width="stretch", hide_index=True, column_config={"tx_date":st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "value":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+        professional_table(duplicates, max_visible_rows=8, column_config={"tx_date":st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "value":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
         with st.expander("Remover duplicidade"):
             duplicate_id = st.selectbox("Lançamento a excluir", duplicates["id"].tolist(), key="duplicate_delete")
             st.caption("Confira os registros antes de excluir. A exclusão é definitiva.")
@@ -1115,7 +1116,7 @@ elif page == "Fluxo de Caixa":
     fig = px.bar(cf,x="Mês",y=["Entradas","Saídas"],barmode="group",template=PLOT_TEMPLATE)
     apply_plot_theme(fig, UI_THEME)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-    st.dataframe(cf,width="stretch",hide_index=True,column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
+    professional_table(cf, max_visible_rows=12, column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
 
 elif page == "Análise Financeira":
     header("Análise Financeira","Veja evolução, rentabilidade e pontos que merecem revisão antes de tomar decisões.")
@@ -1132,7 +1133,7 @@ elif page == "Análise Financeira":
         fig = px.line(monthly,x="Mês",y=["Receitas","Despesas","Resultado"],markers=True,template=PLOT_TEMPLATE)
         apply_plot_theme(fig, UI_THEME)
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-        st.dataframe(monthly,width="stretch",hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
+        professional_table(monthly, max_visible_rows=12, column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
     st.subheader("Despesas por categoria")
     bycat = analysis["expense_categories"]
     if bycat.empty: st.info("Sem despesas registradas neste ano.")
@@ -1191,7 +1192,7 @@ elif page == "Relatório Mensal":
     year=st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3,key="rmyear")
     rows=monthly_rows(transactions,year)
     dfm=pd.DataFrame([{ "Mês":r["month_name"],"Com documento":r["with_doc"],"Sem documento":r["without_doc"],"Serviços":r["services"],"Vendas/Comércio":r["sales"],"Total":r["total"]} for r in rows])
-    st.dataframe(dfm,width="stretch",hide_index=True,column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]})
+    professional_table(dfm, max_visible_rows=12, column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]})
     st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
     month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:MONTH_NAMES_PT[m - 1],key="pdfmonth")
     r=rows[month-1]
@@ -1232,7 +1233,7 @@ elif page == "Notas Fiscais":
     if invoices.empty:
         empty_state("Nenhuma nota fiscal cadastrada", "Cadastre as notas emitidas para comparar faturamento, acompanhar clientes e facilitar a conciliação com os recebimentos.", "▤")
     else:
-        st.dataframe(invoices,width="stretch",hide_index=True,column_config={"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"issue_date":st.column_config.DateColumn("Emissão",format="DD/MM/YYYY")})
+        professional_table(invoices, max_visible_rows=10, column_config={"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"issue_date":st.column_config.DateColumn("Emissão",format="DD/MM/YYYY")})
         with st.expander("Excluir uma nota"):
             iid=st.selectbox("Selecione",invoices["id"].tolist(),key="delinv"); st.caption("Confira antes de excluir: esta ação é definitiva.")
             if st.button("Excluir nota selecionada",width="stretch"): delete_invoice(uid,int(iid)); st.rerun()
@@ -1399,7 +1400,7 @@ elif page == "DAS":
         das_view=[]
         for d in current:
             das_view.append({"Competência":d["competence"],"Vencimento":d["due_date"],"Valor":d["amount"],"Status":das_status(d["status"],d["due_date"]),"Pagamento":d["payment_date"]})
-        st.dataframe(pd.DataFrame(das_view),width="stretch",hide_index=True,column_config={"Valor":st.column_config.NumberColumn(format="R$ %.2f"),"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY"),"Pagamento":st.column_config.DateColumn(format="DD/MM/YYYY")})
+        professional_table(pd.DataFrame(das_view), max_visible_rows=12, column_config={"Valor":st.column_config.NumberColumn(format="R$ %.2f"),"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY"),"Pagamento":st.column_config.DateColumn(format="DD/MM/YYYY")})
 
 elif page == "DASN-SIMEI":
     header("DASN-SIMEI","Prepare os dados anuais para conferir antes da declaração oficial.")
@@ -1424,7 +1425,7 @@ elif page == "Obrigações":
         combined.append({"Origem":"Manual","Obrigação":row["title"],"Tipo":row["category"],"Competência":"-","Vencimento":row["due_date"],"Status":row["status"],"Detalhes":row["notes"]})
     if combined:
         obd=pd.DataFrame(combined).sort_values("Vencimento")
-        st.dataframe(obd,width="stretch",hide_index=True,column_config={"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY")})
+        professional_table(obd, max_visible_rows=10, column_config={"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY")})
     else:
         empty_state("Nenhuma obrigação para exibir", "Quando houver tarefas automáticas ou personalizadas, elas aparecerão aqui organizadas por vencimento.", "✓")
     with st.expander("Adicionar obrigação personalizada"):
@@ -1463,7 +1464,7 @@ elif page == "Clientes e Fornecedores":
     if not contacts:
         empty_state("Nenhum cliente ou fornecedor", "Adicione seu primeiro contato para organizar quem compra de você e de quem sua empresa compra.", "◇")
     else:
-        cdf=pd.DataFrame(contacts); st.dataframe(cdf,width="stretch",hide_index=True)
+        cdf=pd.DataFrame(contacts); professional_table(cdf, max_visible_rows=10)
         with st.expander("Excluir contato"):
             cid=st.selectbox("Selecione",[c["id"] for c in contacts],format_func=lambda x:next(c["name"] for c in contacts if c["id"]==x),key="delcontact"); st.caption("A exclusão é definitiva.")
             if st.button("Excluir contato selecionado",width="stretch"): delete_contact(uid,int(cid)); st.rerun()
@@ -1490,7 +1491,7 @@ elif page == "Empregado":
     if not employees:
         empty_state("Nenhum empregado cadastrado", "Se o seu MEI possuir empregado, registre os dados básicos aqui para manter essa informação junto da gestão do negócio.", "♙")
     else:
-        st.dataframe(pd.DataFrame(employees),width="stretch",hide_index=True)
+        professional_table(pd.DataFrame(employees), max_visible_rows=10)
         with st.expander("Excluir empregado"):
             eid=st.selectbox("Selecione",[e["id"] for e in employees],format_func=lambda x:next(e["name"] for e in employees if e["id"]==x),key="delemp"); st.caption("A exclusão é definitiva.")
             if st.button("Excluir empregado selecionado",width="stretch"): delete_employee(uid,int(eid)); st.rerun()
@@ -1560,7 +1561,7 @@ elif page == "Documentos":
     else:
         ddf=pd.DataFrame(docs)
         visible_columns=[column for column in ["filename","category","reference_month","created_at"] if column in ddf.columns]
-        st.dataframe(ddf[visible_columns],width="stretch",hide_index=True)
+        professional_table(ddf[visible_columns], max_visible_rows=10)
         did=st.selectbox("Abrir documento",[d["id"] for d in docs],format_func=lambda x:next(d["filename"] for d in docs if d["id"]==x))
         selected_meta = next(d for d in docs if int(d["id"]) == int(did))
         prepared_key = f"_prepared_document_{uid}_{int(did)}"
@@ -1974,7 +1975,7 @@ elif page == "Histórico de Atividades":
         } for row in audit_rows])
         filter_module=st.selectbox("Filtrar módulo",["Todos"]+sorted(audit_view["Módulo"].dropna().unique().tolist()))
         if filter_module!="Todos": audit_view=audit_view[audit_view["Módulo"]==filter_module]
-        st.dataframe(audit_view,width="stretch",hide_index=True,column_config={"Data":st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm")})
+        professional_table(audit_view, max_visible_rows=10, column_config={"Data":st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm")})
         st.caption("Por segurança, senhas e conteúdo binário de documentos nunca são incluídos no histórico.")
 
 elif page == "Status do Sistema":
