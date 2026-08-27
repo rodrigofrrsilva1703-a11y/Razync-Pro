@@ -105,7 +105,7 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertIn("supabase_sign_in", app_source)
         self.assertIn("github_sign_in", app_source)
         self.assertIn("resolve_trusted_developer_user", app_source)
-        self.assertIn("Entrar como desenvolvedor com GitHub", app_source)
+        self.assertIn("Acesso administrativo com GitHub", app_source)
         callback = app_source.index("identity = github_sign_in")
         session_saved = app_source.index(
             'st.session_state["user"] = user', callback

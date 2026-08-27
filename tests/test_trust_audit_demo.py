@@ -14,7 +14,7 @@ class TrustAuditDemoTests(unittest.TestCase):
         self.assertIn("PRIVACY_NOTICE", self.app)
 
     def test_demo_is_explicitly_isolated(self):
-        self.assertIn("Explorar demonstração sem criar conta", self.app)
+        self.assertIn("Conhecer o Razync com dados de exemplo", self.app)
         self.assertIn("render_demo()", self.app)
         demo = Path("demo_mode.py").read_text(encoding="utf-8")
         self.assertNotIn("from database", demo)
