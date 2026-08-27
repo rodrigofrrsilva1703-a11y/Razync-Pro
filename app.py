@@ -68,6 +68,7 @@ from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_
 from finance_workspace import render_finance_workspace
 from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
+from compact_cards import inject_compact_cards
 from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
 from productivity_workspace import render_productivity_workspace
@@ -591,6 +592,9 @@ year_tx = transactions[(transactions["tx_date"].dt.year == CURRENT_YEAR)] if not
 year_revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if not year_tx.empty else 0.0
 year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
 limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
+
+# Um único padrão de densidade para todas as ferramentas após a autenticação.
+inject_compact_cards()
 
 
 st.markdown(

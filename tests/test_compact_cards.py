@@ -9,6 +9,7 @@ class CompactCardsTests(unittest.TestCase):
         cls.dashboard = Path("dashboard_workspace.py").read_text(encoding="utf-8")
         cls.finance = Path("finance_workspace.py").read_text(encoding="utf-8")
         cls.fiscal = Path("fiscal_workspace.py").read_text(encoding="utf-8")
+        cls.app = Path("app.py").read_text(encoding="utf-8")
 
     def test_metric_cards_are_compact(self):
         self.assertIn('min-height: 58px !important', self.compact)
@@ -17,8 +18,12 @@ class CompactCardsTests(unittest.TestCase):
 
     def test_primary_workspaces_use_compact_card_layer(self):
         for source in (self.dashboard, self.finance, self.fiscal):
-            self.assertIn('inject_compact_cards()', source)
             self.assertIn('metric_card(', source)
+        self.assertIn('inject_compact_cards()', self.app)
+
+    def test_secondary_information_is_collapsed(self):
+        self.assertIn('st.expander("Resumo anual e últimos lançamentos")', self.finance)
+        self.assertIn('st.expander("Notas, documentos e relatórios")', self.fiscal)
 
     def test_clickable_cards_have_meaningful_destinations(self):
         self.assertIn('navigate("Financeiro")', self.dashboard)

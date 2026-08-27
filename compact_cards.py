@@ -70,7 +70,54 @@ def inject_compact_cards() -> None:
         .rz-empty { padding: 20px 16px !important; }
         .rz-helper { padding: 8px 10px !important; }
 
+        /* Densidade compartilhada por todas as ferramentas autenticadas. */
+        [data-testid="stMain"] .block-container {
+            max-width: 1240px !important;
+            padding-top: 1rem !important;
+            padding-bottom: 2.2rem !important;
+        }
+        [data-testid="stMain"] [data-testid="stForm"] {
+            padding: .8rem !important;
+            border-radius: 11px !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stMain"] [data-testid="stExpander"] {
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stMain"] [data-testid="stExpander"] summary {
+            min-height: 2.45rem !important;
+            padding: .45rem .7rem !important;
+        }
+        [data-testid="stMain"] [data-testid="stDataFrame"] {
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stMain"] [data-testid="stTabs"] [role="tablist"] {
+            gap: .2rem !important;
+            margin-bottom: .5rem !important;
+        }
+        [data-testid="stMain"] [data-testid="stTabs"] [role="tab"] {
+            min-height: 2.35rem !important;
+            padding: .35rem .65rem !important;
+        }
+        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] {
+            min-height: 5.5rem !important;
+            padding: .75rem !important;
+        }
+        [data-testid="stMain"] div[data-testid="stButton"] button,
+        [data-testid="stMain"] [data-testid="stDownloadButton"] button {
+            min-height: 2.35rem;
+        }
+        [data-testid="stMain"] hr { margin: .65rem 0 !important; }
+        [data-testid="stMain"] h3 { margin-bottom: .2rem !important; }
+
         @media (max-width: 720px) {
+            [data-testid="stMain"] .block-container {
+                padding-top: .7rem !important;
+                padding-left: .65rem !important;
+                padding-right: .65rem !important;
+            }
             [data-testid="stMetric"],
             [class*="st-key-rz_metric_card_"] button,
             [class*="st-key-rz_action_card_"] button,
