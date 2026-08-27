@@ -210,6 +210,29 @@ small,[data-testid="stCaptionContainer"],.stCaption {{ color:var(--rz-muted)!imp
 .rz-alert.rz-info {{ border-left:3px solid {t['primary']}; }}
 .rz-alert.rz-ok {{ border-left:3px solid {t['success']}; }}
 
+[class*="st-key-rz_action_card_"] button,
+[class*="st-key-rz_quick_card_"] button {{
+  min-height:112px!important; height:auto!important; padding:15px 17px!important;
+  justify-content:flex-start!important; text-align:left!important; border-radius:13px!important;
+  background:var(--rz-surface)!important; border:1px solid var(--rz-border)!important;
+  box-shadow:var(--rz-shadow-soft)!important; transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important;
+}}
+[class*="st-key-rz_action_card_"] button:hover,
+[class*="st-key-rz_quick_card_"] button:hover {{
+  transform:translateY(-2px); border-color:var(--rz-primary)!important;
+  box-shadow:0 12px 28px rgba(20,45,68,.10)!important;
+}}
+[class*="st-key-rz_action_card_"] button p,
+[class*="st-key-rz_quick_card_"] button p {{ width:100%; text-align:left; white-space:normal; line-height:1.45; }}
+[class*="st-key-rz_action_card_danger_"] button {{ border-left:4px solid {t['danger']}!important; }}
+[class*="st-key-rz_action_card_warn_"] button {{ border-left:4px solid {t['warning']}!important; }}
+[class*="st-key-rz_action_card_info_"] button {{ border-left:4px solid {t['primary']}!important; }}
+[class*="st-key-rz_action_card_ok_"] button {{ border-left:4px solid {t['success']}!important; }}
+[class*="st-key-rz_ai_context_"] button {{
+  min-height:2.2rem!important; margin:-.2rem 0 .65rem!important; border:0!important;
+  background:transparent!important; color:var(--rz-primary)!important; justify-content:flex-start!important;
+}}
+
 .rz-empty {{ background:var(--rz-surface); border:1px dashed var(--rz-border); border-radius:13px; padding:28px 22px; text-align:center; box-shadow:var(--rz-shadow-soft); }}
 .rz-empty-icon {{ color:var(--rz-primary); font-size:1.4rem; margin-bottom:7px; }}
 .rz-empty-title {{ color:var(--rz-text); font-size:.94rem; font-weight:750; }}

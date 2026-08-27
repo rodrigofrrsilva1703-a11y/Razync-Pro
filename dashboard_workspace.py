@@ -15,6 +15,16 @@ from smart_insights import build_proactive_insights
 from ui_system import alert_card, section
 
 
+def _action_card(*, title: str, detail: str, key: str, level: str = "info", meta: str = "Abrir") -> bool:
+    """Render one accessible, full-surface dashboard action."""
+    safe_level = level if level in {"danger", "warn", "info", "ok"} else "info"
+    return st.button(
+        f"**{title}**\n\n{detail}\n\n{meta} →",
+        key=f"rz_action_card_{safe_level}_{key}",
+        width="stretch",
+    )
+
+
 def _health_score(profile: dict, annual_revenue: float, annual_limit: float, das_rows: list[dict], obligations: list[dict]) -> tuple[int, list[str]]:
     score = 100
     notes: list[str] = []
@@ -95,13 +105,15 @@ def render_dashboard_workspace(
         if not plan["items"]:
             st.success("Nenhuma ação urgente identificada.")
         for idx, item in enumerate(plan["items"][:4]):
-            row, action = st.columns([4.5, 1.2])
-            with row:
-                level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-                alert_card(level, item["title"], item["detail"])
-            with action:
-                if item["page"] != "Dashboard" and st.button("Resolver", key=f"dashv2_action_{idx}", width="stretch"):
-                    navigate(item["page"])
+            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
+            if item["page"] != "Dashboard" and _action_card(
+                title=item["title"],
+                detail=item["detail"],
+                key=f"priority_{idx}",
+                level=level,
+                meta="Resolver agora",
+            ):
+                navigate(item["page"])
 
     with side_col:
         section("Saúde do MEI", "Limite, obrigações e organização em um único indicador.")
@@ -133,24 +145,36 @@ def render_dashboard_workspace(
         st.info("Adicione mais movimentações e informações fiscais para o Razync identificar tendências automaticamente.")
     else:
         for idx, insight in enumerate(insights[:3]):
-            info_col, open_col, ai_col = st.columns([4.8, 1, 1.35])
-            with info_col:
-                alert_card(insight["level"], insight["title"], insight["detail"])
-            with open_col:
-                if st.button("Abrir", key=f"smart_insight_open_{idx}", width="stretch"):
-                    navigate(insight["page"])
-            with ai_col:
-                if st.button("Perguntar à IA", key=f"smart_insight_ai_{idx}", width="stretch"):
-                    st.session_state["razync_ai_pending_question"] = insight["question"]
-                    navigate("Assistente Razync")
+            if _action_card(
+                title=insight["title"],
+                detail=insight["detail"],
+                key=f"insight_{idx}",
+                level=insight["level"],
+                meta=f"Abrir {insight['page']}",
+            ):
+                navigate(insight["page"])
+            if st.button(
+                "✦ Entender este insight com a IA",
+                key=f"rz_ai_context_{idx}",
+                width="stretch",
+                help="A IA abrirá com este insight e a pergunta já preparados.",
+            ):
+                st.session_state["razync_ai_pending_question"] = insight["question"]
+                st.session_state["razync_ai_pending_context"] = {
+                    "source": "dashboard_insight",
+                    "title": insight["title"],
+                    "detail": insight["detail"],
+                    "page": insight["page"],
+                }
+                navigate("Assistente Razync")
 
-    section("Acesso rápido", "Entre direto nas duas áreas principais ou registre uma movimentação.")
+    section("Acesso rápido", "Escolha uma área para continuar.")
     q1, q2, q3 = st.columns(3)
-    if q1.button("Financeiro", key="dashv2_finance", width="stretch"):
+    if q1.button("**Financeiro**\n\nReceitas, despesas e fluxo de caixa →", key="rz_quick_card_finance", width="stretch"):
         navigate("Financeiro")
-    if q2.button("Fiscal MEI", key="dashv2_fiscal", width="stretch"):
+    if q2.button("**Fiscal MEI**\n\nDAS, notas e obrigações →", key="rz_quick_card_fiscal", width="stretch"):
         navigate("Fiscal")
-    if q3.button("Nova movimentação", key="dashv2_new_tx", width="stretch"):
+    if q3.button("**Nova movimentação**\n\nRegistrar entrada ou saída →", key="rz_quick_card_new_tx", width="stretch"):
         navigate("Movimentações")
 
     deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
@@ -159,11 +183,13 @@ def render_dashboard_workspace(
         section("Próximos vencimentos", "Somente o que pode exigir ação nos próximos 30 dias.")
         if deadlines:
             for idx, item in enumerate(deadlines[:4]):
-                due, title, action = st.columns([1, 3.4, 1])
-                due.caption(item["date"].strftime("%d/%m"))
-                title.write(f"**{item['title']}**")
-                title.caption(item["status"])
-                if action.button("Abrir", key=f"dashv2_deadline_{idx}", width="stretch"):
+                if _action_card(
+                    title=item["title"],
+                    detail=item["status"],
+                    key=f"deadline_{idx}",
+                    level="warn",
+                    meta=f"Vence em {item['date'].strftime('%d/%m')}",
+                ):
                     navigate(item["page"])
         else:
             st.success("Nenhum vencimento cadastrado para os próximos 30 dias.")
