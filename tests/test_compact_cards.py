@@ -11,7 +11,7 @@ class CompactCardsTests(unittest.TestCase):
         cls.fiscal = Path("fiscal_workspace.py").read_text(encoding="utf-8")
 
     def test_metric_cards_are_compact(self):
-        self.assertIn('min-height: 82px !important', self.compact)
+        self.assertIn('min-height: 58px !important', self.compact)
         self.assertIn('[class*="st-key-rz_metric_card_"] button', self.compact)
         self.assertNotIn('min-height:112px', self.compact)
 

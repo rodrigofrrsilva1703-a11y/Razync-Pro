@@ -19,13 +19,13 @@ def _finish_deleted_session() -> None:
 
 def render_account_workspace(*, navigate, developer_access: bool) -> None:
     st.caption("CONTA, PRIVACIDADE E SISTEMA")
-    st.write("Centralize dados do MEI, segurança, plano, histórico e cópias dos seus dados.")
+    st.caption("Dados do MEI, segurança, plano e privacidade em um só lugar.")
 
     a, b, c = st.columns(3)
     with a:
         with st.container(border=True):
             st.markdown("**Dados e segurança**")
-            st.caption("Cadastro do MEI, senha e proteção da conta.")
+            st.caption("Cadastro e proteção da conta.")
             if st.button("Dados do MEI", key="account_mei", width="stretch"):
                 navigate("Meu MEI")
             if st.button("Segurança", key="account_security", width="stretch"):
@@ -33,7 +33,7 @@ def render_account_workspace(*, navigate, developer_access: bool) -> None:
     with b:
         with st.container(border=True):
             st.markdown("**Dados e privacidade**")
-            st.caption("Histórico, backup e direitos sobre seus dados.")
+            st.caption("Histórico, backup e direitos.")
             if st.button("Histórico", key="account_history", width="stretch"):
                 navigate("Histórico de Atividades")
             if st.button("Backup / exportação", key="account_backup", width="stretch"):
@@ -41,26 +41,25 @@ def render_account_workspace(*, navigate, developer_access: bool) -> None:
     with c:
         with st.container(border=True):
             st.markdown("**Operação**")
-            st.caption("Integrações, infraestrutura e assinatura.")
+            st.caption("Integrações e assinatura.")
             if st.button("Integrações", key="account_integrations", width="stretch"):
                 navigate("Integrações")
             if st.button("Status do sistema", key="account_status", width="stretch"):
                 navigate("Status do Sistema")
 
-    st.subheader("Plano")
+    st.markdown("#### Plano")
     current = "Pro" if developer_access else "Essencial"
     plan = PLAN_CATALOG[current]
     st.info(f"Plano atual: {current} — {plan['description']}")
     if st.button("Ver plano e assinatura", key="account_plan", width="stretch"):
         navigate("Plano e Assinatura")
 
-    st.subheader("Seus direitos sobre os dados")
-    for item in data_rights_summary():
-        with st.container(border=True):
+    with st.expander("Seus direitos sobre os dados"):
+        for item in data_rights_summary():
             st.markdown(f"**{item['title']}** · {item['status']}")
             st.caption(item["detail"])
 
-    st.subheader("Excluir conta")
+    st.markdown("#### Excluir conta")
     access_token = str(st.session_state.get("access_token") or "")
     if developer_access:
         st.info("O acesso de desenvolvedor via GitHub não é uma conta de cliente Supabase e não pode ser excluído por esta tela.")

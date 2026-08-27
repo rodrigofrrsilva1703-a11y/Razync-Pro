@@ -24,7 +24,12 @@ class DashboardInteractionTests(unittest.TestCase):
 
     def test_action_cards_have_visible_interaction_states(self):
         self.assertIn('st-key-rz_action_card_', self.ui)
-        self.assertIn('transform:translateY(-2px)', self.ui)
+        self.assertIn('transform:translateY(-1px)', self.ui)
+
+    def test_action_cards_are_compact_and_keep_details_as_help(self):
+        self.assertIn('min-height:58px!important', self.ui)
+        self.assertIn('help=detail', self.dashboard)
+        self.assertNotIn('f"**{title}**\\n\\n{detail}\\n\\n{meta} →"', self.dashboard)
 
     def test_notification_center_uses_the_same_clickable_card_pattern(self):
         self.assertIn('rz_action_card_{level}_notification_', self.app)

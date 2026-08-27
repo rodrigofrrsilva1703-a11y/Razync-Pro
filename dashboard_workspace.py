@@ -17,12 +17,13 @@ from ui_system import alert_card, section
 
 
 def _action_card(*, title: str, detail: str, key: str, level: str = "info", meta: str = "Abrir") -> bool:
-    """Render one accessible, full-surface dashboard action."""
+    """Render one compact, accessible, full-surface dashboard action."""
     safe_level = level if level in {"danger", "warn", "info", "ok"} else "info"
     return st.button(
-        f"**{title}**\n\n{detail}\n\n{meta} →",
+        f"{title}  ·  {meta} →",
         key=f"rz_action_card_{safe_level}_{key}",
         width="stretch",
+        help=detail,
     )
 
 
@@ -150,11 +151,11 @@ def render_dashboard_workspace(
         current_year=current_year,
         today=today,
     )
-    section("Insights do Razync", "Sinais automáticos calculados com os dados já carregados. Nenhuma chamada de IA é feita nesta tela.")
+    section("Insights do Razync", "Sinais automáticos dos seus dados.")
     if not insights:
         st.info("Adicione mais movimentações e informações fiscais para o Razync identificar tendências automaticamente.")
     else:
-        for idx, insight in enumerate(insights[:3]):
+        for idx, insight in enumerate(insights[:2]):
             if _action_card(
                 title=insight["title"],
                 detail=insight["detail"],
@@ -180,11 +181,11 @@ def render_dashboard_workspace(
 
     section("Acesso rápido", "Escolha uma área para continuar.")
     q1, q2, q3 = st.columns(3)
-    if q1.button("**Financeiro**\n\nReceitas, despesas e fluxo de caixa →", key="rz_quick_card_finance", width="stretch"):
+    if q1.button("Financeiro  →", key="rz_quick_card_finance", width="stretch", help="Receitas, despesas e fluxo de caixa"):
         navigate("Financeiro")
-    if q2.button("**Fiscal MEI**\n\nDAS, notas e obrigações →", key="rz_quick_card_fiscal", width="stretch"):
+    if q2.button("Fiscal MEI  →", key="rz_quick_card_fiscal", width="stretch", help="DAS, notas e obrigações"):
         navigate("Fiscal")
-    if q3.button("**Nova movimentação**\n\nRegistrar entrada ou saída →", key="rz_quick_card_new_tx", width="stretch"):
+    if q3.button("Nova movimentação  →", key="rz_quick_card_new_tx", width="stretch", help="Registrar entrada ou saída"):
         navigate("Movimentações")
 
     deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)

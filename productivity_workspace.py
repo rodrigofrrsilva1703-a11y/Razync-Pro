@@ -5,7 +5,7 @@ import streamlit as st
 
 def render_productivity_workspace(*, navigate) -> None:
     st.caption("AUTOMAÇÃO E PRODUTIVIDADE")
-    st.write("Use os recursos inteligentes a partir de uma única área. Nenhuma ação externa é executada sem sua confirmação.")
+    st.caption("Recursos inteligentes em uma única área. Ações externas sempre pedem confirmação.")
     cards = [
         ("Automações", "Fechamento, conciliação, previsões e rotinas assistidas.", "Central de Automações"),
         ("Alertas e calendário", "Pendências, vencimentos e arquivo de calendário.", "Central de Notificações"),
@@ -16,6 +16,5 @@ def render_productivity_workspace(*, navigate) -> None:
         with column:
             with st.container(border=True):
                 st.markdown(f"**{title}**")
-                st.caption(detail)
-                if st.button("Abrir", key=f"productivity_{page}", width="stretch"):
+                if st.button("Abrir  →", key=f"productivity_{page}", width="stretch", help=detail):
                     navigate(page)
