@@ -5,6 +5,7 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
+from command_center import render_command_center
 from floating_chat_v7_host import render_isolated_chat_v7
 from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
 from onboarding_tools import onboarding_progress
@@ -123,6 +124,8 @@ def render_sidebar(
             """,
             unsafe_allow_html=True,
         )
+
+        render_command_center(navigate=navigate, current_page=page)
 
         with st.container(key="sidebar_navigation"):
             if st.button(
