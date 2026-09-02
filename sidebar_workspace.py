@@ -125,7 +125,7 @@ def render_sidebar(
             unsafe_allow_html=True,
         )
 
-        render_command_center(navigate=navigate, current_page=page)
+        render_command_center(navigate=navigate, current_page=page, documents=documents)
 
         with st.container(key="sidebar_navigation"):
             if st.button(
