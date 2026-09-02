@@ -76,9 +76,16 @@ def search_commands(query: str, *, limit: int = 7) -> list[tuple[str, str, str]]
     return [item for _, item in scored[:limit]]
 
 
+def _open_floating_question(question: str) -> None:
+    st.session_state["razync_ai_pending_question"] = question
+    st.session_state["razync_floating_open"] = True
+    st.rerun()
+
+
 def _go_to(page: str, navigate) -> None:
     if page == "Assistente Razync":
-        st.session_state["razync_ai_pending_question"] = "Como você pode me ajudar com meu MEI agora?"
+        _open_floating_question("Como você pode me ajudar com meu MEI agora?")
+        return
     navigate(page)
 
 
@@ -91,7 +98,8 @@ def _open_document_in_assistant(document: dict, navigate) -> None:
         "page": "Documentos",
         "document_id": document.get("id"),
     }
-    navigate("Assistente Razync")
+    st.session_state["razync_floating_open"] = True
+    st.rerun()
 
 
 def render_command_center(*, navigate, current_page: str, documents: list[dict] | None = None) -> None:
@@ -119,7 +127,7 @@ def render_command_center(*, navigate, current_page: str, documents: list[dict] 
                     key=f"rz_command_document_{index}_{document.get('id')}",
                     icon=":material/description:",
                     width="stretch",
-                    help="Abrir o Assistente com este documento em contexto. O arquivo bruto não é enviado ao provedor de IA.",
+                    help="Abrir a IA flutuante com este documento em contexto. O arquivo bruto não é enviado ao provedor de IA.",
                 ):
                     _open_document_in_assistant(document, navigate)
 
@@ -137,10 +145,9 @@ def render_command_center(*, navigate, current_page: str, documents: list[dict] 
             return
 
         if query and not document_results:
-            st.caption("Nenhum item encontrado. Você pode perguntar ao Assistente Razync.")
+            st.caption("Nenhum item encontrado. Você pode perguntar à IA flutuante.")
             if st.button("Perguntar à IA", key="rz_command_ai_fallback", width="stretch"):
-                st.session_state["razync_ai_pending_question"] = query
-                navigate("Assistente Razync")
+                _open_floating_question(query)
             return
 
         if query:

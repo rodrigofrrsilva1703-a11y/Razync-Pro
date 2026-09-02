@@ -181,7 +181,7 @@ def render_dashboard_workspace(
                 "✦ Entender este insight com a IA",
                 key=f"rz_ai_context_{idx}",
                 width="stretch",
-                help="A IA abrirá com este insight e a pergunta já preparados.",
+                help="A IA flutuante abrirá com este insight e a pergunta já preparados.",
             ):
                 st.session_state["razync_ai_pending_question"] = insight["question"]
                 st.session_state["razync_ai_pending_context"] = {
@@ -190,7 +190,8 @@ def render_dashboard_workspace(
                     "detail": insight["detail"],
                     "page": insight["page"],
                 }
-                navigate("Assistente Razync")
+                st.session_state["razync_floating_open"] = True
+                st.rerun()
 
     section("Acesso rápido", "Escolha uma área para continuar.")
     q1, q2, q3 = st.columns(3)

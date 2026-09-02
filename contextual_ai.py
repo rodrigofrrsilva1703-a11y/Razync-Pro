@@ -5,6 +5,7 @@ import streamlit as st
 
 _CONTEXT_KEY = "razync_ai_pending_context"
 _QUESTION_KEY = "razync_ai_pending_question"
+_FLOATING_OPEN_KEY = "razync_floating_open"
 
 
 def open_assistant_with_context(
@@ -16,7 +17,7 @@ def open_assistant_with_context(
     detail: str | None = None,
     page: str | None = None,
 ) -> None:
-    """Open the existing assistant with a safe product context prepared by the current tool."""
+    """Open the floating assistant with a safe product context prepared by the current tool."""
     st.session_state[_QUESTION_KEY] = question
     st.session_state[_CONTEXT_KEY] = {
         "source": source,
@@ -24,7 +25,8 @@ def open_assistant_with_context(
         "detail": detail or "",
         "page": page or "",
     }
-    navigate("Assistente Razync")
+    st.session_state[_FLOATING_OPEN_KEY] = True
+    st.rerun()
 
 
 def contextual_ai_button(
@@ -39,7 +41,7 @@ def contextual_ai_button(
     page: str | None = None,
     help_text: str | None = None,
 ) -> bool:
-    """Render a single safe handoff button; no mutation is executed here."""
+    """Render a safe contextual AI button that opens only the floating assistant."""
     clicked = st.button(
         label,
         key=f"rz_context_ai_{key}",

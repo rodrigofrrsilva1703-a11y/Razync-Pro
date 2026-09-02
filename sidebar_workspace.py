@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from command_center import render_command_center
+from floating_ai_bridge import process_pending_floating_question
 from floating_chat_v7_host import render_isolated_chat_v7
 from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
 from onboarding_tools import onboarding_progress
@@ -81,13 +82,24 @@ def _floating_chat_shell_styles() -> None:
 
 def _render_floating_assistant(page: str, user: dict, navigate) -> None:
     if page == "Assistente Razync":
+        st.session_state[_FLOATING_OPEN_KEY] = True
+        navigate("Dashboard")
         return
 
     _floating_chat_shell_styles()
     is_open = bool(st.session_state.get(_FLOATING_OPEN_KEY, False))
     if is_open:
+        process_pending_floating_question(user=user, page=page)
+
+        def floating_navigate(destination: str) -> None:
+            if destination == "Assistente Razync":
+                st.session_state[_FLOATING_OPEN_KEY] = True
+                st.rerun()
+                return
+            navigate(destination)
+
         with st.container(key="floating_ai_v7_shell"):
-            render_isolated_chat_v7(user=user, page=page, navigate=navigate)
+            render_isolated_chat_v7(user=user, page=page, navigate=floating_navigate)
         return
 
     with st.container(key="floating_ai_launcher"):
