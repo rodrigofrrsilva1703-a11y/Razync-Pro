@@ -9,6 +9,7 @@ from business_tools import monthly_closing
 from compact_cards import metric_card
 from contextual_ai import contextual_ai_button
 from fiscal_rules import das_status
+from fiscal_timeline import build_fiscal_timeline, render_fiscal_timeline
 from ui_system import alert_card, section
 from table_ui import professional_table
 
@@ -105,6 +106,16 @@ def render_fiscal_workspace(
         alert_card("warn", "Obrigações vencidas", f"Existem {len(overdue_obligations)} tarefa(s) fiscal(is) vencida(s).")
     else:
         alert_card("ok", "Rotina fiscal sem alerta crítico", "Nenhum DAS atrasado ou obrigação manual vencida foi identificado.")
+
+    with st.expander("Linha do tempo fiscal", expanded=bool(overdue_das or overdue_obligations)):
+        st.caption("DAS e obrigações organizados por urgência e vencimento.")
+        timeline_items = build_fiscal_timeline(
+            das_rows=das_rows,
+            obligations=obligations,
+            today=today,
+            days_ahead=90,
+        )
+        render_fiscal_timeline(items=timeline_items, navigate=navigate)
 
     section("Rotina fiscal", "Comece pela tarefa que corresponde ao que você precisa fazer agora.")
     a1, a2, a3, a4 = st.columns(4)
