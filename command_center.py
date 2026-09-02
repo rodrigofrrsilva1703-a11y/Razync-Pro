@@ -5,7 +5,8 @@ import unicodedata
 
 import streamlit as st
 
-from navigation_config import SIDEBAR_ICONS, SIDEBAR_LABELS
+from document_catalog import document_ai_prompt, search_documents
+from navigation_config import SIDEBAR_ICONS
 
 
 COMMANDS = (
@@ -81,25 +82,49 @@ def _go_to(page: str, navigate) -> None:
     navigate(page)
 
 
-def render_command_center(*, navigate, current_page: str) -> None:
-    """Global command/search surface for authenticated product navigation."""
+def _open_document_in_assistant(document: dict, navigate) -> None:
+    st.session_state["razync_ai_pending_question"] = document_ai_prompt(document)
+    st.session_state["razync_ai_pending_context"] = {
+        "source": "global_document_search",
+        "title": str(document.get("filename") or "Documento"),
+        "detail": f"{document.get('category') or 'Outro'} · {document.get('reference_month') or 'Sem competência'}",
+        "page": "Documentos",
+        "document_id": document.get("id"),
+    }
+    navigate("Assistente Razync")
+
+
+def render_command_center(*, navigate, current_page: str, documents: list[dict] | None = None) -> None:
+    """Global command/search surface for tools and safe document metadata."""
+    documents = list(documents or [])
     with st.popover("Buscar ou ir para...", icon=":material/search:"):
-        st.caption("Encontre ferramentas e ações sem procurar no menu.")
+        st.caption("Encontre ferramentas, ações e documentos sem procurar no menu.")
         query = st.text_input(
             "Buscar no Razync",
             key="rz_command_query",
-            placeholder="Ex.: DAS, documentos, nova despesa...",
+            placeholder="Ex.: DAS, documento julho, nova despesa...",
             label_visibility="collapsed",
         )
         results = search_commands(query)
-        if query and not results:
-            st.caption("Nenhuma ferramenta encontrada. Você pode perguntar ao Assistente Razync.")
-            if st.button("Perguntar à IA", key="rz_command_ai_fallback", width="stretch"):
-                st.session_state["razync_ai_pending_question"] = query
-                navigate("Assistente Razync")
-            return
+        document_results = search_documents(query, documents) if query else []
+
+        if document_results:
+            st.caption("Documentos")
+            for index, document in enumerate(document_results):
+                filename = str(document.get("filename") or "Documento")
+                category = str(document.get("category") or "Outro")
+                reference = str(document.get("reference_month") or "Sem competência")
+                if st.button(
+                    f"{filename} · {category} · {reference}",
+                    key=f"rz_command_document_{index}_{document.get('id')}",
+                    icon=":material/description:",
+                    width="stretch",
+                    help="Abrir o Assistente com este documento em contexto. O arquivo bruto não é enviado ao provedor de IA.",
+                ):
+                    _open_document_in_assistant(document, navigate)
 
         if results:
+            st.caption("Ferramentas")
             for index, (page, label, _keywords) in enumerate(results):
                 if st.button(
                     label,
@@ -109,6 +134,16 @@ def render_command_center(*, navigate, current_page: str) -> None:
                     width="stretch",
                 ):
                     _go_to(page, navigate)
+            return
+
+        if query and not document_results:
+            st.caption("Nenhum item encontrado. Você pode perguntar ao Assistente Razync.")
+            if st.button("Perguntar à IA", key="rz_command_ai_fallback", width="stretch"):
+                st.session_state["razync_ai_pending_question"] = query
+                navigate("Assistente Razync")
+            return
+
+        if query:
             return
 
         st.caption("Atalhos")
