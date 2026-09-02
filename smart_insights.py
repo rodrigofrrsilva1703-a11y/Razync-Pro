@@ -188,7 +188,7 @@ def build_proactive_insights(
             "level": "ok",
             "title": "Nenhum risco relevante detectado agora",
             "detail": "Com os dados atuais, o Razync não encontrou uma variação forte ou pendência prioritária entre os sinais monitorados.",
-            "page": "Assistente Razync",
+            "page": "Financeiro",
             "question": "Faça um check-up geral da minha situação financeira e fiscal com os dados agregados disponíveis e diga o que merece mais atenção agora.",
         })
 
