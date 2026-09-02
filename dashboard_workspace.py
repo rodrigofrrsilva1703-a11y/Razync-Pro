@@ -5,6 +5,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
+from activity_center import build_activity_items, render_activity_center
 from automation_tools import financial_projection, upcoming_deadlines
 from compact_cards import metric_card
 from customer_experience import build_today_plan
@@ -139,6 +140,18 @@ def render_dashboard_workspace(
                 st.caption(f"• {note}")
         elif score >= 90:
             st.success("Seu MEI está bem organizado com os dados cadastrados.")
+
+    with st.expander("Central de Atividades", expanded=False):
+        st.caption("Pendências, próximos vencimentos e atividade financeira recente em um único lugar.")
+        activity_items = build_activity_items(
+            profile=profile,
+            transactions=transactions,
+            das_rows=das_rows,
+            obligations=obligations,
+            documents=documents,
+            today=today,
+        )
+        render_activity_center(items=activity_items, navigate=navigate)
 
     insights = build_proactive_insights(
         profile=profile,
