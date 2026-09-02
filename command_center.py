@@ -9,6 +9,8 @@ from document_catalog import document_ai_prompt, search_documents
 from navigation_config import SIDEBAR_ICONS
 
 
+_FLOATING_AI_COMMAND = "__floating_ai__"
+
 COMMANDS = (
     ("Dashboard", "Início", "inicio dashboard resumo hoje mei"),
     ("Movimentações", "Nova movimentação", "nova receita despesa entrada saida lançamento"),
@@ -31,7 +33,6 @@ COMMANDS = (
     ("Produtividade", "Produtividade", "automação produtividade alertas rotina"),
     ("Central de Automações", "Automações", "automacao recorrencia rotina"),
     ("Central de Notificações", "Alertas e calendário", "alerta notificação calendário vencimento"),
-    ("Assistente Razync", "Perguntar à IA", "ia assistente ajuda pergunta razync"),
     ("Meu MEI", "Dados do MEI", "cnpj atividade cadastro empresa mei"),
     ("Conta e Sistema", "Conta e sistema", "conta preferencia sistema"),
     ("Histórico de Atividades", "Histórico de atividades", "historico auditoria ações"),
@@ -42,7 +43,7 @@ QUICK_ACTIONS = (
     ("Movimentações", "Nova movimentação"),
     ("Documentos", "Abrir documentos"),
     ("DAS", "Ver DAS"),
-    ("Assistente Razync", "Perguntar à IA"),
+    (_FLOATING_AI_COMMAND, "Perguntar à IA"),
 )
 
 
@@ -83,7 +84,7 @@ def _open_floating_question(question: str) -> None:
 
 
 def _go_to(page: str, navigate) -> None:
-    if page == "Assistente Razync":
+    if page == _FLOATING_AI_COMMAND:
         _open_floating_question("Como você pode me ajudar com meu MEI agora?")
         return
     navigate(page)
@@ -160,7 +161,7 @@ def render_command_center(*, navigate, current_page: str, documents: list[dict] 
                 if st.button(
                     label,
                     key=f"rz_command_quick_{index}",
-                    icon=SIDEBAR_ICONS.get(page, ":material/arrow_forward:"),
+                    icon=SIDEBAR_ICONS.get(page, ":material/auto_awesome:" if page == _FLOATING_AI_COMMAND else ":material/arrow_forward:"),
                     disabled=page == current_page,
                     width="stretch",
                 ):
