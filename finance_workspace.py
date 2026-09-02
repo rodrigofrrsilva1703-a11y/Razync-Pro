@@ -9,6 +9,7 @@ import streamlit as st
 from automation_tools import financial_projection
 from business_tools import financial_analysis
 from compact_cards import metric_card
+from contextual_ai import contextual_ai_button
 from product_core import reconciliation_summary
 from ui_system import alert_card, apply_plot_theme, section, tokens
 from table_ui import professional_table
@@ -49,6 +50,41 @@ def render_finance_workspace(
     with c4:
         if metric_card("Resultado no ano", brl(year_in - year_out), key="fin_year_result", help_text="Abrir a análise financeira completa"):
             navigate("Análise Financeira")
+
+    ai1, ai2, ai3 = st.columns(3)
+    with ai1:
+        contextual_ai_button(
+            "Analisar este mês",
+            key="finance_month",
+            navigate=navigate,
+            source="finance_workspace",
+            title="Análise financeira do mês",
+            question="Analise minhas receitas, despesas e resultado deste mês. Destaque o que mais importa e sugira próximos passos.",
+            detail=f"Entradas {brl(month_in)}; saídas {brl(month_out)}; resultado {brl(month_in - month_out)}.",
+            page="Financeiro",
+        )
+    with ai2:
+        contextual_ai_button(
+            "Revisar despesas",
+            key="finance_expenses",
+            navigate=navigate,
+            source="finance_workspace",
+            title="Revisão de despesas",
+            question="Quais despesas mais pesam no meu negócio e o que devo revisar primeiro? Use meus dados cadastrados.",
+            detail=f"Saídas no mês {brl(month_out)}; despesas no ano {brl(year_out)}.",
+            page="Financeiro",
+        )
+    with ai3:
+        contextual_ai_button(
+            "Projetar próximos passos",
+            key="finance_next_steps",
+            navigate=navigate,
+            source="finance_workspace",
+            title="Próximos passos financeiros",
+            question="Com base no meu financeiro atual, quais são as três próximas ações mais importantes para melhorar controle e caixa?",
+            detail=f"Resultado no mês {brl(month_in - month_out)}; resultado no ano {brl(year_in - year_out)}.",
+            page="Financeiro",
+        )
 
     projection = financial_projection(transactions, annual_limit, current_year, today)
     if projection.get("limit_risk"):
