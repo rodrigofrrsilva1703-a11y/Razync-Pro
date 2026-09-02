@@ -7,6 +7,7 @@ import streamlit as st
 
 from business_tools import monthly_closing
 from compact_cards import metric_card
+from contextual_ai import contextual_ai_button
 from fiscal_rules import das_status
 from ui_system import alert_card, section
 from table_ui import professional_table
@@ -62,6 +63,41 @@ def render_fiscal_workspace(
             help_text="Abrir a declaração e o acompanhamento do faturamento",
         ):
             navigate("DASN-SIMEI")
+
+    ai1, ai2, ai3 = st.columns(3)
+    with ai1:
+        contextual_ai_button(
+            "Revisar rotina fiscal",
+            key="fiscal_review",
+            navigate=navigate,
+            source="fiscal_workspace",
+            title="Revisão fiscal do MEI",
+            question="Revise minha situação fiscal atual no Razync e diga o que exige atenção primeiro. Considere DAS, obrigações, notas e faturamento.",
+            detail=f"DAS atrasados: {len(overdue_das)}; DAS pendentes: {len(pending_das)}; obrigações vencidas: {len(overdue_obligations)}.",
+            page="Fiscal",
+        )
+    with ai2:
+        contextual_ai_button(
+            "Entender limite do MEI",
+            key="fiscal_limit_ai",
+            navigate=navigate,
+            source="fiscal_workspace",
+            title="Limite anual do MEI",
+            question="Explique quanto do meu limite anual do MEI já foi usado e o que devo acompanhar até o fim do ano. Use apenas meus dados cadastrados e deixe claro quando algo for estimativa.",
+            detail=f"Faturamento no ano: {brl(annual_revenue)}; limite monitorado: {brl(annual_limit)}.",
+            page="Fiscal",
+        )
+    with ai3:
+        contextual_ai_button(
+            "Preparar fechamento",
+            key="fiscal_closing_ai",
+            navigate=navigate,
+            source="fiscal_workspace",
+            title="Preparação do fechamento mensal",
+            question="Revise o que falta para eu fechar este mês com documentos, notas, DAS e movimentações organizados.",
+            detail=f"Documentos: {len(documents)}; notas: {len(invoices)}.",
+            page="Fiscal",
+        )
 
     if overdue_das:
         alert_card("danger", "DAS em atraso", f"Existem {len(overdue_das)} competência(s) vencida(s) para revisar.")
