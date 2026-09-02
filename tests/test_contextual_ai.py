@@ -8,7 +8,8 @@ from contextual_ai import open_assistant_with_context
 
 def test_handoff_prepares_question_and_context_without_mutation():
     navigate = Mock()
-    with patch("contextual_ai.st.session_state", {}):
+    session = {}
+    with patch("contextual_ai.st.session_state", session), patch("contextual_ai.st.rerun") as rerun:
         open_assistant_with_context(
             navigate=navigate,
             source="finance_workspace",
@@ -17,10 +18,11 @@ def test_handoff_prepares_question_and_context_without_mutation():
             detail="Resumo seguro",
             page="Financeiro",
         )
-        from contextual_ai import st
-        assert st.session_state["razync_ai_pending_question"] == "Analise meu mês"
-        assert st.session_state["razync_ai_pending_context"]["source"] == "finance_workspace"
-    navigate.assert_called_once_with("Assistente Razync")
+    assert session["razync_ai_pending_question"] == "Analise meu mês"
+    assert session["razync_ai_pending_context"]["source"] == "finance_workspace"
+    assert session["razync_floating_open"] is True
+    navigate.assert_not_called()
+    rerun.assert_called_once()
 
 
 def test_finance_and_fiscal_have_contextual_ai_actions():
