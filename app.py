@@ -304,7 +304,7 @@ def ensure_login() -> dict:
             github_login_url = escape(github_authorization_url(), quote=True)
             st.markdown(
                 '<a class="rz-github-admin-login" '
-                f'href="{github_login_url}" target="_top" '
+                f'href="{github_login_url}" target="_blank" '
                 'rel="noopener noreferrer">'
                 '<span aria-hidden="true">GitHub</span>'
                 '<strong>Acesso administrativo com GitHub</strong>'
