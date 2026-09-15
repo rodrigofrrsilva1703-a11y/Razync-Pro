@@ -3,6 +3,7 @@ from __future__ import annotations
 from io import BytesIO, StringIO
 from pathlib import Path
 import re
+import unicodedata
 
 import pandas as pd
 
@@ -56,6 +57,33 @@ def parse_money(value) -> float:
         return float(text)
     except ValueError:
         return 0.0
+
+
+def suggest_statement_columns(df: pd.DataFrame) -> dict[str, str | None]:
+    """Suggest common bank-export columns without sending the file anywhere."""
+    columns = list(df.columns)
+    normalized = {}
+    for column in columns:
+        plain = unicodedata.normalize("NFKD", str(column))
+        plain = "".join(char for char in plain if not unicodedata.combining(char))
+        normalized[column] = re.sub(r"[^a-z0-9]", "", plain.lower())
+    rules = {
+        "date": ("data", "date", "dtmovimento", "datatransacao", "lancamento"),
+        "description": (
+            "descricao", "description", "historico", "detalhes", "memo",
+            "estabelecimento", "favorecido",
+        ),
+        "value": ("valor", "value", "amount", "montante", "valortransacao", "saldo"),
+    }
+    result: dict[str, str | None] = {}
+    for field, aliases in rules.items():
+        exact = next((col for col in columns if normalized[col] in aliases), None)
+        partial = next(
+            (col for col in columns if any(alias in normalized[col] for alias in aliases)),
+            None,
+        )
+        result[field] = exact or partial
+    return result
 
 
 def prepare_statement(

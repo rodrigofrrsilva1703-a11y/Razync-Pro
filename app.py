@@ -25,7 +25,7 @@ from fiscal_rules import (
     das_due_date, das_status,
 )
 from reports import dasn_summary_pdf, monthly_report_pdf, financial_summary_pdf, closing_summary_pdf
-from bank_import import read_statement, prepare_statement, is_probable_duplicate, suggest_category
+from bank_import import read_statement, prepare_statement, is_probable_duplicate, suggest_category, suggest_statement_columns
 from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
@@ -991,27 +991,33 @@ elif page == "Recorrências":
 
 elif page == "Importar Extrato":
     header("Importar Extrato","Envie CSV ou Excel. O Razync transforma o extrato em lançamentos para conciliação e relatórios.")
-    st.caption("Suporta CSV e XLSX. Na próxima etapa você escolhe quais colunas representam data, descrição e valor.")
+    st.caption("Envie o arquivo. O Razync identifica as colunas, organiza as categorias e separa possíveis duplicidades para sua confirmação.")
     upload = st.file_uploader("Arquivo do extrato", type=["csv","xlsx","xls"], key="statement_file")
     if upload:
         try:
-            raw = read_statement(upload, upload.name)
+            raw = read_statement(upload)
             if raw.empty:
                 st.warning("O arquivo não possui linhas para importar.")
             else:
                 st.subheader("1. Confira as colunas")
                 professional_table(raw.head(8), max_visible_rows=8)
                 cols = list(raw.columns)
+                suggested_columns = suggest_statement_columns(raw)
+                def suggested_index(field: str, fallback: int) -> int:
+                    suggested = suggested_columns.get(field)
+                    return cols.index(suggested) if suggested in cols else min(fallback, len(cols) - 1)
                 a,b,c = st.columns(3)
-                date_col = a.selectbox("Coluna de data", cols, index=0)
-                desc_col = b.selectbox("Coluna de descrição", cols, index=min(1,len(cols)-1))
-                value_col = c.selectbox("Coluna de valor", cols, index=min(2,len(cols)-1))
+                date_col = a.selectbox("Coluna de data", cols, index=suggested_index("date", 0))
+                desc_col = b.selectbox("Coluna de descrição", cols, index=suggested_index("description", 1))
+                value_col = c.selectbox("Coluna de valor", cols, index=suggested_index("value", 2))
+                if all(suggested_columns.values()):
+                    st.success("Colunas identificadas automaticamente. Confira a prévia e confirme a importação.")
                 st.subheader("2. Prepare a importação")
                 prepared = prepare_statement(raw, date_col, desc_col, value_col)
                 learned_suggestions = [
                     learned_category(
-                        row["description"], row["tx_type"], transactions,
-                        suggest_category(row["description"]),
+                        row["Descrição"], row["Tipo"], transactions,
+                        suggest_category(row["Descrição"], row["Tipo"]),
                     )
                     for _, row in prepared.iterrows()
                 ]
@@ -1020,21 +1026,24 @@ elif page == "Importar Extrato":
                 if prepared.empty:
                     st.warning("Nenhuma linha válida foi encontrada com esse mapeamento.")
                 else:
-                    existing_keys = set()
-                    if not transactions.empty:
-                        existing_keys = set((r.tx_date.date() if hasattr(r.tx_date,"date") else r.tx_date, r.description, float(r.value), r.tx_type) for r in transactions.itertuples())
-                    prepared["Duplicado"] = [is_probable_duplicate(existing_keys,row.tx_date,row.description,row.value,row.tx_type) for row in prepared.itertuples()]
-                    professional_table(prepared, max_visible_rows=10, column_config={"value":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+                    prepared["Duplicado"] = [
+                        is_probable_duplicate(
+                            transactions, row["Data"], row["Tipo"],
+                            row["Descrição"], row["Valor"],
+                        )
+                        for _, row in prepared.iterrows()
+                    ]
+                    professional_table(prepared, max_visible_rows=10, column_config={"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
                     only_new = st.checkbox("Ignorar possíveis duplicados", value=True)
                     rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
                     st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
                     if st.button("Confirmar importação", type="primary", width="stretch"):
                         import_rows=[{
-                            "tx_date":r["tx_date"],
-                            "tx_type":r["tx_type"],
-                            "description":r["description"],
+                            "tx_date":r["Data"],
+                            "tx_type":r["Tipo"],
+                            "description":r["Descrição"],
                             "category":r["Categoria sugerida"],
-                            "value":float(r["value"]),
+                            "value":float(r["Valor"]),
                             "document_number":"",
                             "counterparty":"",
                             "payment_method":"Banco",
