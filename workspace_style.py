@@ -255,6 +255,45 @@ def inject_workspace_style() -> None:
             color: var(--rz-text) !important;
             box-shadow: none !important;
         }
+        .stApp:has(.rz-login-shell) .rz-github-admin-login {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: .65rem !important;
+            width: 100% !important;
+            min-height: 3rem !important;
+            padding: .7rem 1rem !important;
+            border: 1px solid #24292f !important;
+            border-radius: 12px !important;
+            background: #24292f !important;
+            color: #fff !important;
+            text-decoration: none !important;
+            box-shadow: 0 8px 20px rgba(36, 41, 47, .16) !important;
+            transition: transform .16s ease, background .16s ease, box-shadow .16s ease !important;
+        }
+        .stApp:has(.rz-login-shell) .rz-github-admin-login span {
+            padding: .18rem .42rem !important;
+            border: 1px solid rgba(255, 255, 255, .28) !important;
+            border-radius: 6px !important;
+            font-size: .66rem !important;
+            font-weight: 760 !important;
+            letter-spacing: .02em !important;
+        }
+        .stApp:has(.rz-login-shell) .rz-github-admin-login strong {
+            color: inherit !important;
+            font-size: .86rem !important;
+            font-weight: 760 !important;
+        }
+        .stApp:has(.rz-login-shell) .rz-github-admin-login:hover {
+            background: #111820 !important;
+            color: #fff !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 11px 24px rgba(36, 41, 47, .2) !important;
+        }
+        .stApp:has(.rz-login-shell) .rz-github-admin-login:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--rz-primary) 34%, transparent) !important;
+            outline-offset: 3px !important;
+        }
         .stApp:has(.rz-login-shell) [data-testid="stButton"] {
             max-width: 460px !important;
             margin: .8rem auto 0 !important;

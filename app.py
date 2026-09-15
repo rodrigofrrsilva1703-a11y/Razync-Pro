@@ -301,11 +301,15 @@ def ensure_login() -> dict:
     with login_tab:
         st.markdown('<div class="rz-auth-heading"><strong>Acesse sua conta</strong><span>Use seu e-mail e senha para continuar de onde parou.</span></div>', unsafe_allow_html=True)
         if is_developer_github_configured():
-            st.link_button(
-                "Acesso administrativo com GitHub",
-                github_authorization_url(),
-                width="stretch",
-                type="primary",
+            github_login_url = escape(github_authorization_url(), quote=True)
+            st.markdown(
+                '<a class="rz-github-admin-login" '
+                f'href="{github_login_url}" target="_top" '
+                'rel="noopener noreferrer">'
+                '<span aria-hidden="true">GitHub</span>'
+                '<strong>Acesso administrativo com GitHub</strong>'
+                '</a>',
+                unsafe_allow_html=True,
             )
             st.caption(
                 "Acesso administrativo protegido e liberado somente para a conta autorizada."
