@@ -106,6 +106,14 @@ class LoginUiRegressionTests(unittest.TestCase):
         self.assertIn("github_sign_in", app_source)
         self.assertIn("resolve_trusted_developer_user", app_source)
         self.assertIn("Acesso administrativo com GitHub", app_source)
+        self.assertIn('class="rz-github-admin-login"', app_source)
+        self.assertIn('target="_top"', app_source)
+        self.assertIn('rel="noopener noreferrer"', app_source)
+        self.assertIn("escape(github_authorization_url(), quote=True)", app_source)
+        self.assertNotIn(
+            'st.link_button(\n                "Acesso administrativo com GitHub"',
+            app_source,
+        )
         callback = app_source.index("identity = github_sign_in")
         session_saved = app_source.index(
             'st.session_state["user"] = user', callback
