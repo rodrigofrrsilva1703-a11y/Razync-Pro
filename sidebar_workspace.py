@@ -149,20 +149,33 @@ def render_sidebar(
             ):
                 navigate("Dashboard")
 
-            for group_title, destinations in SIDEBAR_GROUPS.items():
-                with st.expander(group_title, expanded=page in destinations):
-                    for destination in destinations:
-                        if st.button(
-                            SIDEBAR_LABELS[destination],
-                            key=f"grouped_nav_{destination}",
-                            icon=SIDEBAR_ICONS[destination],
-                            disabled=page == destination,
-                            width="stretch",
-                        ):
-                            navigate(destination)
+            primary_destinations = [
+                "Financeiro", "Fiscal", "Clientes e Fornecedores", "Documentos"
+            ]
+            for destination in primary_destinations:
+                if st.button(
+                    SIDEBAR_LABELS[destination],
+                    key=f"grouped_nav_{destination}",
+                    icon=SIDEBAR_ICONS[destination],
+                    disabled=page == destination,
+                    width="stretch",
+                ):
+                    navigate(destination)
 
-            secondary_pages = [item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages]
-            with st.expander("Mais ferramentas", expanded=page in secondary_pages):
+            supporting_destinations = ["Produtividade", "Conta e Sistema"]
+            secondary_pages = supporting_destinations + [
+                item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages
+            ]
+            with st.expander("Outras ferramentas", expanded=page in secondary_pages):
+                for destination in supporting_destinations:
+                    if st.button(
+                        SIDEBAR_LABELS[destination],
+                        key=f"grouped_nav_{destination}",
+                        icon=SIDEBAR_ICONS[destination],
+                        disabled=page == destination,
+                        width="stretch",
+                    ):
+                        navigate(destination)
                 for section_name, destinations in SIDEBAR_SECONDARY_GROUPS.items():
                     st.caption(section_name.upper())
                     for destination in destinations:

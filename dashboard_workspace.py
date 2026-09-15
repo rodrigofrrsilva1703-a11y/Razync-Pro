@@ -102,6 +102,16 @@ def render_dashboard_workspace(
         if metric_card("Faturamento no ano", brl(annual_revenue), key="dash_year_revenue", help_text="Abrir a visão fiscal do faturamento"):
             navigate("Fiscal")
 
+    st.markdown("#### Começar agora")
+    quick1, quick2, quick3 = st.columns(3)
+    if quick1.button("＋ Registrar receita ou despesa", key="rz_quick_card_new_tx", type="primary", width="stretch"):
+        navigate("Movimentações")
+    if quick2.button("↥ Importar extrato bancário", key="rz_quick_card_import", width="stretch"):
+        navigate("Importar Extrato")
+    if quick3.button("✦ Perguntar ao Razync IA", key="rz_quick_card_ai", width="stretch"):
+        st.session_state["razync_floating_open"] = True
+        st.rerun()
+
     projection = financial_projection(transactions, annual_limit, current_year, today)
     if projection.get("limit_risk"):
         alert_card("warn", "Atenção ao limite do MEI", f"No ritmo atual, a projeção anual é {brl(projection['projected_revenue'])}.")
@@ -116,7 +126,7 @@ def render_dashboard_workspace(
         section("O que fazer agora", "As tarefas mais importantes, em ordem de prioridade.")
         if not plan["items"]:
             st.success("Nenhuma ação urgente identificada.")
-        for idx, item in enumerate(plan["items"][:4]):
+        for idx, item in enumerate(plan["items"][:1]):
             level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
             if item["page"] != "Dashboard" and _action_card(
                 title=item["title"],
@@ -141,7 +151,7 @@ def render_dashboard_workspace(
         elif score >= 90:
             st.success("Seu MEI está bem organizado com os dados cadastrados.")
 
-    with st.expander("Central de Atividades", expanded=False):
+    with st.expander("Ver todas as tarefas e atividades", expanded=False):
         st.caption("Pendências, próximos vencimentos e atividade financeira recente em um único lugar.")
         activity_items = build_activity_items(
             profile=profile,
@@ -164,47 +174,28 @@ def render_dashboard_workspace(
         current_year=current_year,
         today=today,
     )
-    section("Insights do Razync", "Sinais automáticos dos seus dados.")
-    if not insights:
-        st.info("Adicione mais movimentações e informações fiscais para o Razync identificar tendências automaticamente.")
-    else:
-        for idx, insight in enumerate(insights[:2]):
-            if _action_card(
-                title=insight["title"],
-                detail=insight["detail"],
-                key=f"insight_{idx}",
-                level=insight["level"],
-                meta=f"Abrir {insight['page']}",
-            ):
-                navigate(insight["page"])
-            if st.button(
-                "✦ Entender este insight com a IA",
-                key=f"rz_ai_context_{idx}",
-                width="stretch",
-                help="A IA flutuante abrirá com este insight e a pergunta já preparados.",
-            ):
-                st.session_state["razync_ai_pending_question"] = insight["question"]
-                st.session_state["razync_ai_pending_context"] = {
-                    "source": "dashboard_insight",
-                    "title": insight["title"],
-                    "detail": insight["detail"],
-                    "page": insight["page"],
-                }
-                st.session_state["razync_floating_open"] = True
-                st.rerun()
-
-    section("Acesso rápido", "Escolha uma área para continuar.")
-    q1, q2, q3 = st.columns(3)
-    if q1.button("Financeiro  →", key="rz_quick_card_finance", width="stretch", help="Receitas, despesas e fluxo de caixa"):
-        navigate("Financeiro")
-    if q2.button("Fiscal MEI  →", key="rz_quick_card_fiscal", width="stretch", help="DAS, notas e obrigações"):
-        navigate("Fiscal")
-    if q3.button("Nova movimentação  →", key="rz_quick_card_new_tx", width="stretch", help="Registrar entrada ou saída"):
-        navigate("Movimentações")
+    with st.expander("Análises automáticas do Razync", expanded=False):
+        if not insights:
+            st.info("Adicione mais movimentações para o Razync identificar tendências automaticamente.")
+        else:
+            for idx, insight in enumerate(insights[:2]):
+                if _action_card(
+                    title=insight["title"], detail=insight["detail"],
+                    key=f"insight_{idx}", level=insight["level"], meta="Ver análise",
+                ):
+                    navigate(insight["page"])
+                if st.button("✦ Explicar com a IA", key=f"rz_ai_context_{idx}", width="stretch"):
+                    st.session_state["razync_ai_pending_question"] = insight["question"]
+                    st.session_state["razync_ai_pending_context"] = {
+                        "source": "dashboard_insight", "title": insight["title"],
+                        "detail": insight["detail"], "page": insight["page"],
+                    }
+                    st.session_state["razync_floating_open"] = True
+                    st.rerun()
 
     deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
-    left, right = st.columns([1.25, 1], gap="large")
-    with left:
+    deadlines_tab, recent_tab = st.tabs(["Próximos vencimentos", "Últimos lançamentos"])
+    with deadlines_tab:
         section("Próximos vencimentos", "Somente o que pode exigir ação nos próximos 30 dias.")
         if deadlines:
             for idx, item in enumerate(deadlines[:4]):
@@ -219,7 +210,7 @@ def render_dashboard_workspace(
         else:
             st.success("Nenhum vencimento cadastrado para os próximos 30 dias.")
 
-    with right:
+    with recent_tab:
         section("Últimos lançamentos", "Os registros financeiros mais recentes.")
         if transactions.empty:
             st.info("Ainda não há movimentações cadastradas.")
