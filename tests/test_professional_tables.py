@@ -19,9 +19,20 @@ class ProfessionalTableTests(unittest.TestCase):
         self.assertEqual(kwargs["width"], "stretch")
 
     def test_primary_workspaces_use_professional_table(self):
-        for filename in ("dashboard_workspace.py", "finance_workspace.py", "fiscal_workspace.py"):
+        for filename in (
+            "app.py", "dashboard_workspace.py", "demo_mode.py",
+            "finance_workspace.py", "fiscal_workspace.py",
+        ):
             source = Path(filename).read_text(encoding="utf-8")
             self.assertIn("professional_table(", source)
+
+    def test_product_screens_do_not_render_unbounded_raw_tables(self):
+        for filename in (
+            "app.py", "dashboard_workspace.py", "demo_mode.py",
+            "finance_workspace.py", "fiscal_workspace.py",
+        ):
+            source = Path(filename).read_text(encoding="utf-8")
+            self.assertNotIn("st.dataframe(", source, filename)
 
 
 if __name__ == "__main__":

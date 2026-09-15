@@ -956,10 +956,9 @@ elif page == "Recorrências":
     else:
         recurring_df = pd.DataFrame(recurring_items)
         recurring_df["Situação"] = recurring_df["active"].map({True: "Ativa", False: "Pausada"})
-        st.dataframe(
+        professional_table(
             recurring_df[["id", "description", "tx_type", "value", "frequency", "next_date", "Situação"]],
-            width="stretch",
-            hide_index=True,
+            max_visible_rows=8,
             column_config={
                 "id": None,
                 "description": "Descrição",
@@ -1001,7 +1000,7 @@ elif page == "Importar Extrato":
                 st.warning("O arquivo não possui linhas para importar.")
             else:
                 st.subheader("1. Confira as colunas")
-                st.dataframe(raw.head(8), width="stretch", hide_index=True)
+                professional_table(raw.head(8), max_visible_rows=8)
                 cols = list(raw.columns)
                 a,b,c = st.columns(3)
                 date_col = a.selectbox("Coluna de data", cols, index=0)
@@ -1025,7 +1024,7 @@ elif page == "Importar Extrato":
                     if not transactions.empty:
                         existing_keys = set((r.tx_date.date() if hasattr(r.tx_date,"date") else r.tx_date, r.description, float(r.value), r.tx_type) for r in transactions.itertuples())
                     prepared["Duplicado"] = [is_probable_duplicate(existing_keys,row.tx_date,row.description,row.value,row.tx_type) for row in prepared.itertuples()]
-                    st.dataframe(prepared, width="stretch", hide_index=True, column_config={"value":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
+                    professional_table(prepared, max_visible_rows=10, column_config={"value":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"tx_date":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
                     only_new = st.checkbox("Ignorar possíveis duplicados", value=True)
                     rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
                     st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
@@ -1267,7 +1266,7 @@ elif page == "Importar NFS-e":
                 st.warning(str(exc))
                 nfse_rows = []
             if nfse_rows:
-                st.dataframe(pd.DataFrame(nfse_rows), width="stretch", hide_index=True)
+                professional_table(pd.DataFrame(nfse_rows), max_visible_rows=8)
                 existing_numbers = set(invoices["number"].fillna("").astype(str)) if not invoices.empty else set()
                 new_rows = [row for row in nfse_rows if row["number"] not in existing_numbers]
                 st.caption(f"{len(new_rows)} nota(s) nova(s); {len(nfse_rows) - len(new_rows)} já cadastrada(s).")
@@ -1603,7 +1602,7 @@ elif page == "Documentos":
                     st.session_state.pop(prepared_key, None)
                     st.rerun()
         st.subheader("Cobertura documental")
-        coverage=document_coverage(docs,CURRENT_YEAR); st.dataframe(coverage,width="stretch",hide_index=True)
+        coverage=document_coverage(docs,CURRENT_YEAR); professional_table(coverage, max_visible_rows=12)
 
 elif page == "Espaço do Contador":
     header("Espaço do Contador", "Prepare um pacote organizado para compartilhar sem liberar sua senha.")
@@ -1665,7 +1664,7 @@ elif page == "Central de Automações":
             ("Cobrança de clientes", "Assistida", "Prepara lembretes; você decide se envia."),
             ("Assistente proativo", "Automática", "Apresenta as prioridades no painel."),
         ]
-        st.dataframe(pd.DataFrame(routines, columns=["Rotina", "Modo", "O que faz"]), width="stretch", hide_index=True)
+        professional_table(pd.DataFrame(routines, columns=["Rotina", "Modo", "O que faz"]), max_visible_rows=7)
         q1, q2, q3 = st.columns(3)
         if q1.button("Importar NFS-e", width="stretch"):
             st.session_state["_navigate_to"] = "Importar NFS-e"; st.rerun()
@@ -1678,21 +1677,21 @@ elif page == "Central de Automações":
         st.progress(closing["score"] / 100)
         st.caption(f"Fechamento de {date.today().month:02d}/{CURRENT_YEAR}: {closing['score']}% pronto")
         checklist = pd.DataFrame(closing["checklist"])
-        st.dataframe(checklist, width="stretch", hide_index=True)
+        professional_table(checklist, max_visible_rows=7)
         if st.button("Abrir fechamento mensal", key="automation_closing", width="stretch"):
             st.session_state["_navigate_to"] = "Fechamento Mensal"; st.rerun()
 
     with review_tab:
         st.subheader("Possíveis pagamentos de DAS")
         if automation["das_matches"]:
-            st.dataframe(pd.DataFrame(automation["das_matches"]), width="stretch", hide_index=True)
+            professional_table(pd.DataFrame(automation["das_matches"]), max_visible_rows=7)
             st.caption("O Razync apenas sugere. Confirme o pagamento na página DAS depois de conferir o extrato.")
         else:
             st.success("Nenhum possível pagamento de DAS aguardando revisão.")
         st.subheader("Despesas fora do padrão")
         if automation["anomalies"]:
             anomaly_df = pd.DataFrame(automation["anomalies"]).rename(columns={"description": "Descrição", "category": "Categoria", "value": "Valor", "reference": "Mediana"})
-            st.dataframe(anomaly_df, width="stretch", hide_index=True, column_config={"Valor": st.column_config.NumberColumn(format="R$ %.2f"), "Mediana": st.column_config.NumberColumn(format="R$ %.2f")})
+            professional_table(anomaly_df, max_visible_rows=7, column_config={"Valor": st.column_config.NumberColumn(format="R$ %.2f"), "Mediana": st.column_config.NumberColumn(format="R$ %.2f")})
         else:
             st.success("Nenhuma despesa fora do padrão foi identificada.")
         if st.button("Abrir conciliação inteligente", key="automation_reconcile", width="stretch"):
@@ -1700,8 +1699,8 @@ elif page == "Central de Automações":
 
     with forecast_tab:
         st.caption("Projeção baseada na média dos últimos três meses cadastrados.")
-        st.dataframe(
-            automation["forecast"], width="stretch", hide_index=True,
+        professional_table(
+            automation["forecast"], max_visible_rows=6,
             column_config={
                 "Receitas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Despesas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
