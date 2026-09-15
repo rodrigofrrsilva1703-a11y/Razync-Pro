@@ -44,7 +44,7 @@ def test_fiscal_timeline_orders_overdue_before_future():
 def test_dashboard_and_fiscal_integrate_new_operational_views():
     dashboard = Path("dashboard_workspace.py").read_text(encoding="utf-8")
     fiscal = Path("fiscal_workspace.py").read_text(encoding="utf-8")
-    assert 'st.expander("Central de Atividades"' in dashboard
+    assert 'st.expander("Ver todas as tarefas e atividades"' in dashboard
     assert "build_activity_items(" in dashboard
     assert 'st.expander("Linha do tempo fiscal"' in fiscal
     assert "build_fiscal_timeline(" in fiscal
