@@ -5,6 +5,7 @@ import plotly.express as px
 import streamlit as st
 
 from ui_system import alert_card, apply_plot_theme, page_header, section
+from table_ui import professional_table
 
 
 def _brl(value: float) -> str:
@@ -124,11 +125,11 @@ def render_demo() -> None:
 
 
 def _render_fiscal_preview() -> None:
-    st.dataframe(
+    professional_table(
         pd.DataFrame([
             {"Obrigação": "DAS · Agosto", "Vencimento": "21/09/2026", "Situação": "Pendente"},
             {"Obrigação": "DAS · Julho", "Vencimento": "20/08/2026", "Situação": "Pago"},
             {"Obrigação": "DASN-SIMEI", "Vencimento": "31/05/2027", "Situação": "Planejado"},
         ]),
-        width="stretch", hide_index=True,
+        max_visible_rows=5,
     )
