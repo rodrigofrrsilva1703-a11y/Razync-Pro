@@ -118,6 +118,20 @@ engine = create_engine(DATABASE_URL, future=True, **engine_kwargs)
 metadata = MetaData()
 
 
+def _dispose_stale_pool() -> None:
+    """Drop pooled sockets so the next checkout opens a fresh DB connection."""
+    if not str(DATABASE_URL).startswith("sqlite"):
+        engine.dispose(close=False)
+
+
+def _read_snapshot_from_postgres(user_id: int):
+    with engine.connect() as conn:
+        return conn.execute(
+            text("select public.razync_user_snapshot(:uid)"),
+            {"uid": int(user_id)},
+        ).scalar_one()
+
+
 def database_runtime_info() -> dict[str, Any]:
     is_sqlite = str(DATABASE_URL).startswith("sqlite")
     return {
@@ -340,13 +354,16 @@ def load_user_snapshot(user_id: int) -> dict[str, Any]:
             "obligations": list_obligations(user_id),
         }
     try:
-        with engine.connect() as conn:
-            raw = conn.execute(
-                text("select public.razync_user_snapshot(:uid)"),
-                {"uid": int(user_id)},
-            ).scalar_one()
-    except OperationalError as exc:
-        raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+        raw = _read_snapshot_from_postgres(user_id)
+    except OperationalError:
+        # A persisted Streamlit/GitHub session can outlive the socket held by the
+        # Supabase Session Pooler. Discard the whole local pool and retry once
+        # with a brand-new connection before showing an error to the user.
+        _dispose_stale_pool()
+        try:
+            raw = _read_snapshot_from_postgres(user_id)
+        except OperationalError as exc:
+            raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
 
     if isinstance(raw, str):
         raw = json.loads(raw)
