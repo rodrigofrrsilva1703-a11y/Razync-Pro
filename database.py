@@ -92,15 +92,24 @@ def _diagnose_operational_error(exc: Exception) -> str:
 
 DATABASE_URL = _resolve_database_url()
 
-engine_kwargs: dict[str, Any] = {"pool_pre_ping": False}
+engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
 if str(DATABASE_URL).startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    engine_kwargs["connect_args"] = {"connect_timeout": 8}
+    # Session Pooler connections can be closed while a Streamlit session is idle.
+    # Validate a pooled connection before checkout and recycle it well before long
+    # idle sessions are likely to hand us a stale socket.
+    engine_kwargs["connect_args"] = {
+        "connect_timeout": 8,
+        "keepalives": 1,
+        "keepalives_idle": 60,
+        "keepalives_interval": 20,
+        "keepalives_count": 3,
+    }
     engine_kwargs.update({
         "pool_size": 3,
         "max_overflow": 2,
-        "pool_recycle": 1800,
+        "pool_recycle": 240,
         "pool_timeout": 10,
         "pool_use_lifo": True,
     })
