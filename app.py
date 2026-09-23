@@ -544,7 +544,16 @@ def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list
 
 user = ensure_login()
 uid = int(user["id"])
-generated_recurring = materialize_due_recurring(uid)
+try:
+    generated_recurring = materialize_due_recurring(uid)
+except DatabaseConnectionError:
+    generated_recurring = 0
+except Exception as exc:
+    # Recurrence maintenance must not prevent a restored GitHub/session login
+    # from reaching the read-only snapshot. The database snapshot below owns
+    # the user-facing connection recovery/error flow.
+    safe_error("recurring_materialize_failed", exc, operation="materialize_due_recurring", backend="database")
+    generated_recurring = 0
 if generated_recurring:
     st.toast(f"{generated_recurring} lançamento(s) recorrente(s) gerado(s).", icon="✓")
 
