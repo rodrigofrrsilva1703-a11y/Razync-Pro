@@ -34,6 +34,9 @@ def _demo_sidebar() -> str:
             "Financeiro": ":material/account_balance_wallet:",
             "Automações": ":material/automation:",
             "Fiscal e DAS": ":material/receipt_long:",
+            "Documentos": ":material/folder_open:",
+            "Produtividade": ":material/bolt:",
+            "Assistente IA": ":material/smart_toy:",
         }
         for destination, icon in destinations.items():
             if st.button(
@@ -65,6 +68,9 @@ def render_demo() -> None:
         "Financeiro": "Acompanhe receitas, despesas e resultado sem depender de planilhas.",
         "Automações": "Veja tarefas que o sistema identifica e deixa prontas para sua confirmação.",
         "Fiscal e DAS": "Centralize vencimentos e acompanhe suas principais obrigações do MEI.",
+        "Documentos": "Organize comprovantes, notas e arquivos por período.",
+        "Produtividade": "Acompanhe as tarefas da rotina do MEI em um lugar só.",
+        "Assistente IA": "Veja como o assistente ajuda a entender os números e as pendências.",
     }
     page_header(demo_section, subtitles[demo_section], "Experiência do produto")
 
@@ -111,10 +117,40 @@ def render_demo() -> None:
         fig = px.area(data, x="Mês", y=["Receitas", "Despesas"], markers=True, color_discrete_sequence=["#08b9ef", "#607487"])
         apply_plot_theme(fig, theme, height=310)
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+        section("Receitas e despesas", "Exemplos dos lançamentos que aparecem na rotina financeira.")
+        professional_table(pd.DataFrame([
+            {"Data": "05/08/2026", "Descrição": "Venda de serviços", "Tipo": "Receita", "Valor": _brl(4200)},
+            {"Data": "08/08/2026", "Descrição": "Material de trabalho", "Tipo": "Despesa", "Valor": _brl(760)},
+            {"Data": "14/08/2026", "Descrição": "Internet", "Tipo": "Despesa", "Valor": _brl(180)},
+        ]), max_visible_rows=5)
     elif demo_section == "Automações":
         alert_card("warn", "1 tarefa pede confirmação", "O sistema encontrou um possível pagamento de DAS no extrato.")
         alert_card("info", "2 conciliações sugeridas", "Notas e recebimentos parecidos estão prontos para você revisar.")
         alert_card("ok", "Previsão positiva", "O saldo projetado permanece positivo nos próximos três meses.")
+        st.info("Na conta real, cada sugestão precisa ser revisada antes de confirmar uma ação.")
+    elif demo_section == "Documentos":
+        section("Arquivos organizados", "Exemplos de documentos por categoria e competência.")
+        professional_table(pd.DataFrame([
+            {"Documento": "Nota fiscal de serviço", "Competência": "08/2026", "Categoria": "Notas fiscais"},
+            {"Documento": "Comprovante do DAS", "Competência": "07/2026", "Categoria": "Tributos"},
+            {"Documento": "Extrato bancário", "Competência": "08/2026", "Categoria": "Financeiro"},
+        ]), max_visible_rows=5)
+        st.caption("Arquivos ilustrativos. O envio e a consulta dos seus documentos exigem uma conta.")
+    elif demo_section == "Produtividade":
+        section("Tarefas da semana", "Uma amostra da organização das próximas ações.")
+        professional_table(pd.DataFrame([
+            {"Tarefa": "Conferir DAS de agosto", "Prazo": "21/09/2026", "Situação": "Pendente"},
+            {"Tarefa": "Organizar notas de agosto", "Prazo": "25/09/2026", "Situação": "Em andamento"},
+            {"Tarefa": "Revisar conciliações", "Prazo": "30/09/2026", "Situação": "A revisar"},
+        ]), max_visible_rows=5)
+    elif demo_section == "Assistente IA":
+        section("Perguntas e ações", "Exemplo ilustrativo de uma conversa com o assistente.")
+        st.chat_message("user").write("Como está o meu resultado neste ano?")
+        st.chat_message("assistant").write(
+            "Nos dados de exemplo, as entradas somam R$ 18.450,00 e as saídas R$ 6.270,00. "
+            "O resultado é R$ 12.180,00. Há uma pendência para conferir o DAS de agosto."
+        )
+        st.info("Esta é uma conversa ilustrativa. A IA e as ações com seus dados são verificadas somente na conta autenticada.")
     else:
         _render_fiscal_preview()
 
