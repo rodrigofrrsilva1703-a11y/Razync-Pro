@@ -81,20 +81,25 @@ def render_demo() -> None:
         "Despesas": [900, 760, 1050, 1120, 1180, 1260],
     })
 
+    if demo_section == "Visão geral":
+        with st.container(key="dashboard_next_step"):
+            st.markdown("#### Próximo passo")
+            st.markdown("**Conferir o DAS de agosto**")
+            st.write("Vencimento fictício em 21/09/2026. O pagamento ainda não foi identificado no extrato.")
+            if st.button("Ver prazos e impostos", key="demo_next_step", type="primary", width="stretch"):
+                st.session_state["_demo_section"] = "Fiscal e DAS"
+                st.rerun()
+
     if demo_section in {"Visão geral", "Financeiro"}:
+        st.markdown("#### Resumo financeiro")
         a, b, c, d = st.columns(4)
         a.metric("Entradas no ano", _brl(revenue))
         b.metric("Saídas no ano", _brl(expenses))
-        c.metric("Resultado", _brl(balance))
+        c.metric("Entradas menos saídas", _brl(balance))
         d.metric("Limite MEI usado", f"{limit_used:.1f}%")
 
     if demo_section == "Visão geral":
-        action_col, status_col = st.columns([1.65, 1], gap="large")
-        with action_col:
-            section("Próximo passo recomendado", "O Razync prioriza o que merece sua atenção.")
-            st.markdown('<div class="rz-next-action"><strong>Conferir o DAS de agosto</strong><span>Vencimento fictício em 21/09/2026. O pagamento ainda não foi identificado no extrato.</span></div>', unsafe_allow_html=True)
-        with status_col:
-            section("Saúde do MEI", "Indicadores explicados, sem termos complicados.")
+        with st.expander("Indicadores do MEI"):
             st.progress(limit_used / 100)
             st.caption("Faturamento dentro do limite monitorado")
             st.progress(0.86)
