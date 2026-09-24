@@ -85,9 +85,28 @@ def render_dashboard_workspace(
     month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
     month_result = month_in - month_out
 
-    st.markdown("### Hoje no seu MEI")
-    st.caption("Uma visão curta do que entrou, do que saiu e do que precisa de atenção.")
+    st.markdown("### Seu MEI hoje")
+    st.caption("Veja a próxima tarefa e acompanhe o dinheiro do seu negócio.")
 
+    priorities = action_items(profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue)
+    setup = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(documents))
+    notifications = build_notifications(das_rows, obligations, annual_revenue, annual_limit)
+    plan = build_today_plan(priorities, notifications, setup, limit=4)
+
+    with st.container(key="dashboard_next_step"):
+        st.markdown("#### Próximo passo")
+        if plan["items"]:
+            item = plan["items"][0]
+            st.markdown(f"**{item['title']}**")
+            st.write(item["detail"])
+            if item["page"] != "Dashboard" and st.button(
+                "Resolver esta tarefa", key="dash_primary_next", type="primary", width="stretch"
+            ):
+                navigate(item["page"])
+        else:
+            st.success("Tudo em dia com os dados que você cadastrou.")
+
+    st.markdown("#### Resumo financeiro")
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         if metric_card("Entradas no mês", brl(month_in), key="dash_month_in", help_text="Abrir a área Financeiro"):
@@ -96,19 +115,19 @@ def render_dashboard_workspace(
         if metric_card("Saídas no mês", brl(month_out), key="dash_month_out", help_text="Abrir a área Financeiro"):
             navigate("Financeiro")
     with k3:
-        if metric_card("Resultado do mês", brl(month_result), key="dash_month_result", help_text="Abrir a análise financeira"):
+        if metric_card("Entradas menos saídas", brl(month_result), key="dash_month_result", help_text="Abrir a análise financeira"):
             navigate("Financeiro")
     with k4:
         if metric_card("Faturamento no ano", brl(annual_revenue), key="dash_year_revenue", help_text="Abrir a visão fiscal do faturamento"):
             navigate("Fiscal")
 
-    st.markdown("#### Começar agora")
+    st.markdown("#### Ações rápidas")
     quick1, quick2, quick3 = st.columns(3)
-    if quick1.button("＋ Registrar receita ou despesa", key="rz_quick_card_new_tx", type="primary", width="stretch"):
+    if quick1.button("Registrar entrada ou saída", key="rz_quick_card_new_tx", width="stretch"):
         navigate("Movimentações")
-    if quick2.button("↥ Importar extrato bancário", key="rz_quick_card_import", width="stretch"):
+    if quick2.button("Importar extrato", key="rz_quick_card_import", width="stretch"):
         navigate("Importar Extrato")
-    if quick3.button("✦ Perguntar ao Razync IA", key="rz_quick_card_ai", width="stretch"):
+    if quick3.button("Pedir ajuda ao Razync", key="rz_quick_card_ai", width="stretch"):
         st.session_state["razync_floating_open"] = True
         st.rerun()
 
@@ -116,17 +135,12 @@ def render_dashboard_workspace(
     if projection.get("limit_risk"):
         alert_card("warn", "Atenção ao limite do MEI", f"No ritmo atual, a projeção anual é {brl(projection['projected_revenue'])}.")
 
-    priorities = action_items(profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue)
-    setup = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(documents))
-    notifications = build_notifications(das_rows, obligations, annual_revenue, annual_limit)
-    plan = build_today_plan(priorities, notifications, setup, limit=4)
-
     main_col, side_col = st.columns([1.65, 1], gap="large")
     with main_col:
-        section("O que fazer agora", "As tarefas mais importantes, em ordem de prioridade.")
-        if not plan["items"]:
-            st.success("Nenhuma ação urgente identificada.")
-        for idx, item in enumerate(plan["items"][:1]):
+        section("Outras tarefas", "Acompanhe o que vem depois do próximo passo.")
+        if len(plan["items"]) <= 1:
+            st.caption("Outras tarefas aparecerão aqui quando houver algo a fazer.")
+        for idx, item in enumerate(plan["items"][1:4], start=1):
             level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
             if item["page"] != "Dashboard" and _action_card(
                 title=item["title"],
@@ -136,6 +150,7 @@ def render_dashboard_workspace(
                 meta="Resolver agora",
             ):
                 navigate(item["page"])
+            st.caption(item["detail"])
 
     with side_col:
         section("Saúde do MEI", "Limite, obrigações e organização em um único indicador.")
