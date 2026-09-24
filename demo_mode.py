@@ -147,8 +147,8 @@ def render_demo() -> None:
         section("Perguntas e ações", "Exemplo ilustrativo de uma conversa com o assistente.")
         st.chat_message("user").write("Como está o meu resultado neste ano?")
         st.chat_message("assistant").write(
-            "Nos dados de exemplo, as entradas somam R$ 18.450,00 e as saídas R$ 6.270,00. "
-            "O resultado é R$ 12.180,00. Há uma pendência para conferir o DAS de agosto."
+            "Nos dados de exemplo, as entradas somam R\\$ 18.450,00 e as saídas R\\$ 6.270,00. "
+            "O resultado é R\\$ 12.180,00. Há uma pendência para conferir o DAS de agosto."
         )
         st.info("Esta é uma conversa ilustrativa. A IA e as ações com seus dados são verificadas somente na conta autenticada.")
     else:
