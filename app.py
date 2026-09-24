@@ -254,9 +254,10 @@ def ensure_login() -> dict:
     if "user" in st.session_state:
         return st.session_state["user"]
 
-    if st.session_state.get("_demo_mode"):
-        render_demo()
-        st.stop()
+    # Enquanto a entrada pública estiver desativada, visitantes veem apenas
+    # dados fictícios. Sessões já autenticadas continuam protegidas acima.
+    render_demo()
+    st.stop()
 
     st.markdown(
         f"""
