@@ -106,8 +106,8 @@ def _open_document_in_assistant(document: dict, navigate) -> None:
 def render_command_center(*, navigate, current_page: str, documents: list[dict] | None = None) -> None:
     """Global command/search surface for tools and safe document metadata."""
     documents = list(documents or [])
-    with st.popover("Buscar ou ir para...", icon=":material/search:"):
-        st.caption("Encontre ferramentas, ações e documentos sem procurar no menu.")
+    with st.popover("O que você quer fazer?", icon=":material/search:"):
+        st.caption("Procure uma tarefa, documento ou área do Razync.")
         query = st.text_input(
             "Buscar no Razync",
             key="rz_command_query",
