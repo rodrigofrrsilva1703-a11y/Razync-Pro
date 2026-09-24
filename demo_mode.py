@@ -12,6 +12,13 @@ def _brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _leave_demo() -> None:
+    """Return to authentication without keeping demo-only navigation state."""
+    st.session_state.pop("_demo_mode", None)
+    st.session_state.pop("_demo_section", None)
+    st.rerun()
+
+
 def _demo_sidebar() -> str:
     """Keep the product navigation visible while using the public preview."""
     with st.sidebar:
@@ -41,6 +48,10 @@ def _demo_sidebar() -> str:
             ):
                 st.session_state["_demo_section"] = destination
                 st.rerun()
+        st.divider()
+        st.caption("Para usar seus dados reais, entre na sua conta.")
+        if st.button("Entrar no sistema", type="primary", width="stretch"):
+            _leave_demo()
     return section
 
 
@@ -144,6 +155,9 @@ def render_demo() -> None:
         _render_fiscal_preview()
 
     st.caption("Nenhum dado desta demonstração é salvo ou enviado.")
+    back, create = st.columns([1, 1])
+    if back.button("Voltar para entrar", width="stretch") or create.button("Criar minha conta", type="primary", width="stretch"):
+        _leave_demo()
 
 
 def _render_fiscal_preview() -> None:
