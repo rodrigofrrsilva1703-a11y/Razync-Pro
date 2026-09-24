@@ -28,6 +28,46 @@ def inject_workspace_style() -> None:
             background: var(--rz-surface);
             box-shadow: var(--rz-shadow);
         }
+        .rz-dash-intro { margin: .25rem 0 1.3rem; }
+        .rz-dash-intro span { color: var(--rz-primary); font-size: .75rem; font-weight: 800; letter-spacing: .11em; }
+        .rz-dash-intro h2 { margin: .35rem 0 .25rem; font-size: clamp(1.65rem, 2.8vw, 2.3rem); line-height: 1.15; letter-spacing: -.035em; }
+        .rz-dash-intro p { margin: 0; color: var(--rz-muted); font-size: 1rem; line-height: 1.5; }
+        .st-key-dashboard_focus, .st-key-dashboard_summary {
+            min-height: 250px;
+            padding: 1.35rem 1.5rem;
+            border-radius: 20px;
+        }
+        .st-key-dashboard_focus {
+            background: linear-gradient(145deg, #102b3c, #14536a);
+            box-shadow: 0 18px 40px rgba(7, 38, 54, .18);
+        }
+        .st-key-dashboard_focus :is(h3, p, [data-testid="stCaptionContainer"] *) { color: #fff !important; }
+        .st-key-dashboard_focus h3 { font-size: clamp(1.3rem, 2vw, 1.7rem); line-height: 1.2; margin: .3rem 0; }
+        .st-key-dashboard_focus [data-testid="stCaptionContainer"] * { opacity: .78; letter-spacing: .04em; }
+        .st-key-dashboard_focus [data-testid="stButton"] button {
+            min-height: 46px; background: #16bdeb !important; color: #062333 !important;
+            border-color: #16bdeb !important; font-weight: 750 !important;
+        }
+        .st-key-dashboard_summary {
+            border: 1px solid var(--rz-border);
+            background: var(--rz-surface);
+            box-shadow: var(--rz-shadow-soft);
+        }
+        .st-key-dashboard_summary [data-testid="stMetric"] {
+            min-height: auto !important; padding: .55rem 0 !important;
+            border: 0 !important; box-shadow: none !important;
+            background: transparent !important;
+        }
+        .st-key-dashboard_summary > div [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
+        [class*="st-key-dashboard_task_"], [class*="st-key-dashboard_deadline_"] {
+            padding: .75rem .95rem; margin-bottom: .6rem;
+            border: 1px solid var(--rz-border); border-radius: 13px;
+            background: var(--rz-surface);
+        }
+        [class*="st-key-dashboard_task_"] [data-testid="stButton"] button,
+        [class*="st-key-dashboard_deadline_"] [data-testid="stButton"] button {
+            min-height: 38px !important; width: auto; padding: .35rem .75rem;
+        }
         .st-key-dashboard_next_step h4 { margin: 0 0 .55rem; font-size: 1rem; }
         .st-key-dashboard_next_step p { line-height: 1.6; }
         .st-key-dashboard_next_step [data-testid="stButton"] button {
@@ -44,6 +84,7 @@ def inject_workspace_style() -> None:
         @media (max-width: 700px) {
             .st-key-dashboard_next_step { padding: 1rem; margin-bottom: 1.1rem; }
             .st-key-dashboard_next_step [data-testid="stButton"] button { width: 100%; }
+            .st-key-dashboard_focus, .st-key-dashboard_summary { min-height: 0; padding: 1.1rem; }
         }
 
         /* Login V3: acesso moderno com marketing original do Razync Pro. */
