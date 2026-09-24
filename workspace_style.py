@@ -16,7 +16,34 @@ def inject_workspace_style() -> None:
         }
 
         [data-testid="stAppViewContainer"] .block-container {
-            max-width: 1380px;
+            max-width: 1180px;
+        }
+
+        .st-key-dashboard_next_step {
+            padding: 1.3rem 1.5rem 1.45rem;
+            margin: .8rem 0 1.6rem;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 34%, var(--rz-border));
+            border-left: 5px solid var(--rz-primary);
+            border-radius: 18px;
+            background: var(--rz-surface);
+            box-shadow: var(--rz-shadow);
+        }
+        .st-key-dashboard_next_step h4 { margin: 0 0 .55rem; font-size: 1rem; }
+        .st-key-dashboard_next_step p { line-height: 1.6; }
+        .st-key-dashboard_next_step [data-testid="stButton"] button {
+            width: auto; min-width: 200px; min-height: 44px;
+            margin-top: .45rem; padding-inline: 1.2rem;
+        }
+        .st-key-sidebar_navigation > div [data-testid="stCaptionContainer"] p {
+            margin: .8rem 0 .15rem;
+            font-size: .75rem;
+            font-weight: 750;
+            letter-spacing: .045em;
+            color: var(--rz-muted);
+        }
+        @media (max-width: 700px) {
+            .st-key-dashboard_next_step { padding: 1rem; margin-bottom: 1.1rem; }
+            .st-key-dashboard_next_step [data-testid="stButton"] button { width: 100%; }
         }
 
         /* Login V3: acesso moderno com marketing original do Razync Pro. */
