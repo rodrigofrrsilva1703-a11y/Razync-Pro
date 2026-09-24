@@ -137,9 +137,8 @@ def render_sidebar(
             unsafe_allow_html=True,
         )
 
-        render_command_center(navigate=navigate, current_page=page, documents=documents)
-
         with st.container(key="sidebar_navigation"):
+            st.caption("MENU PRINCIPAL")
             if st.button(
                 SIDEBAR_LABELS["Dashboard"],
                 key="grouped_nav_dashboard",
@@ -149,9 +148,7 @@ def render_sidebar(
             ):
                 navigate("Dashboard")
 
-            primary_destinations = [
-                "Financeiro", "Fiscal", "Clientes e Fornecedores", "Documentos"
-            ]
+            primary_destinations = ["Financeiro", "Fiscal", "Documentos"]
             for destination in primary_destinations:
                 if st.button(
                     SIDEBAR_LABELS[destination],
@@ -162,11 +159,14 @@ def render_sidebar(
                 ):
                     navigate(destination)
 
-            supporting_destinations = ["Produtividade", "Conta e Sistema"]
+            st.caption("ENCONTRE UMA FUNÇÃO")
+            render_command_center(navigate=navigate, current_page=page, documents=documents)
+
+            supporting_destinations = ["Clientes e Fornecedores", "Produtividade", "Conta e Sistema"]
             secondary_pages = supporting_destinations + [
                 item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages
             ]
-            with st.expander("Outras ferramentas", expanded=page in secondary_pages):
+            with st.expander("Mais áreas e ferramentas", expanded=page in secondary_pages):
                 for destination in supporting_destinations:
                     if st.button(
                         SIDEBAR_LABELS[destination],
