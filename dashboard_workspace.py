@@ -1,234 +1,112 @@
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 
 import pandas as pd
 import streamlit as st
 
 from activity_center import build_activity_items, render_activity_center
-from automation_tools import financial_projection, upcoming_deadlines
-from compact_cards import metric_card
+from automation_tools import upcoming_deadlines
 from customer_experience import build_today_plan
-from fiscal_rules import das_status
 from growth_tools import build_notifications
 from onboarding_tools import onboarding_progress
 from product_core import action_items
 from smart_insights import build_proactive_insights
-from ui_system import alert_card, section
 from table_ui import professional_table
 
 
-def _action_card(*, title: str, detail: str, key: str, level: str = "info", meta: str = "Abrir") -> bool:
-    """Render one compact, accessible, full-surface dashboard action."""
-    safe_level = level if level in {"danger", "warn", "info", "ok"} else "info"
-    return st.button(
-        f"{title}  ·  {meta} →",
-        key=f"rz_action_card_{safe_level}_{key}",
-        width="stretch",
-        help=detail,
-    )
-
-
-def _health_score(profile: dict, annual_revenue: float, annual_limit: float, das_rows: list[dict], obligations: list[dict]) -> tuple[int, list[str]]:
-    score = 100
-    notes: list[str] = []
-    if not profile.get("cnpj"):
-        score -= 20
-        notes.append("Complete o CNPJ do MEI.")
-    if not profile.get("main_activity"):
-        score -= 10
-        notes.append("Informe a atividade principal.")
-    if annual_limit and annual_revenue / annual_limit >= 0.90:
-        score -= 20
-        notes.append("O faturamento está próximo do limite monitorado.")
-    overdue_das = sum(1 for row in das_rows if das_status(row.get("status", "Pendente"), row.get("due_date")) == "Atrasado")
-    if overdue_das:
-        score -= min(30, overdue_das * 10)
-        notes.append(f"Existem {overdue_das} DAS em atraso.")
-    overdue_obligations = 0
-    today = date.today()
-    for row in obligations:
-        due = row.get("due_date")
-        if isinstance(due, str):
-            try:
-                due = date.fromisoformat(due)
-            except ValueError:
-                due = None
-        if row.get("status") != "Concluído" and due and due < today:
-            overdue_obligations += 1
-    if overdue_obligations:
-        score -= min(20, overdue_obligations * 5)
-        notes.append(f"Existem {overdue_obligations} obrigação(ões) vencida(s).")
-    return max(score, 0), notes
-
-
 def render_dashboard_workspace(
-    *,
-    profile: dict,
-    transactions: pd.DataFrame,
-    invoices: pd.DataFrame,
-    das_rows: list[dict],
-    obligations: list[dict],
-    documents: list[dict],
-    annual_limit: float,
-    annual_revenue: float,
-    current_year: int,
-    brl,
-    navigate,
+    *, profile: dict, transactions: pd.DataFrame, invoices: pd.DataFrame,
+    das_rows: list[dict], obligations: list[dict], documents: list[dict],
+    annual_limit: float, annual_revenue: float, current_year: int, brl, navigate,
 ) -> None:
     today = date.today()
     month_tx = transactions[
         (transactions["tx_date"].dt.year == current_year)
         & (transactions["tx_date"].dt.month == today.month)
     ] if not transactions.empty else transactions
-    month_in = float(month_tx[month_tx["tx_type"] == "Receita"]["value"].sum()) if not month_tx.empty else 0.0
-    month_out = float(month_tx[month_tx["tx_type"] == "Despesa"]["value"].sum()) if not month_tx.empty else 0.0
-    month_result = month_in - month_out
-
-    st.markdown("### Seu MEI hoje")
-    st.caption("Veja a próxima tarefa e acompanhe o dinheiro do seu negócio.")
-
-    priorities = action_items(profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue)
+    month_in = float(month_tx.loc[month_tx["tx_type"] == "Receita", "value"].sum()) if not month_tx.empty else 0.0
+    month_out = float(month_tx.loc[month_tx["tx_type"] == "Despesa", "value"].sum()) if not month_tx.empty else 0.0
     setup = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(documents))
+    priorities = action_items(profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue)
     notifications = build_notifications(das_rows, obligations, annual_revenue, annual_limit)
-    plan = build_today_plan(priorities, notifications, setup, limit=4)
+    tasks = build_today_plan(priorities, notifications, setup, limit=4)["items"]
+    business = escape(str(profile.get("trade_name") or profile.get("business_name") or "seu MEI"))
 
-    with st.container(key="dashboard_next_step"):
-        st.markdown("#### Próximo passo")
-        if plan["items"]:
-            item = plan["items"][0]
-            st.markdown(f"**{item['title']}**")
-            st.write(item["detail"])
-            if item["page"] != "Dashboard" and st.button(
-                "Resolver esta tarefa", key="dash_primary_next", type="primary", width="stretch"
-            ):
-                navigate(item["page"])
+    st.markdown(
+        f'<div class="rz-dash-intro"><span>PAINEL DO MEI</span><h2>Vamos cuidar de {business}</h2>'
+        '<p>Comece pela tarefa abaixo. O restante fica organizado para quando você precisar.</p></div>',
+        unsafe_allow_html=True,
+    )
+    focus, summary = st.columns([1.55, 1], gap="large")
+    with focus, st.container(key="dashboard_focus"):
+        st.caption("PRÓXIMO PASSO")
+        if tasks:
+            task = tasks[0]
+            st.markdown(f"### {task['title']}")
+            st.write(task["detail"])
+            if task["page"] != "Dashboard" and st.button("Resolver agora", key="dash_primary_next", type="primary", width="stretch"):
+                navigate(task["page"])
         else:
-            st.success("Tudo em dia com os dados que você cadastrou.")
+            st.markdown("### Tudo em dia por enquanto")
+            st.write("Quando houver algo para conferir, sua próxima tarefa aparecerá aqui.")
+        if setup["percent"] < 100:
+            st.caption(f"Cadastro inicial: {setup['percent']}% concluído")
 
-    st.markdown("#### Resumo financeiro")
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        if metric_card("Entradas no mês", brl(month_in), key="dash_month_in", help_text="Abrir a área Financeiro"):
+    with summary, st.container(key="dashboard_summary"):
+        st.caption("SEU DINHEIRO NESTE MÊS")
+        st.metric("Entradas menos saídas", brl(month_in - month_out))
+        left, right = st.columns(2)
+        left.metric("Entrou", brl(month_in))
+        right.metric("Saiu", brl(month_out))
+        if st.button("Ver meu financeiro", key="dash_open_finance", width="stretch"):
             navigate("Financeiro")
-    with k2:
-        if metric_card("Saídas no mês", brl(month_out), key="dash_month_out", help_text="Abrir a área Financeiro"):
-            navigate("Financeiro")
-    with k3:
-        if metric_card("Entradas menos saídas", brl(month_result), key="dash_month_result", help_text="Abrir a análise financeira"):
-            navigate("Financeiro")
-    with k4:
-        if metric_card("Faturamento no ano", brl(annual_revenue), key="dash_year_revenue", help_text="Abrir a visão fiscal do faturamento"):
-            navigate("Fiscal")
 
-    st.markdown("#### Ações rápidas")
-    quick1, quick2, quick3 = st.columns(3)
-    if quick1.button("Registrar entrada ou saída", key="rz_quick_card_new_tx", width="stretch"):
+    st.markdown("#### O que você quer fazer?")
+    action_a, action_b, action_c = st.columns(3, gap="medium")
+    if action_a.button("Registrar entrada ou saída", key="rz_quick_card_new_tx", width="stretch"):
         navigate("Movimentações")
-    if quick2.button("Importar extrato", key="rz_quick_card_import", width="stretch"):
+    if action_b.button("Importar extrato do banco", key="rz_quick_card_import", width="stretch"):
         navigate("Importar Extrato")
-    if quick3.button("Pedir ajuda ao Razync", key="rz_quick_card_ai", width="stretch"):
+    if action_c.button("Pedir ajuda ao Razync", key="rz_quick_card_ai", width="stretch"):
         st.session_state["razync_floating_open"] = True
         st.rerun()
 
-    projection = financial_projection(transactions, annual_limit, current_year, today)
-    if projection.get("limit_risk"):
-        alert_card("warn", "Atenção ao limite do MEI", f"No ritmo atual, a projeção anual é {brl(projection['projected_revenue'])}.")
+    task_col, deadline_col = st.columns(2, gap="large")
+    with task_col:
+        st.markdown("#### Depois disso")
+        if len(tasks) <= 1:
+            st.caption("Suas próximas tarefas aparecerão aqui.")
+        for index, task in enumerate(tasks[1:4], start=1):
+            with st.container(key=f"dashboard_task_{index}"):
+                st.markdown(f"**{task['title']}**")
+                st.caption(task["detail"])
+                if task["page"] != "Dashboard" and st.button("Abrir tarefa", key=f"dashboard_task_open_{index}", width="stretch"):
+                    navigate(task["page"])
 
-    main_col, side_col = st.columns([1.65, 1], gap="large")
-    with main_col:
-        section("Outras tarefas", "Acompanhe o que vem depois do próximo passo.")
-        if len(plan["items"]) <= 1:
-            st.caption("Outras tarefas aparecerão aqui quando houver algo a fazer.")
-        for idx, item in enumerate(plan["items"][1:4], start=1):
-            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-            if item["page"] != "Dashboard" and _action_card(
-                title=item["title"],
-                detail=item["detail"],
-                key=f"priority_{idx}",
-                level=level,
-                meta="Resolver agora",
-            ):
-                navigate(item["page"])
-            st.caption(item["detail"])
+    with deadline_col:
+        st.markdown("#### Próximos vencimentos")
+        deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
+        if not deadlines:
+            st.caption("Nenhum vencimento cadastrado para os próximos 30 dias.")
+        for index, deadline in enumerate(deadlines[:3]):
+            with st.container(key=f"dashboard_deadline_{index}"):
+                st.markdown(f"**{deadline['title']}** · {deadline['date'].strftime('%d/%m')}")
+                st.caption(deadline["status"])
+                if st.button("Ver prazo", key=f"dashboard_deadline_open_{index}", width="stretch"):
+                    navigate(deadline["page"])
 
-    with side_col:
-        section("Saúde do MEI", "Limite, obrigações e organização em um único indicador.")
-        score, notes = _health_score(profile, annual_revenue, annual_limit, das_rows, obligations)
-        st.metric("Índice de organização", f"{score}/100")
-        st.progress(score / 100)
-        limit_pct = (annual_revenue / annual_limit * 100) if annual_limit else 0.0
-        st.caption(f"Limite usado: {limit_pct:.1f}%")
-        st.progress(min(max(limit_pct / 100, 0), 1.0))
-        if notes:
-            for note in notes[:3]:
-                st.caption(f"• {note}")
-        elif score >= 90:
-            st.success("Seu MEI está bem organizado com os dados cadastrados.")
-
-    with st.expander("Ver todas as tarefas e atividades", expanded=False):
-        st.caption("Pendências, próximos vencimentos e atividade financeira recente em um único lugar.")
-        activity_items = build_activity_items(
-            profile=profile,
-            transactions=transactions,
-            das_rows=das_rows,
-            obligations=obligations,
-            documents=documents,
-            today=today,
-        )
-        render_activity_center(items=activity_items, navigate=navigate)
-
-    insights = build_proactive_insights(
-        profile=profile,
-        transactions=transactions,
-        invoices=invoices,
-        das_rows=das_rows,
-        obligations=obligations,
-        documents=documents,
-        annual_limit=annual_limit,
-        current_year=current_year,
-        today=today,
-    )
-    with st.expander("Análises automáticas do Razync", expanded=False):
-        if not insights:
-            st.info("Adicione mais movimentações para o Razync identificar tendências automaticamente.")
-        else:
-            for idx, insight in enumerate(insights[:2]):
-                if _action_card(
-                    title=insight["title"], detail=insight["detail"],
-                    key=f"insight_{idx}", level=insight["level"], meta="Ver análise",
-                ):
-                    navigate(insight["page"])
-                if st.button("✦ Explicar com a IA", key=f"rz_ai_context_{idx}", width="stretch"):
-                    st.session_state["razync_ai_pending_question"] = insight["question"]
-                    st.session_state["razync_ai_pending_context"] = {
-                        "source": "dashboard_insight", "title": insight["title"],
-                        "detail": insight["detail"], "page": insight["page"],
-                    }
-                    st.session_state["razync_floating_open"] = True
-                    st.rerun()
-
-    deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
-    deadlines_tab, recent_tab = st.tabs(["Próximos vencimentos", "Últimos lançamentos"])
-    with deadlines_tab:
-        section("Próximos vencimentos", "Somente o que pode exigir ação nos próximos 30 dias.")
-        if deadlines:
-            for idx, item in enumerate(deadlines[:4]):
-                if _action_card(
-                    title=item["title"],
-                    detail=item["status"],
-                    key=f"deadline_{idx}",
-                    level="warn",
-                    meta=f"Vence em {item['date'].strftime('%d/%m')}",
-                ):
-                    navigate(item["page"])
-        else:
-            st.success("Nenhum vencimento cadastrado para os próximos 30 dias.")
-
-    with recent_tab:
-        section("Últimos lançamentos", "Os registros financeiros mais recentes.")
+    with st.expander("Ver mais informações do meu MEI"):
+        st.metric("Faturamento no ano", brl(annual_revenue))
+        if annual_limit:
+            st.progress(min(max(annual_revenue / annual_limit, 0), 1))
+            st.caption(f"{annual_revenue / annual_limit:.1%} do limite anual monitorado")
+        if setup["percent"] < 100 and st.button("Continuar meu cadastro", key="dash_onboarding"):
+            navigate("Primeiros Passos")
+        st.markdown("##### Últimos lançamentos")
         if transactions.empty:
-            st.info("Ainda não há movimentações cadastradas.")
+            st.caption("Nenhuma entrada ou saída cadastrada ainda.")
         else:
             recent = transactions.sort_values("tx_date", ascending=False).head(5).copy()
             recent["Data"] = pd.to_datetime(recent["tx_date"]).dt.strftime("%d/%m")
@@ -236,12 +114,28 @@ def render_dashboard_workspace(
             recent["Descrição"] = recent["description"].fillna("Sem descrição")
             recent["Tipo"] = recent["tx_type"]
             professional_table(recent[["Data", "Tipo", "Descrição", "Valor"]], max_visible_rows=5)
-            if st.button("Ver todas as movimentações", key="dash_recent_all", width="stretch"):
+            if st.button("Ver todas as entradas e saídas", key="dash_recent_all"):
                 navigate("Movimentações")
-
-    if setup["percent"] < 100:
-        with st.expander(f"Configuração do MEI · {setup['percent']}% concluída"):
-            st.progress(setup["percent"] / 100)
-            st.caption("Complete o cadastro inicial para melhorar alertas, relatórios e automações.")
-            if st.button("Continuar configuração", key="dashv2_onboarding", width="stretch"):
-                navigate("Primeiros Passos")
+        activity_items = build_activity_items(
+            profile=profile, transactions=transactions, das_rows=das_rows,
+            obligations=obligations, documents=documents, today=today,
+        )
+        render_activity_center(items=activity_items, navigate=navigate)
+        insights = build_proactive_insights(
+            profile=profile, transactions=transactions, invoices=invoices,
+            das_rows=das_rows, obligations=obligations, documents=documents,
+            annual_limit=annual_limit, current_year=current_year, today=today,
+        )
+        for index, insight in enumerate(insights[:2]):
+            st.markdown(f"**{insight['title']}**")
+            st.caption(insight["detail"])
+            if st.button("Ver análise", key=f"dash_insight_{index}"):
+                navigate(insight["page"])
+            if st.button("Pedir explicação à IA", key=f"dash_insight_ai_{index}"):
+                st.session_state["razync_ai_pending_question"] = insight["question"]
+                st.session_state["razync_ai_pending_context"] = {
+                    "source": "dashboard_insight", "title": insight["title"],
+                    "detail": insight["detail"], "page": insight["page"],
+                }
+                st.session_state["razync_floating_open"] = True
+                st.rerun()
