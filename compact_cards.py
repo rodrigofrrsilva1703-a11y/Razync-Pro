@@ -34,12 +34,12 @@ def inject_compact_cards() -> None:
         }
 
         [class*="st-key-rz_metric_card_"] button {
-            min-height: 58px !important;
+            min-height: 88px !important;
             height: auto !important;
-            padding: 10px 13px !important;
+            padding: 14px 16px !important;
             justify-content: flex-start !important;
             text-align: left !important;
-            border-radius: 11px !important;
+            border-radius: 15px !important;
             border: 1px solid var(--rz-border) !important;
             background: var(--rz-surface) !important;
             box-shadow: none !important;
@@ -55,8 +55,16 @@ def inject_compact_cards() -> None:
             width: 100% !important;
             text-align: left !important;
             white-space: normal !important;
-            line-height: 1.22 !important;
+            line-height: 1.25 !important;
             font-size: .76rem !important;
+        }
+        [class*="st-key-rz_metric_card_"] button p strong {
+            display: block;
+            margin-top: .3rem;
+            color: var(--rz-text) !important;
+            font-size: clamp(1.1rem, 1.6vw, 1.42rem) !important;
+            font-weight: 800 !important;
+            letter-spacing: -.03em;
         }
         [class*="st-key-rz_nav_card_"] button {
             min-height: 52px !important;
@@ -169,7 +177,7 @@ def inject_compact_cards() -> None:
 def metric_card(label: str, value: str, *, key: str, help_text: str | None = None) -> bool:
     """Render a compact, full-surface metric that can lead to a related workspace."""
     return st.button(
-        f"{label}  ·  {value}  →",
+        f"{label}  →\n\n**{value}**",
         key=f"rz_metric_card_{key}",
         width="stretch",
         help=help_text,
