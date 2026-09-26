@@ -43,9 +43,6 @@ def render_fiscal_workspace(
         if row.get("status") != "Concluído" and due and due < today:
             overdue_obligations.append(row)
 
-    st.markdown("### Fiscal MEI")
-    st.caption("DAS, notas, obrigações e declaração anual reunidos em uma única rotina.")
-
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         if metric_card("DAS em atraso", str(len(overdue_das)), key="fiscal_overdue_das", help_text="Abrir o controle do DAS"):
