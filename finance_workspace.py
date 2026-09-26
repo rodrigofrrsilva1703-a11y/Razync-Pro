@@ -110,12 +110,19 @@ def render_finance_workspace(
                 if col not in grouped:
                     grouped[col] = 0.0
             grouped["Resultado"] = grouped["Receita"] - grouped["Despesa"]
-            fig = px.line(grouped, x="Mês", y=["Receita", "Despesa", "Resultado"], markers=True)
+            fig = px.line(
+                grouped, x="Mês", y=["Receita", "Despesa", "Resultado"], markers=True,
+                color_discrete_map={"Receita": "#10bdf2", "Despesa": "#8fa9bc", "Resultado": "#ef7479"},
+            )
             apply_plot_theme(fig, theme, height=300)
-            fig.update_layout(xaxis_title=None, yaxis_title=None, legend_title_text=None)
+            fig.update_layout(
+                xaxis_title=None, yaxis_title=None, legend_title_text=None,
+                font_color="#c7d8e6" if theme == "Escuro" else "#314657",
+                legend_font_color="#c7d8e6" if theme == "Escuro" else "#314657",
+            )
             month_names = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
             fig.update_xaxes(
-                tickmode="array",
+                type="category", tickmode="array",
                 tickvals=grouped["Mês"].tolist(),
                 ticktext=[f"{month_names[int(month[5:7]) - 1]}/{month[:4]}" for month in grouped["Mês"]],
             )
