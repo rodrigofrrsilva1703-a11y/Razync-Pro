@@ -207,7 +207,7 @@ def render_sidebar(
             st.markdown(f"**{account_name}**")
             if account_email:
                 st.markdown(f'<div class="rz-side-account">{escape(account_email)}</div>', unsafe_allow_html=True)
-            st.selectbox("Aparência", ["Claro", "Escuro"], key="ui_theme")
+            st.selectbox("Aparência", ["Claro", "Escuro"], index=1, key="ui_theme")
             if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
                 refresh_data()
             if st.button("Sair", key="sidebar_logout", width="stretch"):
