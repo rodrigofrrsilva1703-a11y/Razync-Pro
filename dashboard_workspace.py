@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from html import escape
 
 import pandas as pd
 import streamlit as st
@@ -32,13 +31,7 @@ def render_dashboard_workspace(
     priorities = action_items(profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue)
     notifications = build_notifications(das_rows, obligations, annual_revenue, annual_limit)
     tasks = build_today_plan(priorities, notifications, setup, limit=4)["items"]
-    business = escape(str(profile.get("trade_name") or profile.get("business_name") or "seu MEI"))
-
-    st.markdown(
-        f'<div class="rz-dash-intro"><span>PAINEL DO MEI</span><h2>Vamos cuidar de {business}</h2>'
-        '<p>Comece pela tarefa abaixo. O restante fica organizado para quando você precisar.</p></div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="rz-dash-intro"><span>SEU DIA EM ORDEM</span><p>Comece pelo que precisa de atenção agora.</p></div>', unsafe_allow_html=True)
     focus, summary = st.columns([1.55, 1], gap="large")
     with focus, st.container(key="dashboard_focus"):
         st.caption("PRÓXIMO PASSO")
@@ -55,8 +48,8 @@ def render_dashboard_workspace(
             st.caption(f"Cadastro inicial: {setup['percent']}% concluído")
 
     with summary, st.container(key="dashboard_summary"):
-        st.caption("SEU DINHEIRO NESTE MÊS")
-        st.metric("Entradas menos saídas", brl(month_in - month_out))
+        st.caption("RESUMO DO MÊS")
+        st.metric("Resultado", brl(month_in - month_out))
         left, right = st.columns(2)
         left.metric("Entrou", brl(month_in))
         right.metric("Saiu", brl(month_out))
@@ -78,7 +71,7 @@ def render_dashboard_workspace(
 
     task_col, deadline_col = st.columns(2, gap="large")
     with task_col:
-        st.markdown("#### Depois disso")
+        st.markdown("#### Próximas tarefas")
         if len(tasks) <= 1:
             st.caption("Suas próximas tarefas aparecerão aqui.")
         for index, task in enumerate(tasks[1:4], start=1):
