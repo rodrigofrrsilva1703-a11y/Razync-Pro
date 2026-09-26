@@ -15,6 +15,10 @@ from onboarding_tools import onboarding_progress
 _FLOATING_OPEN_KEY = "razync_floating_open"
 
 
+def _apply_appearance_choice() -> None:
+    st.session_state["ui_theme"] = st.session_state["appearance_select_v2"]
+
+
 def _floating_chat_shell_styles() -> None:
     st.markdown(
         """
@@ -207,7 +211,11 @@ def render_sidebar(
             st.markdown(f"**{account_name}**")
             if account_email:
                 st.markdown(f'<div class="rz-side-account">{escape(account_email)}</div>', unsafe_allow_html=True)
-            st.selectbox("Aparência", ["Claro", "Escuro"], index=1, key="ui_theme")
+            st.selectbox(
+                "Aparência", ["Claro", "Escuro"],
+                index=1 if st.session_state.get("ui_theme") == "Escuro" else 0,
+                key="appearance_select_v2", on_change=_apply_appearance_choice,
+            )
             if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
                 refresh_data()
             if st.button("Sair", key="sidebar_logout", width="stretch"):
