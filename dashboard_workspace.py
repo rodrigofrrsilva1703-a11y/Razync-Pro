@@ -65,13 +65,16 @@ def render_dashboard_workspace(
 
     st.markdown("#### O que você quer fazer?")
     action_a, action_b, action_c = st.columns(3, gap="medium")
-    if action_a.button("Registrar entrada ou saída", key="rz_quick_card_new_tx", width="stretch"):
-        navigate("Movimentações")
-    if action_b.button("Importar extrato do banco", key="rz_quick_card_import", width="stretch"):
-        navigate("Importar Extrato")
-    if action_c.button("Pedir ajuda ao Razync", key="rz_quick_card_ai", width="stretch"):
-        st.session_state["razync_floating_open"] = True
-        st.rerun()
+    with action_a, st.container(key="dashboard_action_register"):
+        if st.button("＋  Registrar entrada ou saída", key="rz_quick_card_new_tx", width="stretch"):
+            navigate("Movimentações")
+    with action_b, st.container(key="dashboard_action_import"):
+        if st.button("↥  Importar extrato do banco", key="rz_quick_card_import", width="stretch"):
+            navigate("Importar Extrato")
+    with action_c, st.container(key="dashboard_action_help"):
+        if st.button("✦  Pedir ajuda ao Razync", key="rz_quick_card_ai", width="stretch"):
+            st.session_state["razync_floating_open"] = True
+            st.rerun()
 
     task_col, deadline_col = st.columns(2, gap="large")
     with task_col:
