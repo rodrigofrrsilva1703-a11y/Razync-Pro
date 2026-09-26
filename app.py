@@ -97,7 +97,7 @@ except DatabaseConnectionError as exc:
     st.stop()
 
 if "ui_theme" not in st.session_state:
-    st.session_state["ui_theme"] = "Claro"
+    st.session_state["ui_theme"] = "Escuro"
 
 UI_THEME = st.session_state["ui_theme"]
 PLOT_TEMPLATE = tokens(UI_THEME)["plot"]
