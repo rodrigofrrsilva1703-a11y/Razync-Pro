@@ -34,9 +34,6 @@ def render_finance_workspace(
     year_in = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if not year_tx.empty else 0.0
     year_out = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
 
-    st.markdown("### Financeiro")
-    st.caption("Registre, confira e entenda o dinheiro do MEI em uma única área.")
-
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         if metric_card("Entradas no mês", brl(month_in), key="fin_month_in", help_text="Ver os lançamentos financeiros"):
@@ -115,6 +112,7 @@ def render_finance_workspace(
             grouped["Resultado"] = grouped["Receita"] - grouped["Despesa"]
             fig = px.line(grouped, x="Mês", y=["Receita", "Despesa", "Resultado"], markers=True)
             apply_plot_theme(fig, theme, height=300)
+            fig.update_layout(xaxis_title=None, yaxis_title=None, legend_title_text=None)
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     with right:
