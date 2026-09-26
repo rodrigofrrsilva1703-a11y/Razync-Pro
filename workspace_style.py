@@ -41,9 +41,18 @@ def inject_workspace_style() -> None:
             background: linear-gradient(145deg, #102b3c, #14536a);
             box-shadow: 0 18px 40px rgba(7, 38, 54, .18);
         }
-        .st-key-dashboard_focus :is(h3, p, [data-testid="stCaptionContainer"] *) { color: #fff !important; }
-        .st-key-dashboard_focus h3 { font-size: clamp(1.3rem, 2vw, 1.7rem); line-height: 1.2; margin: .3rem 0; }
-        .st-key-dashboard_focus [data-testid="stCaptionContainer"] * { opacity: .78; letter-spacing: .04em; }
+        .st-key-dashboard_focus [data-testid="stMarkdownContainer"] :is(h3, p),
+        .st-key-dashboard_focus [data-testid="stCaptionContainer"] :is(p, span) {
+            color: #fff !important;
+            -webkit-text-fill-color: #fff !important;
+        }
+        .st-key-dashboard_focus [data-testid="stMarkdownContainer"] h3 {
+            font-size: clamp(1.45rem, 2.3vw, 1.9rem) !important;
+            font-weight: 760 !important;
+            line-height: 1.2 !important;
+            margin: .3rem 0 .65rem !important;
+        }
+        .st-key-dashboard_focus [data-testid="stCaptionContainer"] * { opacity: .85; letter-spacing: .04em; }
         .st-key-dashboard_focus [data-testid="stButton"] button {
             min-height: 46px; background: #16bdeb !important; color: #062333 !important;
             border-color: #16bdeb !important; font-weight: 750 !important;
@@ -59,6 +68,22 @@ def inject_workspace_style() -> None:
             background: transparent !important;
         }
         .st-key-dashboard_summary > div [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
+        .st-key-dashboard_summary [data-testid="stMetricLabel"] p { color: var(--rz-muted) !important; }
+        .st-key-dashboard_summary [data-testid="stMetricValue"] { color: var(--rz-text) !important; }
+        [class*="st-key-dashboard_action_"] [data-testid="stButton"] button {
+            min-height: 58px !important;
+            padding: .8rem 1rem !important;
+            text-align: left !important;
+            font-weight: 700 !important;
+            border-radius: 13px !important;
+            background: var(--rz-surface) !important;
+            border-color: var(--rz-border) !important;
+            color: var(--rz-text) !important;
+        }
+        [class*="st-key-dashboard_action_"] [data-testid="stButton"] button:hover {
+            border-color: var(--rz-primary) !important;
+            box-shadow: var(--rz-shadow-soft) !important;
+        }
         [class*="st-key-dashboard_task_"], [class*="st-key-dashboard_deadline_"] {
             padding: .75rem .95rem; margin-bottom: .6rem;
             border: 1px solid var(--rz-border); border-radius: 13px;
