@@ -15,8 +15,28 @@ def inject_workspace_style() -> None:
             color: var(--rz-muted);
         }
 
-        [data-testid="stAppViewContainer"] .block-container {
-            max-width: 1180px;
+        .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container {
+            max-width: 1240px !important;
+            padding-top: 2.3rem !important;
+        }
+        .stApp:has(.st-key-sidebar_navigation) .rz-page-title {
+            font-size: clamp(1.7rem, 2.5vw, 2.15rem);
+            letter-spacing: -.045em;
+        }
+        .stApp:has(.st-key-sidebar_navigation) .rz-page-sub {
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .stApp:has(.st-key-sidebar_navigation) .rz-business {
+            padding: .8rem 1.1rem !important;
+            border-radius: 13px;
+            box-shadow: none;
+        }
+        .stApp:has(.st-key-sidebar_navigation) [data-testid="stSidebar"] button:disabled {
+            opacity: 1 !important;
+            color: var(--rz-primary) !important;
+            background: var(--rz-primary-soft) !important;
+            font-weight: 750 !important;
         }
 
         .st-key-dashboard_next_step {
@@ -28,18 +48,27 @@ def inject_workspace_style() -> None:
             background: var(--rz-surface);
             box-shadow: var(--rz-shadow);
         }
-        .rz-dash-intro { margin: .25rem 0 1.3rem; }
-        .rz-dash-intro span { color: var(--rz-primary); font-size: .75rem; font-weight: 800; letter-spacing: .11em; }
-        .rz-dash-intro h2 { margin: .35rem 0 .25rem; font-size: clamp(1.65rem, 2.8vw, 2.3rem); line-height: 1.15; letter-spacing: -.035em; }
-        .rz-dash-intro p { margin: 0; color: var(--rz-muted); font-size: 1rem; line-height: 1.5; }
+        .rz-dash-intro { margin: .2rem 0 .95rem; }
+        .rz-dash-intro span { color: var(--rz-primary) !important; font-size: .7rem; font-weight: 800; letter-spacing: .11em; }
+        .rz-dash-intro p { margin: .25rem 0 0; color: var(--rz-muted) !important; font-size: .89rem; line-height: 1.5; }
         .st-key-dashboard_focus, .st-key-dashboard_summary {
-            min-height: 250px;
+            min-height: 240px;
             padding: 1.35rem 1.5rem;
-            border-radius: 20px;
+            border-radius: 17px;
         }
         .st-key-dashboard_focus {
-            background: linear-gradient(145deg, #102b3c, #14536a);
-            box-shadow: 0 18px 40px rgba(7, 38, 54, .18);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #28536c;
+            background: linear-gradient(135deg, #0d1824 0%, #102b3b 100%);
+            box-shadow: 0 16px 36px rgba(2, 14, 24, .17);
+        }
+        .st-key-dashboard_focus::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: #10bdf2;
         }
         .st-key-dashboard_focus [data-testid="stMarkdownContainer"] :is(h3, p),
         .st-key-dashboard_focus [data-testid="stCaptionContainer"] :is(p, span) {
@@ -54,13 +83,14 @@ def inject_workspace_style() -> None:
         }
         .st-key-dashboard_focus [data-testid="stCaptionContainer"] * { opacity: .85; letter-spacing: .04em; }
         .st-key-dashboard_focus [data-testid="stButton"] button {
-            min-height: 46px; background: #16bdeb !important; color: #062333 !important;
-            border-color: #16bdeb !important; font-weight: 750 !important;
+            min-height: 46px; background: #10bdf2 !important; color: #06131c !important;
+            border-color: #10bdf2 !important; font-weight: 760 !important;
+            border-radius: 10px !important;
         }
         .st-key-dashboard_summary {
             border: 1px solid var(--rz-border);
             background: var(--rz-surface);
-            box-shadow: var(--rz-shadow-soft);
+            box-shadow: none;
         }
         .st-key-dashboard_summary [data-testid="stMetric"] {
             min-height: auto !important; padding: .55rem 0 !important;
@@ -70,8 +100,12 @@ def inject_workspace_style() -> None:
         .st-key-dashboard_summary > div [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
         .st-key-dashboard_summary [data-testid="stMetricLabel"] p { color: var(--rz-muted) !important; }
         .st-key-dashboard_summary [data-testid="stMetricValue"] { color: var(--rz-text) !important; }
+        .st-key-dashboard_summary [data-testid="stButton"] button {
+            min-height: 43px !important;
+            border-radius: 10px !important;
+        }
         [class*="st-key-dashboard_action_"] [data-testid="stButton"] button {
-            min-height: 58px !important;
+            min-height: 62px !important;
             padding: .8rem 1rem !important;
             text-align: left !important;
             font-weight: 700 !important;
@@ -85,7 +119,7 @@ def inject_workspace_style() -> None:
             box-shadow: var(--rz-shadow-soft) !important;
         }
         [class*="st-key-dashboard_task_"], [class*="st-key-dashboard_deadline_"] {
-            padding: .75rem .95rem; margin-bottom: .6rem;
+            padding: .9rem 1rem; margin-bottom: .65rem;
             border: 1px solid var(--rz-border); border-radius: 13px;
             background: var(--rz-surface);
         }
@@ -107,6 +141,7 @@ def inject_workspace_style() -> None:
             color: var(--rz-muted);
         }
         @media (max-width: 700px) {
+            .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container { padding-top: 1.2rem !important; }
             .st-key-dashboard_next_step { padding: 1rem; margin-bottom: 1.1rem; }
             .st-key-dashboard_next_step [data-testid="stButton"] button { width: 100%; }
             .st-key-dashboard_focus, .st-key-dashboard_summary { min-height: 0; padding: 1.1rem; }
