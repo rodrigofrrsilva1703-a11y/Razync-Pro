@@ -113,6 +113,12 @@ def render_finance_workspace(
             fig = px.line(grouped, x="Mês", y=["Receita", "Despesa", "Resultado"], markers=True)
             apply_plot_theme(fig, theme, height=300)
             fig.update_layout(xaxis_title=None, yaxis_title=None, legend_title_text=None)
+            month_names = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+            fig.update_xaxes(
+                tickmode="array",
+                tickvals=grouped["Mês"].tolist(),
+                ticktext=[f"{month_names[int(month[5:7]) - 1]}/{month[:4]}" for month in grouped["Mês"]],
+            )
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     with right:
