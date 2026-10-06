@@ -15,7 +15,7 @@ NAV_GROUPS = {
     "Financeiro": ["Financeiro", "Movimentações", "Recorrências", "Importar Extrato", "Conciliação", "Fluxo de Caixa", "Análise Financeira"],
     "Fiscal MEI": ["Fiscal", "DAS", "DASN-SIMEI", "Obrigações", "Notas Fiscais", "Importar NFS-e", "Relatório Mensal", "Fechamento Mensal"],
     "Gestão": ["Clientes e Fornecedores", "Empregado", "Documentos", "Espaço do Contador"],
-    "Configurações": ["Primeiros Passos", "Meu MEI", "Central de Notificações", "Integrações", "Plano e Assinatura", "Segurança da Conta", "Histórico de Atividades", "Status do Sistema", "Backup"],
+    "Configurações": ["Primeiros Passos", "Meu MEI", "Central de Notificações", "Integrações", "Plano e Assinatura", "Histórico de Atividades", "Status do Sistema", "Backup"],
 }
 
 
