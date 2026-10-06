@@ -218,7 +218,5 @@ def render_sidebar(
             )
             if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
                 refresh_data()
-            if st.button("Sair", key="sidebar_logout", width="stretch"):
-                logout()
 
     _render_floating_assistant(page, user, navigate)
