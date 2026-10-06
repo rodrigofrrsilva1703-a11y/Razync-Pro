@@ -547,6 +547,49 @@ def resolve_trusted_developer_user(
     }
 
 
+def resolve_public_workspace_user() -> dict[str, Any]:
+    """Return an isolated workspace used while the product runs without login.
+
+    This account never reuses an existing customer identity, so publishing the
+    app without authentication cannot expose another user's business data.
+    """
+    email = "public-workspace@razync.local"
+    name = "Razync Pro"
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                select(users).where(users.c.email == email)
+            ).mappings().first()
+            if row is None:
+                result = conn.execute(
+                    insert(users).values(
+                        name=name,
+                        email=email,
+                        password_hash=_hash_password(os.urandom(32).hex()),
+                    )
+                )
+                uid = int(result.inserted_primary_key[0])
+                conn.execute(insert(profiles).values(user_id=uid))
+                row = conn.execute(
+                    select(users).where(users.c.id == uid)
+                ).mappings().one()
+            else:
+                has_profile = conn.execute(
+                    select(profiles.c.user_id).where(profiles.c.user_id == row["id"])
+                ).first()
+                if not has_profile:
+                    conn.execute(insert(profiles).values(user_id=row["id"]))
+    except OperationalError as exc:
+        raise DatabaseConnectionError(_diagnose_operational_error(exc)) from None
+
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "auth_user_id": None,
+    }
+
+
 def get_profile(user_id: int) -> dict[str, Any]:
     cached = _cache_get("profile", user_id)
     if cached is not None:
