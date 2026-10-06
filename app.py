@@ -4,7 +4,6 @@ from datetime import date
 from html import escape
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 from database import (
@@ -24,8 +23,6 @@ from fiscal_rules import (
     MEI_ANNUAL_LIMIT, annual_limit_for, build_alerts, competence_list,
     das_due_date, das_status,
 )
-from reports import dasn_summary_pdf, monthly_report_pdf, financial_summary_pdf, closing_summary_pdf
-from bank_import import read_statement, prepare_statement, is_probable_duplicate, suggest_category, suggest_statement_columns
 from mei_obligations import automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
@@ -56,7 +53,6 @@ from session_persistence import (
     persistent_session_controller, read_refresh_token,
 )
 from brand_assets import brand_logo_data_uri, ensure_brand_assets
-from document_intelligence import CATEGORIES as DOCUMENT_CATEGORIES, analyze_document
 from demo_mode import render_demo
 from legal_content import PRIVACY_NOTICE, PRIVACY_VERSION, TERMS_OF_USE
 from customer_experience import (
@@ -75,7 +71,6 @@ from sidebar_workspace import render_sidebar
 from productivity_workspace import render_productivity_workspace
 from account_workspace import render_account_workspace
 from assistant_workspace import render_ai_assistant
-from fiscal_automation import analyze_das_guide
 from validators import valid_cnpj, valid_cpf, cpf_or_cnpj_status, valid_competence
 from commercial_readiness import PLAN_CATALOG, integration_maturity, production_checklist
 from monitoring import safe_error
@@ -83,6 +78,45 @@ from monitoring import safe_error
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
 BRAND_LOGO_DATA_URI = brand_logo_data_uri()
+
+DOCUMENT_CATEGORIES = ("Nota Fiscal", "Comprovante", "Extrato Bancário", "DAS", "Contrato", "Outro")
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def cached_document_analysis(content: bytes, mime_type: str, filename: str) -> dict:
+    from document_intelligence import analyze_document
+    return analyze_document(content, mime_type, filename)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_das_guide_analysis(content: bytes, filename: str) -> dict:
+    from fiscal_automation import analyze_das_guide
+    return analyze_das_guide(content, filename)
+
+
+@st.cache_data(show_spinner=False, ttl=600)
+def cached_monthly_report_pdf(profile_data: dict, year: int, rows: list[dict]) -> bytes:
+    from reports import monthly_report_pdf
+    return monthly_report_pdf(profile_data, year, rows)
+
+
+@st.cache_data(show_spinner=False, ttl=600)
+def cached_dasn_summary_pdf(profile_data: dict, year: int, services: float, sales: float, employee: bool) -> bytes:
+    from reports import dasn_summary_pdf
+    return dasn_summary_pdf(profile_data, year, services, sales, employee)
+
+
+@st.cache_data(show_spinner=False, ttl=600)
+def cached_financial_summary_pdf(profile_data: dict, year: int, analysis: dict) -> bytes:
+    from reports import financial_summary_pdf
+    return financial_summary_pdf(profile_data, year, analysis)
+
+
+@st.cache_data(show_spinner=False, ttl=600)
+def cached_closing_summary_pdf(profile_data: dict, year: int, month: int, closing: dict) -> bytes:
+    from reports import closing_summary_pdf
+    return closing_summary_pdf(profile_data, year, month, closing)
+
 
 st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="wide", initial_sidebar_state="expanded")
 try:
@@ -97,7 +131,7 @@ except DatabaseConnectionError as exc:
     st.stop()
 
 if "ui_theme" not in st.session_state:
-    st.session_state["ui_theme"] = "Escuro"
+    st.session_state["ui_theme"] = "Claro"
 
 UI_THEME = st.session_state["ui_theme"]
 PLOT_TEMPLATE = tokens(UI_THEME)["plot"]
@@ -362,131 +396,6 @@ limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
 inject_compact_cards()
 
 
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] {
-        border-right: 1px solid var(--rz-border);
-        background: var(--rz-surface);
-    }
-    [data-testid="stSidebar"] .block-container {
-        padding: 1.05rem .85rem 1.1rem;
-    }
-    .rz-side-brand {
-        display: flex;
-        align-items: center;
-        gap: .72rem;
-        padding: .12rem .38rem .72rem;
-        margin-bottom: .18rem;
-    }
-    .rz-side-brand img {
-        width: 38px;
-        height: 38px;
-        border-radius: 11px;
-        object-fit: cover;
-        box-shadow: 0 5px 14px rgba(3, 174, 238, .17);
-    }
-    .rz-side-brand strong {
-        color: var(--rz-text);
-        font-size: 1.08rem;
-        letter-spacing: -.025em;
-    }
-    .rz-side-brand em {
-        margin-left: .28rem;
-        color: var(--rz-primary);
-        font-size: .62rem;
-        font-style: normal;
-        font-weight: 800;
-        letter-spacing: .09em;
-        vertical-align: .12rem;
-    }
-    .rz-side-brand span {
-        display: block;
-        max-width: 185px;
-        margin-top: .1rem;
-        overflow: hidden;
-        color: var(--rz-muted);
-        font-size: .7rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .st-key-sidebar_navigation [data-testid="stButton"] {
-        margin: .06rem 0;
-    }
-    .st-key-sidebar_navigation [data-testid="stButton"] button {
-        min-height: 2.35rem;
-        justify-content: flex-start;
-        gap: .68rem;
-        padding: .38rem .62rem;
-        border: 0 !important;
-        border-radius: 11px;
-        color: var(--rz-muted);
-        background: transparent;
-        box-shadow: none !important;
-        transition: background .15s ease, color .15s ease;
-    }
-    .st-key-sidebar_navigation [data-testid="stButton"] button:hover {
-        color: var(--rz-text);
-        background: var(--rz-soft);
-    }
-    .st-key-sidebar_navigation [data-testid="stButton"] button:disabled {
-        color: var(--rz-text) !important;
-        background: color-mix(in srgb, var(--rz-muted) 13%, transparent) !important;
-        opacity: 1 !important;
-        cursor: default;
-    }
-    .st-key-sidebar_navigation [data-testid="stButton"] button p {
-        font-size: .84rem;
-        font-weight: 530;
-        letter-spacing: -.004em;
-    }
-    .st-key-sidebar_navigation [data-testid="stButton"] button span {
-        color: currentColor;
-        font-size: 1.22rem;
-    }
-    .st-key-sidebar_navigation [data-testid="stExpander"] {
-        margin: .08rem 0;
-        border: 0;
-        background: transparent;
-    }
-    .st-key-sidebar_navigation [data-testid="stExpander"] summary {
-        min-height: 2.4rem;
-        padding: .34rem .5rem;
-        border-radius: 11px;
-        color: var(--rz-text);
-        font-size: .92rem;
-        font-weight: 650;
-    }
-    .st-key-sidebar_navigation [data-testid="stExpander"] summary:hover {
-        background: var(--rz-soft);
-    }
-    .st-key-sidebar_navigation [data-testid="stExpander"] details > div {
-        padding-left: .35rem;
-        border-left: 1px solid var(--rz-border);
-    }
-    [data-testid="stSidebar"] hr {
-        margin: .78rem 0;
-        border-color: var(--rz-border);
-    }
-    [data-testid="stSidebar"] details {
-        border: 0;
-        background: transparent;
-    }
-    [data-testid="stSidebar"] details summary {
-        border-radius: 10px;
-        color: var(--rz-muted);
-        font-size: .88rem;
-    }
-    .rz-side-account {
-        padding: .12rem .15rem .25rem;
-        color: var(--rz-muted);
-        font-size: .72rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 render_sidebar(
     profile=profile,
     user=user,
@@ -750,6 +659,10 @@ elif page == "Recorrências":
             st.rerun()
 
 elif page == "Importar Extrato":
+    from bank_import import (
+        read_statement, prepare_statement, is_probable_duplicate,
+        suggest_category, suggest_statement_columns,
+    )
     header("Importar Extrato","Envie CSV ou Excel. O Razync transforma o extrato em lançamentos para conciliação e relatórios.")
     st.caption("Envie o arquivo. O Razync identifica as colunas, organiza as categorias e separa possíveis duplicidades para sua confirmação.")
     upload = st.file_uploader("Arquivo do extrato", type=["csv","xlsx","xls"], key="statement_file")
@@ -880,6 +793,7 @@ elif page == "Conciliação":
         st.rerun()
 
 elif page == "Fluxo de Caixa":
+    import plotly.express as px
     header("Fluxo de Caixa","Veja entradas, saídas, resultado e saldo acumulado por mês.")
     year = st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3)
     cf = cashflow_monthly(transactions,year)
@@ -891,6 +805,7 @@ elif page == "Fluxo de Caixa":
     professional_table(cf, max_visible_rows=12, column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
 
 elif page == "Análise Financeira":
+    import plotly.express as px
     header("Análise Financeira","Veja evolução, rentabilidade e pontos que merecem revisão antes de tomar decisões.")
     analysis_year = st.selectbox("Ano da análise", list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)), index=3, key="analysis_year")
     analysis = financial_analysis(transactions, analysis_year)
@@ -918,7 +833,7 @@ elif page == "Análise Financeira":
     if checks:
         for item in checks: st.warning(item)
     else: st.success("Nenhuma inconsistência relevante encontrada.")
-    analysis_pdf = financial_summary_pdf(profile, analysis_year, analysis)
+    analysis_pdf = cached_financial_summary_pdf(profile, analysis_year, analysis)
     st.download_button("Baixar análise financeira em PDF",analysis_pdf,file_name=f"analise_financeira_{analysis_year}.pdf",mime="application/pdf",width="stretch")
 
 elif page == "Fechamento Mensal":
@@ -956,7 +871,7 @@ elif page == "Fechamento Mensal":
         pending_count = sum(1 for item in closing["checklist"] if not item["OK"])
         st.info(f"Faltam {pending_count} etapa(s) para concluir este fechamento.")
 
-    closing_pdf = closing_summary_pdf(profile, close_year, close_month, closing)
+    closing_pdf = cached_closing_summary_pdf(profile, close_year, close_month, closing)
     st.download_button("Baixar fechamento em PDF",closing_pdf,file_name=f"fechamento_{close_year}_{close_month:02d}.pdf",mime="application/pdf",width="stretch")
 
 elif page == "Relatório Mensal":
@@ -968,7 +883,7 @@ elif page == "Relatório Mensal":
     st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
     month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:MONTH_NAMES_PT[m - 1],key="pdfmonth")
     r=rows[month-1]
-    pdf=monthly_report_pdf(profile, year, [r])
+    pdf=cached_monthly_report_pdf(profile, year, [r])
     st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
 
 elif page == "Notas Fiscais":
@@ -1137,7 +1052,7 @@ elif page == "DAS":
             help="Opcional. O arquivo ficará armazenado junto aos demais documentos do Razync.",
         )
         if guide is not None:
-            guide_analysis = analyze_das_guide(guide.getvalue(), guide.name)
+            guide_analysis = cached_das_guide_analysis(guide.getvalue(), guide.name)
             st.markdown("**Leitura assistida da guia**")
             ga1, ga2, ga3 = st.columns(3)
             ga1.metric("Competência", guide_analysis["competence"] or "Não encontrada")
@@ -1181,7 +1096,7 @@ elif page == "DASN-SIMEI":
     total=services+sales
     c1,c2,c3=st.columns(3); c1.metric("Serviços",brl(services)); c2.metric("Comércio/indústria",brl(sales)); c3.metric("Receita bruta total",brl(total))
     employee=st.checkbox("O MEI teve empregado no ano?",value=bool(profile.get("has_employee",False)))
-    pdf=dasn_summary_pdf(profile,year,services,sales,employee)
+    pdf=cached_dasn_summary_pdf(profile, year, services, sales, employee)
     st.download_button("Baixar resumo para conferência",pdf,file_name=f"resumo_DASN_{year}.pdf",mime="application/pdf")
     st.warning("O Razync Pro organiza as informações, mas não transmite a DASN-SIMEI ao Portal do Simples Nacional.")
 
@@ -1280,7 +1195,7 @@ elif page == "Documentos":
         )
         suggestion = None
         if up is not None:
-            suggestion = analyze_document(up.getvalue(), up.type or "", up.name)
+            suggestion = cached_document_analysis(up.getvalue(), up.type or "", up.name)
             st.markdown("**Sugestões encontradas**")
             s1,s2,s3=st.columns(3)
             s1.metric("Tipo", suggestion["category"])
@@ -1378,9 +1293,9 @@ elif page == "Espaço do Contador":
     st.warning("Nunca compartilhe senha do gov.br, banco ou Razync. Envie apenas os relatórios e arquivos necessários.")
     accountant_year = st.selectbox("Ano de referência", list(range(CURRENT_YEAR - 4, CURRENT_YEAR + 1)), index=4, key="accountant_year")
     accountant_month = st.selectbox("Mês de referência", list(range(1, 13)), index=date.today().month - 1, format_func=lambda value: MONTH_NAMES_PT[value - 1], key="accountant_month")
-    summary_pdf = financial_summary_pdf(profile, accountant_year, financial_analysis(transactions, accountant_year))
+    summary_pdf = cached_financial_summary_pdf(profile, accountant_year, financial_analysis(transactions, accountant_year))
     accountant_closing = monthly_closing(transactions, invoices, docs, das_rows, accountant_year, accountant_month)
-    closing_pdf = closing_summary_pdf(profile, accountant_year, accountant_month, accountant_closing)
+    closing_pdf = cached_closing_summary_pdf(profile, accountant_year, accountant_month, accountant_closing)
     p1, p2 = st.columns(2)
     p1.download_button("Resumo financeiro", summary_pdf, file_name=f"resumo_contador_{accountant_year}.pdf", mime="application/pdf", width="stretch")
     p2.download_button("Fechamento do mês", closing_pdf, file_name=f"fechamento_{accountant_year}_{accountant_month:02d}.pdf", mime="application/pdf", width="stretch")
