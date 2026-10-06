@@ -4,718 +4,514 @@ import streamlit as st
 
 
 def inject_workspace_style() -> None:
+    """Razync Pro workspace skin: one coherent SaaS visual layer for desktop and mobile."""
     st.markdown(
         """
         <style>
-        .rz-workspace-note {
-            padding: .85rem 1rem;
-            border: 1px solid var(--rz-border);
-            border-radius: 14px;
-            background: var(--rz-soft);
-            color: var(--rz-muted);
-        }
+        /* =========================================================
+           RAZYNC PRO · WORKSPACE V6
+           Modern, quiet, high-contrast SaaS UI with low visual noise.
+           ========================================================= */
 
+        .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] {
+            background:
+                radial-gradient(circle at 78% -12%, color-mix(in srgb, var(--rz-primary) 7%, transparent), transparent 28rem),
+                var(--rz-bg);
+        }
         .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container {
-            max-width: 1240px !important;
-            padding-top: 2.3rem !important;
-        }
-        .stApp:has(.st-key-sidebar_navigation) .rz-page-title {
-            font-size: clamp(1.7rem, 2.5vw, 2.15rem);
-            letter-spacing: -.045em;
-        }
-        .stApp:has(.st-key-sidebar_navigation) .rz-page-sub {
-            margin-bottom: 1.25rem;
-            line-height: 1.5;
-        }
-        .stApp:has(.st-key-sidebar_navigation) .rz-business {
-            padding: .8rem 1.1rem !important;
-            border-radius: 13px;
-            box-shadow: none;
-        }
-        .stApp:has(.st-key-sidebar_navigation) [data-testid="stSidebar"] button:disabled {
-            opacity: 1 !important;
-            color: var(--rz-primary) !important;
-            background: var(--rz-primary-soft) !important;
-            font-weight: 750 !important;
+            max-width: 1280px !important;
+            padding: 1.55rem 1.55rem 3.2rem !important;
         }
 
-        .st-key-dashboard_next_step {
-            padding: 1.3rem 1.5rem 1.45rem;
-            margin: .8rem 0 1.6rem;
-            border: 1px solid color-mix(in srgb, var(--rz-primary) 34%, var(--rz-border));
-            border-left: 5px solid var(--rz-primary);
-            border-radius: 18px;
-            background: var(--rz-surface);
-            box-shadow: var(--rz-shadow);
+        /* Page rhythm */
+        .rz-eyebrow {
+            margin-bottom: .28rem !important;
+            color: var(--rz-primary) !important;
+            font-size: .66rem !important;
+            font-weight: 820 !important;
+            letter-spacing: .115em !important;
         }
-        .rz-dash-intro { margin: .2rem 0 .95rem; }
-        .rz-dash-intro span { color: var(--rz-primary) !important; font-size: .7rem; font-weight: 800; letter-spacing: .11em; }
-        .rz-dash-intro p { margin: .25rem 0 0; color: var(--rz-muted) !important; font-size: .89rem; line-height: 1.5; }
-        .st-key-dashboard_focus, .st-key-dashboard_summary {
-            min-height: 240px;
-            padding: 1.35rem 1.5rem;
-            border-radius: 17px;
+        .rz-page-title {
+            font-size: clamp(1.72rem, 2.35vw, 2.28rem) !important;
+            font-weight: 820 !important;
+            line-height: 1.07 !important;
+            letter-spacing: -.048em !important;
+        }
+        .rz-page-sub {
+            max-width: 760px !important;
+            margin: .38rem 0 1.35rem !important;
+            color: var(--rz-muted) !important;
+            font-size: .88rem !important;
+            line-height: 1.55 !important;
+        }
+        .rz-section-title {
+            margin: .72rem 0 .26rem !important;
+            font-size: .98rem !important;
+            font-weight: 780 !important;
+            letter-spacing: -.015em !important;
+        }
+        .rz-section-sub {
+            margin: 0 0 .72rem !important;
+            color: var(--rz-muted) !important;
+            font-size: .76rem !important;
+        }
+
+        /* Business identity bar */
+        .rz-business {
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            padding: .85rem 1rem .85rem 1.15rem !important;
+            border: 1px solid var(--rz-border) !important;
+            border-radius: 14px !important;
+            background: color-mix(in srgb, var(--rz-surface) 97%, var(--rz-primary) 3%) !important;
+            box-shadow: none !important;
+        }
+        .rz-business::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--rz-primary), color-mix(in srgb, var(--rz-primary) 25%, transparent));
+        }
+
+        /* Native surfaces */
+        [data-testid="stMain"] [data-testid="stMetric"],
+        [data-testid="stMain"] [data-testid="stForm"],
+        [data-testid="stMain"] [data-testid="stExpander"],
+        [data-testid="stMain"] [data-testid="stDataFrame"],
+        [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
+            border: 1px solid var(--rz-border) !important;
+            background: var(--rz-surface) !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stMain"] [data-testid="stMetric"] {
+            min-height: 84px !important;
+            padding: .78rem .9rem !important;
+            border-radius: 14px !important;
+        }
+        [data-testid="stMetricLabel"] p {
+            color: var(--rz-muted) !important;
+            font-size: .73rem !important;
+            font-weight: 670 !important;
+        }
+        [data-testid="stMetricValue"] {
+            color: var(--rz-text) !important;
+            font-size: 1.32rem !important;
+            font-weight: 800 !important;
+            letter-spacing: -.035em !important;
+        }
+        [data-testid="stMain"] [data-testid="stForm"] {
+            padding: .92rem !important;
+            border-radius: 14px !important;
+        }
+        [data-testid="stMain"] [data-testid="stExpander"] {
+            overflow: hidden;
+            border-radius: 13px !important;
+        }
+        [data-testid="stMain"] [data-testid="stExpander"] summary {
+            min-height: 2.7rem !important;
+            padding: .5rem .75rem !important;
+            font-size: .82rem !important;
+            font-weight: 690 !important;
+        }
+        [data-testid="stMain"] [data-testid="stDataFrame"] {
+            overflow: hidden !important;
+            border-radius: 13px !important;
+        }
+        [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 14px !important;
+        }
+        [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] > div {
+            padding: .9rem !important;
+        }
+
+        /* Controls */
+        [data-testid="stMain"] div[data-testid="stButton"] button,
+        [data-testid="stMain"] [data-testid="stDownloadButton"] button,
+        [data-testid="stMain"] [data-testid="stLinkButton"] a {
+            min-height: 2.55rem;
+            border-radius: 10px !important;
+            font-size: .8rem !important;
+            font-weight: 690 !important;
+            transition: transform .14s ease, border-color .14s ease, background .14s ease !important;
+        }
+        [data-testid="stMain"] div[data-testid="stButton"] button:hover,
+        [data-testid="stMain"] [data-testid="stDownloadButton"] button:hover,
+        [data-testid="stMain"] [data-testid="stLinkButton"] a:hover {
+            transform: translateY(-1px);
+        }
+        [data-baseweb="input"] > div,
+        [data-baseweb="select"] > div,
+        [data-baseweb="textarea"] > div {
+            min-height: 2.62rem !important;
+            border-radius: 10px !important;
+        }
+        [data-testid="stMain"] [data-testid="stTabs"] [role="tablist"] {
+            gap: .2rem !important;
+            margin-bottom: .7rem !important;
+            padding: .18rem !important;
+            border-radius: 11px !important;
+            background: color-mix(in srgb, var(--rz-soft) 78%, transparent) !important;
+        }
+        [data-testid="stMain"] [data-testid="stTabs"] [role="tab"] {
+            min-height: 2.35rem !important;
+            padding: .35rem .7rem !important;
+            border-radius: 9px !important;
+            font-size: .76rem !important;
+            font-weight: 680 !important;
+        }
+        [data-testid="stMain"] [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+            background: var(--rz-surface) !important;
+            box-shadow: var(--rz-shadow-soft) !important;
+        }
+
+        /* Compact cards */
+        [class*="st-key-rz_metric_card_"] button {
+            min-height: 92px !important;
+            padding: .92rem 1rem !important;
+            justify-content: flex-start !important;
+            text-align: left !important;
+            border: 1px solid var(--rz-border) !important;
+            border-radius: 15px !important;
+            background: var(--rz-surface) !important;
+            box-shadow: none !important;
+        }
+        [class*="st-key-rz_metric_card_"] button:hover {
+            border-color: color-mix(in srgb, var(--rz-primary) 65%, var(--rz-border)) !important;
+            background: color-mix(in srgb, var(--rz-primary-soft) 55%, var(--rz-surface)) !important;
+        }
+        [class*="st-key-rz_metric_card_"] button p {
+            width: 100% !important;
+            text-align: left !important;
+            white-space: normal !important;
+            color: var(--rz-muted) !important;
+            font-size: .73rem !important;
+            line-height: 1.25 !important;
+        }
+        [class*="st-key-rz_metric_card_"] button p strong {
+            display: block;
+            margin-top: .32rem;
+            color: var(--rz-text) !important;
+            font-size: clamp(1.12rem, 1.7vw, 1.48rem) !important;
+            font-weight: 820 !important;
+            letter-spacing: -.035em !important;
+        }
+        [class*="st-key-rz_nav_card_"] button,
+        [class*="st-key-rz_quick_card_"] button,
+        [class*="st-key-rz_action_card_"] button {
+            min-height: 56px !important;
+            justify-content: flex-start !important;
+            padding: .7rem .85rem !important;
+            text-align: left !important;
+            border: 1px solid var(--rz-border) !important;
+            border-radius: 12px !important;
+            background: var(--rz-surface) !important;
+            box-shadow: none !important;
+        }
+        [class*="st-key-rz_nav_card_"] button:hover,
+        [class*="st-key-rz_quick_card_"] button:hover,
+        [class*="st-key-rz_action_card_"] button:hover {
+            border-color: var(--rz-primary) !important;
+            background: var(--rz-primary-soft) !important;
+        }
+
+        /* Dashboard hero */
+        .rz-dash-intro {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 1rem;
+            margin: .05rem 0 .85rem;
+        }
+        .rz-dash-intro span {
+            color: var(--rz-primary) !important;
+            font-size: .66rem !important;
+            font-weight: 830 !important;
+            letter-spacing: .115em !important;
+        }
+        .rz-dash-intro p {
+            margin: .25rem 0 0 !important;
+            color: var(--rz-muted) !important;
+            font-size: .84rem !important;
         }
         .st-key-dashboard_focus {
             position: relative;
+            min-height: 218px;
             overflow: hidden;
-            border: 1px solid #28536c;
-            background: linear-gradient(135deg, #0d1824 0%, #102b3b 100%);
-            box-shadow: 0 16px 36px rgba(2, 14, 24, .17);
+            padding: 1.3rem 1.4rem 1.35rem;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 38%, var(--rz-border));
+            border-radius: 18px;
+            background:
+                radial-gradient(circle at 88% 12%, rgba(77, 211, 255, .18), transparent 14rem),
+                linear-gradient(135deg, #081621 0%, #0d2939 100%);
+            box-shadow: 0 18px 45px rgba(3, 18, 28, .16);
         }
         .st-key-dashboard_focus::before {
             content: "";
             position: absolute;
-            left: 0; top: 0; bottom: 0;
+            inset: 0 auto 0 0;
             width: 4px;
-            background: #10bdf2;
+            background: var(--rz-primary);
         }
-        .st-key-dashboard_focus [data-testid="stMarkdownContainer"] :is(h3, p),
-        .st-key-dashboard_focus [data-testid="stCaptionContainer"] :is(p, span) {
-            color: #fff !important;
-            -webkit-text-fill-color: #fff !important;
+        .st-key-dashboard_focus [data-testid="stCaptionContainer"] *,
+        .st-key-dashboard_focus [data-testid="stMarkdownContainer"] p,
+        .st-key-dashboard_focus [data-testid="stMarkdownContainer"] h3 {
+            color: #f7fbfe !important;
+            -webkit-text-fill-color: #f7fbfe !important;
         }
         .st-key-dashboard_focus [data-testid="stMarkdownContainer"] h3 {
-            font-size: clamp(1.45rem, 2.3vw, 1.9rem) !important;
-            font-weight: 760 !important;
-            line-height: 1.2 !important;
-            margin: .3rem 0 .65rem !important;
+            margin: .35rem 0 .58rem !important;
+            font-size: clamp(1.35rem, 2.2vw, 1.82rem) !important;
+            line-height: 1.16 !important;
+            letter-spacing: -.035em !important;
         }
-        .st-key-dashboard_focus [data-testid="stCaptionContainer"] * { opacity: .85; letter-spacing: .04em; }
         .st-key-dashboard_focus [data-testid="stButton"] button {
-            min-height: 46px; background: #10bdf2 !important; color: #06131c !important;
-            border-color: #10bdf2 !important; font-weight: 760 !important;
-            border-radius: 10px !important;
-        }
-        .st-key-dashboard_summary {
-            border: 1px solid var(--rz-border);
-            background: var(--rz-surface);
-            box-shadow: none;
-        }
-        .st-key-dashboard_summary [data-testid="stMetric"] {
-            min-height: auto !important; padding: .55rem 0 !important;
-            border: 0 !important; box-shadow: none !important;
-            background: transparent !important;
-        }
-        .st-key-dashboard_summary > div [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
-        .st-key-dashboard_summary [data-testid="stMetricLabel"] p { color: var(--rz-muted) !important; }
-        .st-key-dashboard_summary [data-testid="stMetricValue"] { color: var(--rz-text) !important; }
-        .st-key-dashboard_summary [data-testid="stButton"] button {
-            min-height: 43px !important;
-            border-radius: 10px !important;
-        }
-        [class*="st-key-dashboard_action_"] [data-testid="stButton"] button {
-            min-height: 62px !important;
-            padding: .8rem 1rem !important;
-            text-align: left !important;
-            font-weight: 700 !important;
-            border-radius: 13px !important;
-            background: var(--rz-surface) !important;
-            border-color: var(--rz-border) !important;
-            color: var(--rz-text) !important;
-        }
-        [class*="st-key-dashboard_action_"] [data-testid="stButton"] button:hover {
+            margin-top: .55rem;
             border-color: var(--rz-primary) !important;
-            box-shadow: var(--rz-shadow-soft) !important;
+            background: var(--rz-primary) !important;
+            color: #04121a !important;
+            font-weight: 780 !important;
         }
-        [class*="st-key-dashboard_task_"], [class*="st-key-dashboard_deadline_"] {
-            padding: .9rem 1rem; margin-bottom: .65rem;
-            border: 1px solid var(--rz-border); border-radius: 13px;
+        .st-key-dashboard_health {
+            min-height: 218px;
+            padding: 1.2rem 1.25rem;
+            border: 1px solid var(--rz-border);
+            border-radius: 18px;
             background: var(--rz-surface);
         }
-        [class*="st-key-dashboard_task_"] [data-testid="stButton"] button,
-        [class*="st-key-dashboard_deadline_"] [data-testid="stButton"] button {
-            min-height: 38px !important; width: auto; padding: .35rem .75rem;
+        .rz-health-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            margin-bottom: .8rem;
         }
-        .st-key-dashboard_next_step h4 { margin: 0 0 .55rem; font-size: 1rem; }
-        .st-key-dashboard_next_step p { line-height: 1.6; }
-        .st-key-dashboard_next_step [data-testid="stButton"] button {
-            width: auto; min-width: 200px; min-height: 44px;
-            margin-top: .45rem; padding-inline: 1.2rem;
+        .rz-health-head strong {
+            font-size: .83rem;
         }
-        .st-key-sidebar_navigation > div [data-testid="stCaptionContainer"] p {
-            margin: .8rem 0 .15rem;
-            font-size: .75rem;
-            font-weight: 750;
-            letter-spacing: .045em;
-            color: var(--rz-muted);
+        .rz-health-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 26px;
+            padding: .22rem .55rem;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 28%, var(--rz-border));
+            border-radius: 999px;
+            background: var(--rz-primary-soft);
+            color: var(--rz-primary) !important;
+            font-size: .66rem;
+            font-weight: 780;
         }
-        @media (max-width: 700px) {
-            .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container { padding-top: 1.2rem !important; }
-            .st-key-dashboard_next_step { padding: 1rem; margin-bottom: 1.1rem; }
-            .st-key-dashboard_next_step [data-testid="stButton"] button { width: 100%; }
-            .st-key-dashboard_focus, .st-key-dashboard_summary { min-height: 0; padding: 1.1rem; }
+        .rz-health-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: .58rem 0;
+            border-top: 1px solid var(--rz-border);
+        }
+        .rz-health-row span {
+            color: var(--rz-muted) !important;
+            font-size: .73rem;
+        }
+        .rz-health-row strong {
+            color: var(--rz-text) !important;
+            font-size: .82rem;
+        }
+        [class*="st-key-dashboard_task_"],
+        [class*="st-key-dashboard_deadline_"] {
+            margin-bottom: .58rem;
+            padding: .78rem .85rem;
+            border: 1px solid var(--rz-border);
+            border-radius: 12px;
+            background: var(--rz-surface);
         }
 
-        /* Login V3: acesso moderno com marketing original do Razync Pro. */
-        .stApp:has(.rz-login-shell) [data-testid="stMain"] {
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at 50% -12%, color-mix(in srgb, var(--rz-primary) 16%, transparent), transparent 34rem),
-                linear-gradient(180deg, color-mix(in srgb, var(--rz-bg) 96%, white 4%), var(--rz-bg)) !important;
+        /* Sidebar */
+        [data-testid="stSidebar"] {
+            border-right: 1px solid var(--rz-border) !important;
+            background: color-mix(in srgb, var(--rz-surface) 96%, var(--rz-bg)) !important;
         }
-        .stApp:has(.rz-login-shell) [data-testid="stMain"]::before,
-        .stApp:has(.rz-login-shell) [data-testid="stHeader"] {
-            display: none !important;
+        [data-testid="stSidebar"] .block-container {
+            padding: .9rem .78rem 1rem !important;
         }
-        .stApp:has(.rz-login-shell) .block-container {
-            max-width: 1040px !important;
-            padding: clamp(2.2rem, 5vh, 4rem) 1rem 4.5rem !important;
+        .rz-side-brand {
+            display: flex;
+            align-items: center;
+            gap: .68rem;
+            padding: .16rem .34rem .72rem;
+            margin-bottom: .12rem;
         }
-        .stApp:has(.rz-login-shell) .rz-login-shell {
-            max-width: 920px !important;
-            margin: 0 auto 1.35rem !important;
-            padding: 0 !important;
-            text-align: center !important;
-            background: transparent !important;
-            border: 0 !important;
-            box-shadow: none !important;
+        .rz-side-brand img {
+            width: 36px;
+            height: 36px;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 26%, var(--rz-border));
+            border-radius: 11px;
+            object-fit: cover;
+            box-shadow: 0 8px 22px color-mix(in srgb, var(--rz-primary) 12%, transparent);
         }
-        .stApp:has(.rz-login-shell) .rz-login-brand {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            width: fit-content !important;
-            gap: .64rem !important;
-            margin: 0 auto .95rem !important;
-            padding: 0 !important;
-            background: transparent !important;
-            border: 0 !important;
-            box-shadow: none !important;
-            backdrop-filter: none !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-mark {
-            width: 42px !important;
-            height: 42px !important;
-            border-radius: 12px !important;
-            border: 1px solid color-mix(in srgb, var(--rz-primary) 46%, transparent) !important;
-            box-shadow: 0 12px 30px color-mix(in srgb, var(--rz-primary) 22%, transparent) !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-brand strong {
-            font-size: 1.38rem !important;
-            letter-spacing: -.045em !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-brand span {
-            font-size: .6rem !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-kicker {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            width: fit-content !important;
-            margin: 0 auto .8rem !important;
-            padding: .38rem .7rem !important;
-            border: 1px solid color-mix(in srgb, var(--rz-primary) 28%, var(--rz-border)) !important;
-            border-radius: 999px !important;
-            background: color-mix(in srgb, var(--rz-primary) 8%, var(--rz-surface)) !important;
-            color: var(--rz-primary) !important;
-            font-size: .67rem !important;
-            font-weight: 780 !important;
-            letter-spacing: .04em !important;
-            text-transform: uppercase !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-shell h1 {
-            display: block !important;
-            max-width: 780px !important;
-            margin: 0 auto !important;
-            font-size: clamp(2.15rem, 5vw, 3.35rem) !important;
-            line-height: 1.02 !important;
-            letter-spacing: -.055em !important;
-            font-weight: 870 !important;
+        .rz-side-brand strong {
             color: var(--rz-text) !important;
+            font-size: 1.02rem;
+            letter-spacing: -.03em;
         }
-        .stApp:has(.rz-login-shell) .rz-login-shell h1 em {
+        .rz-side-brand em {
+            margin-left: .24rem;
             color: var(--rz-primary) !important;
-            font-style: normal !important;
+            font-size: .56rem;
+            font-style: normal;
+            font-weight: 850;
+            letter-spacing: .09em;
+            vertical-align: .12rem;
         }
-        .stApp:has(.rz-login-shell) .rz-login-lead {
-            display: block !important;
-            max-width: 690px !important;
-            margin: .9rem auto 1.35rem !important;
+        .rz-side-brand span {
+            display: block;
+            max-width: 176px;
+            margin-top: .08rem;
+            overflow: hidden;
             color: var(--rz-muted) !important;
-            font-size: .98rem !important;
-            line-height: 1.65 !important;
+            font-size: .67rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .stApp:has(.rz-login-shell) .rz-login-benefits {
-            display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: .72rem !important;
-            max-width: 820px !important;
-            margin: 0 auto 1rem !important;
+        .st-key-sidebar_navigation [data-testid="stCaptionContainer"] p {
+            margin: .72rem .35rem .16rem !important;
+            color: var(--rz-muted) !important;
+            font-size: .61rem !important;
+            font-weight: 820 !important;
+            letter-spacing: .105em !important;
         }
-        .stApp:has(.rz-login-shell) .rz-login-benefits span {
-            display: flex !important;
-            align-items: center !important;
+        .st-key-sidebar_navigation [data-testid="stButton"] {
+            margin: .03rem 0 !important;
+        }
+        .st-key-sidebar_navigation [data-testid="stButton"] button {
+            min-height: 2.42rem !important;
+            justify-content: flex-start !important;
             gap: .62rem !important;
-            min-height: 72px !important;
-            padding: .82rem .9rem !important;
-            border: 1px solid color-mix(in srgb, var(--rz-border) 88%, transparent) !important;
-            border-radius: 16px !important;
-            background: color-mix(in srgb, var(--rz-surface) 96%, transparent) !important;
-            color: var(--rz-text) !important;
-            box-shadow: 0 12px 35px rgba(18, 31, 43, .055) !important;
-            text-align: left !important;
-            font-size: .82rem !important;
-            font-weight: 720 !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-benefits b {
-            display: inline-grid !important;
-            place-items: center !important;
-            flex: 0 0 30px !important;
-            width: 30px !important;
-            height: 30px !important;
-            border-radius: 9px !important;
-            background: color-mix(in srgb, var(--rz-primary) 12%, var(--rz-surface)) !important;
-            color: var(--rz-primary) !important;
-            font-size: .66rem !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-proof {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: .7rem !important;
-            margin: .2rem auto .7rem !important;
-            color: var(--rz-muted) !important;
-            font-size: .7rem !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-proof span {
-            color: var(--rz-muted) !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-proof i {
-            width: 4px !important;
-            height: 4px !important;
-            border-radius: 50% !important;
-            background: var(--rz-primary) !important;
-        }
-
-        .stApp:has(.rz-login-shell) .rz-demo-note {
-            max-width: 460px !important;
-            margin: .7rem auto 0 !important;
-            text-align: center !important;
-            color: var(--rz-muted) !important;
-            font-size: .7rem !important;
-            line-height: 1.45 !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stTabs"] {
-            max-width: 460px !important;
-            margin: 1.15rem auto 0 !important;
-            padding: 1rem 1.05rem 1.15rem !important;
-            border: 1px solid color-mix(in srgb, var(--rz-border) 92%, transparent) !important;
-            border-radius: 22px !important;
-            background: color-mix(in srgb, var(--rz-surface) 98%, transparent) !important;
-            box-shadow: 0 28px 80px rgba(18, 31, 43, .11), 0 3px 12px rgba(18, 31, 43, .04) !important;
-            backdrop-filter: blur(20px) !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {
-            gap: .15rem !important;
-            margin-bottom: .35rem !important;
-            padding: .22rem !important;
+            padding: .38rem .58rem !important;
             border: 0 !important;
-            border-radius: 12px !important;
-            background: var(--rz-soft) !important;
+            border-radius: 10px !important;
+            background: transparent !important;
+            color: var(--rz-muted) !important;
+            box-shadow: none !important;
         }
-        .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {
+        .st-key-sidebar_navigation [data-testid="stButton"] button:hover {
+            background: var(--rz-soft) !important;
+            color: var(--rz-text) !important;
+        }
+        .st-key-sidebar_navigation [data-testid="stButton"] button:disabled {
+            background: var(--rz-primary-soft) !important;
+            color: var(--rz-primary) !important;
+            font-weight: 750 !important;
+            opacity: 1 !important;
+        }
+        .st-key-sidebar_navigation [data-testid="stButton"] button p {
+            font-size: .8rem !important;
+            font-weight: 620 !important;
+        }
+        .st-key-sidebar_navigation [data-testid="stExpander"] {
+            border: 0 !important;
+            background: transparent !important;
+        }
+        .st-key-sidebar_navigation [data-testid="stExpander"] summary {
             min-height: 2.35rem !important;
-            border-radius: 9px !important;
-            font-size: .76rem !important;
+            padding: .32rem .48rem !important;
+            border-radius: 10px !important;
+            color: var(--rz-muted) !important;
+            font-size: .78rem !important;
             font-weight: 690 !important;
         }
-        .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-            background: var(--rz-surface) !important;
-            color: var(--rz-text) !important;
-            box-shadow: 0 2px 8px rgba(16, 28, 40, .08) !important;
+        .st-key-sidebar_navigation [data-testid="stExpander"] details > div {
+            padding-left: .22rem !important;
+            border-left: 1px solid var(--rz-border);
         }
-        .stApp:has(.rz-login-shell) .rz-auth-heading {
-            padding: .75rem .05rem .35rem !important;
-            text-align: left !important;
+        [data-testid="stSidebar"] hr {
+            margin: .7rem 0 !important;
         }
-        .stApp:has(.rz-login-shell) .rz-auth-heading strong {
-            font-size: 1.35rem !important;
-            letter-spacing: -.035em !important;
-            font-weight: 820 !important;
+
+        /* Floating AI */
+        .st-key-floating_ai_launcher {
+            position: fixed !important;
+            right: 1rem !important;
+            bottom: 1rem !important;
+            z-index: 999990 !important;
+            width: auto !important;
         }
-        .stApp:has(.rz-login-shell) .rz-auth-heading span {
-            font-size: .78rem !important;
-            line-height: 1.45 !important;
-            color: var(--rz-muted) !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {
-            padding: .45rem 0 0 !important;
-            border: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {
-            font-size: .74rem !important;
-            font-weight: 700 !important;
-        }
-        .stApp:has(.rz-login-shell) [data-baseweb="input"] {
-            min-height: 3rem !important;
-            border: 1px solid var(--rz-control-border) !important;
-            border-radius: 12px !important;
-            background: var(--rz-control-bg) !important;
-            box-shadow: 0 1px 2px rgba(16, 28, 40, .03) !important;
-        }
-        .stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {
-            border-color: var(--rz-primary) !important;
-            box-shadow: 0 0 0 4px color-mix(in srgb, var(--rz-primary) 12%, transparent) !important;
-        }
-        .stApp:has(.rz-login-shell) input {
-            min-height: 3rem !important;
-            padding-left: .88rem !important;
-            font-size: .9rem !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {
-            min-height: 3rem !important;
-            margin-top: .3rem !important;
-            border: 0 !important;
-            border-radius: 12px !important;
-            background: var(--rz-primary) !important;
-            color: #fff !important;
-            font-weight: 790 !important;
-            box-shadow: 0 10px 24px color-mix(in srgb, var(--rz-primary) 23%, transparent) !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {
-            min-height: 2.8rem !important;
-            border-radius: 12px !important;
-            border: 1px solid var(--rz-border) !important;
-            background: var(--rz-surface) !important;
-            color: var(--rz-text) !important;
-            box-shadow: none !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-github-admin-login {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: .65rem !important;
-            width: 100% !important;
-            min-height: 3rem !important;
-            padding: .7rem 1rem !important;
-            border: 1px solid #24292f !important;
-            border-radius: 12px !important;
-            background: #24292f !important;
-            color: #fff !important;
-            text-decoration: none !important;
-            box-shadow: 0 8px 20px rgba(36, 41, 47, .16) !important;
-            transition: transform .16s ease, background .16s ease, box-shadow .16s ease !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-github-admin-login span {
-            padding: .18rem .42rem !important;
-            border: 1px solid rgba(255, 255, 255, .28) !important;
-            border-radius: 6px !important;
-            font-size: .66rem !important;
-            font-weight: 760 !important;
-            letter-spacing: .02em !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-github-admin-login strong {
-            color: inherit !important;
-            font-size: .86rem !important;
-            font-weight: 760 !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-github-admin-login:hover {
-            background: #111820 !important;
-            color: #fff !important;
-            transform: translateY(-1px) !important;
-            box-shadow: 0 11px 24px rgba(36, 41, 47, .2) !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-github-admin-login:focus-visible {
-            outline: 3px solid color-mix(in srgb, var(--rz-primary) 34%, transparent) !important;
-            outline-offset: 3px !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stButton"] {
-            max-width: 460px !important;
-            margin: .8rem auto 0 !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stButton"] button {
-            min-height: 2.55rem !important;
-            border: 1px solid var(--rz-border) !important;
+        .st-key-floating_ai_launcher [data-testid="stButton"] button {
+            min-height: 44px !important;
+            padding: .52rem .88rem !important;
+            border: 1px solid color-mix(in srgb, var(--rz-primary) 55%, transparent) !important;
             border-radius: 999px !important;
-            background: color-mix(in srgb, var(--rz-surface) 94%, transparent) !important;
-            color: var(--rz-muted) !important;
-            box-shadow: none !important;
+            background: linear-gradient(135deg, #087ea4, #0aaee0) !important;
+            color: #fff !important;
+            box-shadow: 0 12px 30px rgba(2, 49, 69, .22) !important;
             font-size: .76rem !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stExpander"] {
-            max-width: 460px !important;
-            margin: .65rem auto 0 !important;
-            border: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-        }
-        .stApp:has(.rz-login-shell) [data-testid="stExpander"] summary {
-            justify-content: center !important;
-            color: var(--rz-muted) !important;
-            font-size: .7rem !important;
-        }
-        .stApp:has(.rz-login-shell) .rz-login-security {
-            max-width: 460px !important;
-            margin: .4rem auto 0 !important;
-            text-align: center !important;
-            font-size: .62rem !important;
-            color: var(--rz-muted) !important;
-            opacity: .88;
+            font-weight: 760 !important;
         }
 
-        @media (max-width: 980px) {
-            [data-testid="stAppViewContainer"] .block-container {
-                padding-left: 1.15rem;
-                padding-right: 1.15rem;
-            }
-            .stApp:has(.rz-login-shell) .block-container {
-                max-width: 760px !important;
-            }
-        }
-
-        @media (max-width: 760px) {
-            [data-testid="stAppViewContainer"] .block-container {
-                padding-top: 1rem;
-                padding-left: .82rem;
-                padding-right: .82rem;
+        /* Mobile */
+        @media (max-width: 820px) {
+            .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container {
+                padding: .95rem .75rem 4.5rem !important;
             }
             [data-testid="stHorizontalBlock"] {
                 gap: .55rem !important;
             }
-            [data-testid="stMetric"] {
-                padding: .72rem .78rem;
-                border: 1px solid var(--rz-border);
-                border-radius: 12px;
-                background: var(--rz-surface);
+            .rz-page-title {
+                font-size: 1.62rem !important;
             }
-            [data-testid="stMetricValue"] {
-                font-size: 1.32rem;
+            .rz-page-sub {
+                margin-bottom: 1rem !important;
+                font-size: .82rem !important;
             }
-            [data-testid="stButton"] button,
-            [data-testid="stLinkButton"] a {
-                min-height: 2.72rem;
+            .st-key-dashboard_focus,
+            .st-key-dashboard_health {
+                min-height: 0;
+                padding: 1rem;
+                border-radius: 15px;
             }
-            [data-testid="stDataFrame"] {
-                border-radius: 12px;
-                overflow: hidden;
+            [class*="st-key-rz_metric_card_"] button {
+                min-height: 76px !important;
+                padding: .75rem .82rem !important;
             }
-            [data-testid="stExpander"] summary {
-                min-height: 2.6rem;
+            [data-testid="stMain"] [data-testid="stForm"] {
+                padding: .75rem !important;
             }
-            [data-testid="stForm"] {
-                border-radius: 14px;
+            [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] {
+                min-height: 5rem !important;
+                padding: .7rem !important;
             }
-            h1 {
-                font-size: 1.72rem !important;
-                line-height: 1.15 !important;
-            }
-            h2 {
-                font-size: 1.35rem !important;
-            }
-            h3 {
-                font-size: 1.08rem !important;
-            }
-            .stApp:has(.rz-login-shell) .block-container {
-                padding: 1.35rem .75rem 3rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-shell h1 {
-                font-size: 2.25rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-benefits {
-                grid-template-columns: 1fr !important;
-                max-width: 460px !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-benefits span {
-                min-height: 60px !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stTabs"] {
-                border-radius: 18px !important;
-                padding: .85rem .78rem 1rem !important;
+            .st-key-floating_ai_launcher {
+                right: .65rem !important;
+                bottom: .65rem !important;
             }
         }
 
-        @media (max-width: 480px) {
-            [data-testid="stAppViewContainer"] .block-container {
-                padding-left: .62rem;
-                padding-right: .62rem;
+        @media (max-width: 520px) {
+            .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container {
+                padding-left: .58rem !important;
+                padding-right: .58rem !important;
             }
             [data-testid="stHorizontalBlock"] {
                 gap: .42rem !important;
             }
-            [data-testid="stButton"] button,
-            [data-testid="stLinkButton"] a,
-            [data-testid="stDownloadButton"] button {
-                min-height: 2.9rem;
-                white-space: normal;
+            [data-testid="stMain"] div[data-testid="stButton"] button,
+            [data-testid="stMain"] [data-testid="stDownloadButton"] button {
+                min-height: 2.72rem !important;
+                white-space: normal !important;
             }
             [data-testid="stMetricValue"] {
-                font-size: 1.16rem;
+                font-size: 1.16rem !important;
             }
-            [data-testid="stMetricLabel"] {
-                font-size: .76rem;
-            }
-            [data-testid="stForm"] {
-                padding: .78rem;
-            }
-            [data-testid="stFileUploader"] section {
-                min-height: 5.2rem;
-            }
-            h1 {
-                font-size: 1.52rem !important;
-            }
-            h2 {
-                font-size: 1.22rem !important;
-            }
-            .stApp:has(.rz-login-shell) .block-container {
-                padding-left: .55rem !important;
-                padding-right: .55rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-shell h1 {
-                font-size: 1.9rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-lead {
-                font-size: .88rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-proof {
-                flex-wrap: wrap !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {
-                font-size: .68rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-auth-heading strong {
-                font-size: 1.2rem !important;
+            .rz-side-brand span {
+                max-width: 150px;
             }
         }
 
-        /* Login V4: composição SaaS em dois painéis, compacta e focada. */
-        @media (min-width: 981px) {
-            .stApp:has(.rz-login-shell) .block-container {
-                max-width: none !important;
-                width: 100% !important;
-                padding: 0 !important;
-            }
-            .stApp:has(.rz-login-shell) .stMainBlockContainer > [data-testid="stVerticalBlock"]:has(.rz-login-shell) {
-                display: grid !important;
-                grid-template-columns: minmax(0, 1.08fr) minmax(410px, .92fr) !important;
-                grid-template-rows: auto auto auto auto 1fr !important;
-                column-gap: clamp(2rem, 4vw, 4.5rem) !important;
-                min-height: 100vh !important;
-                padding: clamp(2.25rem, 5vw, 5.5rem) clamp(2.5rem, 8vw, 9.5rem) !important;
-                border: 0 !important;
-                border-radius: 0 !important;
-                background:
-                    radial-gradient(circle at 12% 12%, rgba(18, 184, 232, .16), transparent 25rem),
-                    linear-gradient(112deg, #071522 0%, #0b2132 50%, var(--rz-surface) 50.1%, var(--rz-surface) 100%) !important;
-                box-shadow: none !important;
-                overflow: hidden !important;
-            }
-            .stApp:has(.rz-login-shell) .stMainBlockContainer > [data-testid="stVerticalBlock"]:has(.rz-login-shell) > [data-testid="stElementContainer"]:has(style) {
-                display: none !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(> .stMarkdown > .rz-login-shell) {
-                grid-column: 1 !important;
-                grid-row: 1 !important;
-                align-self: center !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-shell {
-                max-width: 520px !important;
-                margin: 0 !important;
-                text-align: left !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-brand,
-            .stApp:has(.rz-login-shell) .rz-login-kicker {
-                margin-left: 0 !important;
-                margin-right: 0 !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-brand strong,
-            .stApp:has(.rz-login-shell) .rz-login-shell h1 {
-                color: #fff !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-shell h1 a {
-                color: inherit !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-kicker {
-                border-color: rgba(77, 211, 255, .28) !important;
-                background: rgba(36, 191, 237, .1) !important;
-                color: #6edcff !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-shell h1 {
-                margin: 0 !important;
-                font-size: clamp(2.65rem, 4.25vw, 4.4rem) !important;
-                line-height: .98 !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-shell h1 em {
-                color: #34c8f5 !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-lead {
-                max-width: 500px !important;
-                margin: 1.25rem 0 1.65rem !important;
-                color: rgba(231, 243, 250, .72) !important;
-                font-size: 1rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-benefits {
-                grid-template-columns: 1fr !important;
-                gap: .55rem !important;
-                max-width: 450px !important;
-                margin: 0 0 1.15rem !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-benefits span {
-                min-height: 54px !important;
-                border-color: rgba(255, 255, 255, .1) !important;
-                background: rgba(255, 255, 255, .055) !important;
-                color: rgba(255, 255, 255, .92) !important;
-                box-shadow: none !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-benefits b {
-                background: rgba(52, 200, 245, .14) !important;
-                color: #6edcff !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-proof {
-                justify-content: flex-start !important;
-                margin: 0 !important;
-                color: rgba(231, 243, 250, .58) !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-login-proof span {
-                color: inherit !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(button[kind="secondary"]) {
-                grid-column: 1 !important;
-                grid-row: 2 !important;
-                align-self: end !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stButton"] {
-                max-width: 450px !important;
-                margin: 1.5rem 0 0 !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stButton"] button {
-                min-height: 3rem !important;
-                border-color: rgba(77, 211, 255, .3) !important;
-                background: rgba(52, 200, 245, .11) !important;
-                color: #dff7ff !important;
-                font-weight: 720 !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(.rz-demo-note) {
-                grid-column: 1 !important;
-                grid-row: 3 !important;
-            }
-            .stApp:has(.rz-login-shell) .rz-demo-note {
-                max-width: 450px !important;
-                margin: .65rem 0 0 !important;
-                text-align: left !important;
-                color: rgba(231, 243, 250, .48) !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stTabs"] {
-                grid-column: 2 !important;
-                grid-row: 1 / span 3 !important;
-                align-self: center !important;
-                width: 100% !important;
-                max-width: 470px !important;
-                margin: 0 auto !important;
-                padding: 1.15rem 1.35rem 1.4rem !important;
-                border-color: color-mix(in srgb, var(--rz-border) 72%, transparent) !important;
-                box-shadow: 0 24px 70px rgba(8, 25, 39, .12) !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) {
-                grid-column: 2 !important;
-                grid-row: 4 !important;
-            }
-            .stApp:has(.rz-login-shell) [data-testid="stElementContainer"]:has(.rz-login-security) {
-                grid-column: 2 !important;
-                grid-row: 5 !important;
-                align-self: start !important;
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition: none !important;
+                animation: none !important;
+                scroll-behavior: auto !important;
             }
         }
         </style>
