@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 from automation_tools import financial_projection
@@ -11,8 +10,8 @@ from business_tools import financial_analysis
 from compact_cards import metric_card
 from contextual_ai import contextual_ai_button
 from product_core import reconciliation_summary
-from ui_system import alert_card, apply_plot_theme, section, tokens
 from table_ui import professional_table
+from ui_system import alert_card, apply_plot_theme, section
 
 
 def render_finance_workspace(
@@ -25,7 +24,7 @@ def render_finance_workspace(
     brl,
     navigate,
 ) -> None:
-    """Integrated daily financial workspace for the MEI."""
+    """Daily financial workspace focused on fast decisions."""
     today = date.today()
     year_tx = transactions[transactions["tx_date"].dt.year == current_year] if not transactions.empty else transactions
     month_tx = year_tx[year_tx["tx_date"].dt.month == today.month] if not year_tx.empty else year_tx
@@ -36,58 +35,27 @@ def render_finance_workspace(
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        if metric_card("Entradas no mês", brl(month_in), key="fin_month_in", help_text="Ver os lançamentos financeiros"):
+        if metric_card("Entradas no mês", brl(month_in), key="fin_month_in", help_text="Ver lançamentos"):
             navigate("Movimentações")
     with c2:
-        if metric_card("Saídas no mês", brl(month_out), key="fin_month_out", help_text="Ver os lançamentos financeiros"):
+        if metric_card("Saídas no mês", brl(month_out), key="fin_month_out", help_text="Ver lançamentos"):
             navigate("Movimentações")
     with c3:
-        if metric_card("Resultado no mês", brl(month_in - month_out), key="fin_month_result", help_text="Abrir a análise financeira"):
+        if metric_card("Resultado no mês", brl(month_in - month_out), key="fin_month_result", help_text="Abrir análise financeira"):
             navigate("Análise Financeira")
     with c4:
-        if metric_card("Resultado no ano", brl(year_in - year_out), key="fin_year_result", help_text="Abrir a análise financeira completa"):
+        if metric_card("Resultado no ano", brl(year_in - year_out), key="fin_year_result", help_text="Abrir análise financeira"):
             navigate("Análise Financeira")
-
-    ai1, ai2, ai3 = st.columns(3)
-    with ai1:
-        contextual_ai_button(
-            "Analisar este mês",
-            key="finance_month",
-            navigate=navigate,
-            source="finance_workspace",
-            title="Análise financeira do mês",
-            question="Analise minhas receitas, despesas e resultado deste mês. Destaque o que mais importa e sugira próximos passos.",
-            detail=f"Entradas {brl(month_in)}; saídas {brl(month_out)}; resultado {brl(month_in - month_out)}.",
-            page="Financeiro",
-        )
-    with ai2:
-        contextual_ai_button(
-            "Revisar despesas",
-            key="finance_expenses",
-            navigate=navigate,
-            source="finance_workspace",
-            title="Revisão de despesas",
-            question="Quais despesas mais pesam no meu negócio e o que devo revisar primeiro? Use meus dados cadastrados.",
-            detail=f"Saídas no mês {brl(month_out)}; despesas no ano {brl(year_out)}.",
-            page="Financeiro",
-        )
-    with ai3:
-        contextual_ai_button(
-            "Projetar próximos passos",
-            key="finance_next_steps",
-            navigate=navigate,
-            source="finance_workspace",
-            title="Próximos passos financeiros",
-            question="Com base no meu financeiro atual, quais são as três próximas ações mais importantes para melhorar controle e caixa?",
-            detail=f"Resultado no mês {brl(month_in - month_out)}; resultado no ano {brl(year_in - year_out)}.",
-            page="Financeiro",
-        )
 
     projection = financial_projection(transactions, annual_limit, current_year, today)
     if projection.get("limit_risk"):
-        alert_card("warn", "Atenção ao ritmo de faturamento", f"Projeção anual de {brl(projection['projected_revenue'])}.")
+        alert_card(
+            "warn",
+            "Atenção ao ritmo de faturamento",
+            f"Se o ritmo atual continuar, a projeção anual é {brl(projection['projected_revenue'])}.",
+        )
 
-    section("Ações do dia", "As rotinas financeiras mais usadas ficam juntas aqui.")
+    section("Ações rápidas", "As rotinas mais usadas ficam sempre visíveis.")
     a1, a2, a3, a4 = st.columns(4)
     if a1.button("Nova movimentação", width="stretch"):
         navigate("Movimentações")
@@ -104,29 +72,49 @@ def render_finance_workspace(
         if year_tx.empty:
             st.info("Registre uma movimentação para começar a acompanhar a evolução financeira.")
         else:
+            import plotly.express as px
+
             monthly = year_tx.assign(Mês=year_tx["tx_date"].dt.to_period("M").astype(str))
-            grouped = monthly.pivot_table(index="Mês", columns="tx_type", values="value", aggfunc="sum", fill_value=0).reset_index()
-            for col in ["Receita", "Despesa"]:
+            grouped = monthly.pivot_table(
+                index="Mês",
+                columns="tx_type",
+                values="value",
+                aggfunc="sum",
+                fill_value=0,
+            ).reset_index()
+            for col in ("Receita", "Despesa"):
                 if col not in grouped:
                     grouped[col] = 0.0
             grouped["Resultado"] = grouped["Receita"] - grouped["Despesa"]
             month_names = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
-            grouped["Período"] = [f"{month_names[int(month[5:7]) - 1]}/{month[:4]}" for month in grouped["Mês"]]
+            grouped["Período"] = [
+                f"{month_names[int(month[5:7]) - 1]}/{month[:4]}" for month in grouped["Mês"]
+            ]
             fig = px.line(
-                grouped, x="Período", y=["Receita", "Despesa", "Resultado"], markers=True,
-                color_discrete_map={"Receita": "#10bdf2", "Despesa": "#8fa9bc", "Resultado": "#ef7479"},
+                grouped,
+                x="Período",
+                y=["Receita", "Despesa", "Resultado"],
+                markers=True,
+                color_discrete_map={
+                    "Receita": "#10bdf2",
+                    "Despesa": "#8fa9bc",
+                    "Resultado": "#ef7479",
+                },
             )
-            apply_plot_theme(fig, theme, height=300)
+            apply_plot_theme(fig, theme, height=292)
             fig.update_layout(
-                xaxis_title=None, yaxis_title=None, legend_title_text=None,
+                xaxis_title=None,
+                yaxis_title=None,
+                legend_title_text=None,
                 font_color="#c7d8e6" if theme == "Escuro" else "#314657",
                 legend_font_color="#c7d8e6" if theme == "Escuro" else "#314657",
+                margin=dict(l=8, r=8, t=18, b=8),
             )
             fig.update_xaxes(type="category")
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     with right:
-        section("Conciliação", "Notas e lançamentos que ainda merecem revisão.")
+        section("Conciliação", "O que ainda merece revisão.")
         rec = reconciliation_summary(transactions, invoices)
         if metric_card("Notas pendentes", str(len(rec["pending_invoices"])), key="fin_pending_invoices", help_text="Abrir conciliação"):
             navigate("Conciliação")
@@ -134,6 +122,43 @@ def render_finance_workspace(
             navigate("Conciliação")
         if not len(rec["pending_invoices"]) and not rec["possible_duplicate_transactions"]:
             st.success("Nenhuma pendência evidente encontrada.")
+
+    with st.expander("Analisar com Razync IA"):
+        st.caption("Use a IA quando quiser interpretação dos números, sem mudar seus dados.")
+        ai1, ai2, ai3 = st.columns(3)
+        with ai1:
+            contextual_ai_button(
+                "Analisar este mês",
+                key="finance_month",
+                navigate=navigate,
+                source="finance_workspace",
+                title="Análise financeira do mês",
+                question="Analise minhas receitas, despesas e resultado deste mês. Destaque o que mais importa e sugira próximos passos.",
+                detail=f"Entradas {brl(month_in)}; saídas {brl(month_out)}; resultado {brl(month_in - month_out)}.",
+                page="Financeiro",
+            )
+        with ai2:
+            contextual_ai_button(
+                "Revisar despesas",
+                key="finance_expenses",
+                navigate=navigate,
+                source="finance_workspace",
+                title="Revisão de despesas",
+                question="Quais despesas mais pesam no meu negócio e o que devo revisar primeiro? Use meus dados cadastrados.",
+                detail=f"Saídas no mês {brl(month_out)}; despesas no ano {brl(year_out)}.",
+                page="Financeiro",
+            )
+        with ai3:
+            contextual_ai_button(
+                "Projetar próximos passos",
+                key="finance_next_steps",
+                navigate=navigate,
+                source="finance_workspace",
+                title="Próximos passos financeiros",
+                question="Com base no meu financeiro atual, quais são as três próximas ações mais importantes para melhorar controle e caixa?",
+                detail=f"Resultado no mês {brl(month_in - month_out)}; resultado no ano {brl(year_in - year_out)}.",
+                page="Financeiro",
+            )
 
     with st.expander("Resumo anual e últimos lançamentos"):
         analysis = financial_analysis(transactions, current_year)
@@ -163,7 +188,7 @@ def render_finance_workspace(
             if st.button("Ver todas as movimentações", key="finance_all_transactions", width="stretch"):
                 navigate("Movimentações")
 
-    with st.expander("Ferramentas financeiras avançadas"):
+    with st.expander("Ferramentas avançadas"):
         b1, b2 = st.columns(2)
         if b1.button("Fluxo de caixa", width="stretch"):
             navigate("Fluxo de Caixa")
