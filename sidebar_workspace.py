@@ -23,32 +23,13 @@ def _floating_chat_shell_styles() -> None:
     st.markdown(
         """
         <style>
-        .st-key-floating_ai_launcher {
-            position: fixed !important;
-            right: 1rem !important;
-            bottom: 1rem !important;
-            z-index: 999990 !important;
-            width: auto !important;
-        }
-        .st-key-floating_ai_launcher > div { width: auto !important; }
-        .st-key-floating_ai_launcher [data-testid="stButton"] button {
-            min-height: 44px !important;
-            padding: .52rem .86rem !important;
-            border: 0 !important;
-            border-radius: 999px !important;
-            color: #fff !important;
-            background: #087ea4 !important;
-            box-shadow: 0 10px 28px rgba(2,49,69,.20) !important;
-            font-size: .78rem !important;
-            font-weight: 700 !important;
-        }
         .st-key-floating_ai_v7_shell {
             position: fixed !important;
             right: .9rem !important;
             bottom: .9rem !important;
             z-index: 999995 !important;
-            width: min(360px, calc(100vw - 1.2rem)) !important;
-            height: 540px !important;
+            width: min(370px, calc(100vw - 1.2rem)) !important;
+            height: 550px !important;
             max-height: calc(100vh - 1.2rem) !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -69,13 +50,11 @@ def _floating_chat_shell_styles() -> None:
             background: transparent !important;
         }
         @media (max-width: 700px) {
-            .st-key-floating_ai_launcher { right: .55rem !important; bottom: .55rem !important; }
             .st-key-floating_ai_v7_shell {
                 right: .45rem !important;
                 bottom: .45rem !important;
-                width: min(350px, calc(100vw - .9rem)) !important;
-                height: 500px !important;
-                max-height: calc(100vh - .9rem) !important;
+                width: calc(100vw - .9rem) !important;
+                height: min(520px, calc(100vh - .9rem)) !important;
             }
         }
         </style>
@@ -152,7 +131,7 @@ def render_sidebar(
             ):
                 navigate("Dashboard")
 
-            primary_destinations = ["Financeiro", "Fiscal", "Documentos"]
+            primary_destinations = ["Financeiro", "Fiscal", "Documentos", "Clientes e Fornecedores"]
             for destination in primary_destinations:
                 if st.button(
                     SIDEBAR_LABELS[destination],
@@ -166,7 +145,7 @@ def render_sidebar(
             st.caption("ENCONTRE UMA FUNÇÃO")
             render_command_center(navigate=navigate, current_page=page, documents=documents)
 
-            supporting_destinations = ["Clientes e Fornecedores", "Produtividade", "Conta e Sistema"]
+            supporting_destinations = ["Produtividade", "Conta e Sistema"]
             secondary_pages = supporting_destinations + [
                 item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages
             ]
@@ -205,18 +184,18 @@ def render_sidebar(
                     navigate("Primeiros Passos")
 
         st.divider()
-        with st.expander("Conta e preferências"):
-            account_name = str(user.get("name") or "Minha conta")
-            account_email = str(user.get("email") or "").strip()
-            st.markdown(f"**{account_name}**")
-            if account_email:
-                st.markdown(f'<div class="rz-side-account">{escape(account_email)}</div>', unsafe_allow_html=True)
+        with st.expander("Preferências"):
             st.selectbox(
                 "Aparência", ["Claro", "Escuro"],
                 index=1 if st.session_state.get("ui_theme") == "Escuro" else 0,
                 key="appearance_select_v2", on_change=_apply_appearance_choice,
             )
-            if st.button("Atualizar dados", key="sidebar_refresh", icon=":material/refresh:", width="stretch"):
+            if st.button(
+                "Atualizar dados",
+                key="sidebar_refresh",
+                icon=":material/refresh:",
+                width="stretch",
+            ):
                 refresh_data()
 
     _render_floating_assistant(page, user, navigate)
