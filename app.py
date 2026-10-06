@@ -70,7 +70,6 @@ from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
 from productivity_workspace import render_productivity_workspace
 from account_workspace import render_account_workspace
-from assistant_workspace import render_ai_assistant
 from validators import valid_cnpj, valid_cpf, cpf_or_cnpj_status, valid_competence
 from commercial_readiness import PLAN_CATALOG, integration_maturity, production_checklist
 from monitoring import safe_error
@@ -1418,6 +1417,8 @@ elif page == "Central de Automações":
             st.session_state["_navigate_to"] = "Backup"; st.rerun()
 
 elif page == "Assistente Razync":
+    from assistant_workspace import render_ai_assistant
+
     header("Assistente Razync IA", "Converse com uma IA que entende o resumo financeiro e fiscal registrado no seu Razync.")
     render_ai_assistant(
         profile=profile,
