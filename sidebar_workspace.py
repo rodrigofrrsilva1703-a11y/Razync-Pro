@@ -6,8 +6,6 @@ import pandas as pd
 import streamlit as st
 
 from command_center import render_command_center
-from floating_ai_bridge import process_pending_floating_question
-from floating_chat_v7_host import render_isolated_chat_v7
 from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
 from onboarding_tools import onboarding_progress
 
@@ -72,6 +70,9 @@ def _render_floating_assistant(page: str, user: dict, navigate) -> None:
     _floating_chat_shell_styles()
     is_open = bool(st.session_state.get(_FLOATING_OPEN_KEY, False))
     if is_open:
+        from floating_ai_bridge import process_pending_floating_question
+        from floating_chat_v7_host import render_isolated_chat_v7
+
         process_pending_floating_question(user=user, page=page)
 
         def floating_navigate(destination: str) -> None:
