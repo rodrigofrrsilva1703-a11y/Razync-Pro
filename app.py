@@ -2445,21 +2445,21 @@ elif page == "Central de Automações":
             st.rerun()
 
     with forecast_tab:
-        st.caption("Projeção baseada na média dos últimos três meses cadastrados.")
+        st.caption("Projeção baseada nos meses recentes que possuem movimentações cadastradas. Não representa saldo bancário.")
         professional_table(
             automation["forecast"],
             max_visible_rows=6,
             column_config={
                 "Receitas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Despesas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
-                "Saldo projetado": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Resultado acumulado projetado": st.column_config.NumberColumn(format="R$ %.2f"),
             },
         )
         projected = automation["forecast"]
-        if not projected.empty and float(projected.iloc[-1]["Saldo projetado"]) < 0:
-            st.error("A projeção indica saldo negativo. Revise despesas e recebimentos previstos.")
+        if not projected.empty and float(projected.iloc[-1]["Resultado acumulado projetado"]) < 0:
+            st.error("A projeção indica resultado acumulado negativo. Revise despesas e recebimentos previstos.")
         else:
-            st.success("A projeção atual não indica saldo negativo nos próximos três meses.")
+            st.success("A projeção atual não indica resultado acumulado negativo nos próximos três meses.")
 
     with share_tab:
         reminders = automation["reminders"]
