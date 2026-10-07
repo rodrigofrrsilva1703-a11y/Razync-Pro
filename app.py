@@ -902,17 +902,21 @@ elif page == "Conciliação":
                     "Pontuação": st.column_config.ProgressColumn("Pontuação", min_value=0, max_value=100),
                 },
             )
+            matches = matches.reset_index(drop=True)
             option_labels = {
-                int(row.tx_id): f"Nota {row.invoice_number or row.invoice_id} → {row.tx_description} · confiança {row.confidence}"
-                for row in matches.itertuples()
+                index: (
+                    f"Nota {row.invoice_number or row.invoice_id} → "
+                    f"{row.tx_description} · confiança {row.confidence}"
+                )
+                for index, row in enumerate(matches.itertuples())
             }
-            selected_tx = st.selectbox(
+            selected_match = st.selectbox(
                 "Sugestão para revisar",
                 list(option_labels.keys()),
                 format_func=lambda x: option_labels[x],
                 key="smart_match",
             )
-            selected = matches[matches["tx_id"] == selected_tx].iloc[0]
+            selected = matches.iloc[int(selected_match)]
             st.caption(f"{selected['reasons']} · pontuação {int(selected['score'])}/100")
             if st.button("Confirmar vínculo", type="primary", width="stretch"):
                 link_transaction_document(
