@@ -1062,43 +1062,83 @@ elif page == "Relatório Mensal":
     st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
 
 elif page == "Notas Fiscais":
-    header("Notas Fiscais","Prepare a emissão no portal oficial, organize as notas e acompanhe cada recebimento.")
-    section("Emitir NFS-e de serviço", "O Razync prepara os dados; a autorização da nota acontece no Emissor Nacional.")
-    nfse_info, nfse_action = st.columns([1.8, 1])
-    with nfse_info:
-        st.write(f"**Prestador:** {profile.get('trade_name') or profile.get('business_name') or 'Complete os dados do MEI'}")
+    header("Notas Fiscais", "Organize as notas emitidas e acompanhe o que já entrou no financeiro.")
+
+    total_notes = len(invoices)
+    total_amount = float(invoices["amount"].sum()) if not invoices.empty and "amount" in invoices.columns else 0.0
+    month_notes = invoices[
+        (invoices["issue_date"].dt.year == CURRENT_YEAR)
+        & (invoices["issue_date"].dt.month == date.today().month)
+    ] if not invoices.empty else invoices
+    month_amount = float(month_notes["amount"].sum()) if not month_notes.empty else 0.0
+    n1, n2, n3 = st.columns(3)
+    n1.metric("Notas cadastradas", total_notes)
+    n2.metric("Valor no mês", brl(month_amount))
+    n3.metric("Valor acumulado", brl(total_amount))
+
+    issuer, action = st.columns([1.55, .9], gap="large")
+    with issuer, st.container(key="rz_panel_nfse_official"):
+        st.caption("EMISSÃO OFICIAL")
+        st.markdown(f"**{profile.get('trade_name') or profile.get('business_name') or 'Complete os dados do MEI'}**")
         st.caption(f"CNPJ: {profile.get('cnpj') or 'não cadastrado'} · Atividade: {profile.get('main_activity') or 'não cadastrada'}")
-        st.caption("A emissão direta por API depende das credenciais e requisitos oficiais do Ambiente Nacional. Nenhuma senha gov.br é solicitada pelo Razync.")
-    with nfse_action:
+        st.caption("A autorização da NFS-e acontece no Emissor Nacional. O Razync não solicita sua senha gov.br.")
+    with action, st.container(key="rz_panel_nfse_actions"):
+        st.caption("AÇÕES")
         st.link_button("Abrir Emissor Nacional", OFFICIAL_SERVICES["nfse"]["url"], type="primary", width="stretch")
         if st.button("Importar notas emitidas", key="open_nfse_import", width="stretch"):
             st.session_state["_navigate_to"] = "Importar NFS-e"
             st.rerun()
 
-    with st.container(border=True):
-        st.caption("NOVA NOTA")
-        with st.form("invoice_form",clear_on_submit=True):
-            a,b,c=st.columns(3)
-            issue=a.date_input("Data de emissão",value=date.today()); inv_type=b.selectbox("Tipo",["Serviço","Venda/Comércio"]); amount=c.number_input("Valor",min_value=0.0,step=10.0,format="%.2f")
-            a,b=st.columns(2)
-            number=a.text_input("Número da nota"); customer=b.text_input("Cliente",placeholder="Nome do cliente")
-            desc=st.text_input("Descrição",placeholder="Ex.: serviço prestado, venda realizada...")
-            with st.expander("Mais detalhes (opcional)"):
-                custdoc=st.text_input("CPF/CNPJ do cliente")
-                status=st.selectbox("Situação",["Emitida","Cancelada"])
-            submit=st.form_submit_button("Salvar nota",type="primary",width="stretch")
+    with st.container(key="rz_panel_invoice_new"):
+        st.caption("CADASTRAR NOTA")
+        with st.form("invoice_form", clear_on_submit=True):
+            a, b, ccol = st.columns(3)
+            issue = a.date_input("Data de emissão", value=date.today())
+            inv_type = b.selectbox("Tipo", ["Serviço","Venda/Comércio"])
+            amount = ccol.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+            a, b = st.columns(2)
+            number = a.text_input("Número da nota")
+            customer = b.text_input("Cliente", placeholder="Nome do cliente")
+            desc = st.text_input("Descrição", placeholder="Ex.: serviço prestado ou venda realizada")
+            with st.expander("Adicionar detalhes"):
+                custdoc = st.text_input("CPF/CNPJ do cliente")
+                status = st.selectbox("Situação", ["Emitida","Cancelada"])
+            submit = st.form_submit_button("Salvar nota", type="primary", width="stretch")
             if submit:
-                if amount <= 0: st.error("Informe um valor maior que zero.")
+                if amount <= 0:
+                    st.error("Informe um valor maior que zero.")
                 else:
-                    add_invoice(uid,issue_date=issue,invoice_type=inv_type,number=number.strip(),customer=customer.strip(),customer_document=custdoc.strip(),description=desc.strip(),amount=amount,status=status); st.rerun()
-    section("Notas cadastradas")
+                    add_invoice(
+                        uid, issue_date=issue, invoice_type=inv_type,
+                        number=number.strip(), customer=customer.strip(),
+                        customer_document=custdoc.strip(), description=desc.strip(),
+                        amount=amount, status=status,
+                    )
+                    st.rerun()
+
+    section("Notas cadastradas", "Consulte rapidamente o histórico de emissão.")
     if invoices.empty:
-        empty_state("Nenhuma nota fiscal cadastrada", "Cadastre as notas emitidas para comparar faturamento, acompanhar clientes e facilitar a conciliação com os recebimentos.", "▤")
+        empty_state(
+            "Nenhuma nota fiscal cadastrada",
+            "Cadastre ou importe suas notas para acompanhar faturamento e facilitar a conciliação.",
+            "▤",
+        )
     else:
-        professional_table(invoices, max_visible_rows=10, column_config={"amount":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"issue_date":st.column_config.DateColumn("Emissão",format="DD/MM/YYYY")})
+        with st.container(key="rz_panel_invoice_history"):
+            professional_table(
+                invoices,
+                max_visible_rows=10,
+                column_config={
+                    "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                    "issue_date": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"),
+                },
+            )
         with st.expander("Excluir uma nota"):
-            iid=st.selectbox("Selecione",invoices["id"].tolist(),key="delinv"); st.caption("Confira antes de excluir: esta ação é definitiva.")
-            if st.button("Excluir nota selecionada",width="stretch"): delete_invoice(uid,int(iid)); st.rerun()
+            iid = st.selectbox("Selecione", invoices["id"].tolist(), key="delinv")
+            st.caption("Confira antes de excluir: esta ação é definitiva.")
+            if st.button("Excluir nota selecionada", key="delete_invoice_btn", width="stretch"):
+                delete_invoice(uid, int(iid))
+                st.rerun()
 
 elif page == "Importar NFS-e":
     header("Importar NFS-e", "Traga para o Razync as notas exportadas pelo portal da prefeitura ou pelo Emissor Nacional.")
@@ -1359,22 +1399,29 @@ elif page == "Empregado":
             if st.button("Excluir empregado selecionado",width="stretch"): delete_employee(uid,int(eid)); st.rerun()
 
 elif page == "Documentos":
-    header("Documentos","Guarde comprovantes, notas e arquivos por competência. O Razync lê PDFs com texto e sugere a organização para você confirmar.")
-    with st.container(border=True):
+    header("Documentos", "Guarde comprovantes, notas, extratos e guias organizados por competência.")
+
+    d1, d2, d3 = st.columns(3)
+    d1.metric("Arquivos salvos", len(docs))
+    d2.metric("Tipos usados", len({str(item.get("category") or "") for item in docs if item.get("category")}))
+    d3.metric("Competências", len({str(item.get("reference_month") or "") for item in docs if item.get("reference_month")}))
+
+    upload_col, info_col = st.columns([1.45, .85], gap="large")
+    with upload_col, st.container(key="rz_panel_documents_upload"):
         st.caption("ADICIONAR DOCUMENTO")
-        up=st.file_uploader(
-            "Escolha um arquivo",
+        up = st.file_uploader(
+            "PDF ou imagem",
             type=["pdf","png","jpg","jpeg"],
             key="docup",
-            help="A análise acontece no próprio aplicativo. Nenhum arquivo é enviado a serviços externos.",
+            help="A leitura acontece dentro do aplicativo.",
         )
         suggestion = None
         if up is not None:
-            suggestion = cached_document_analysis(up.getvalue(), up.type or "", up.name)
-            st.markdown("**Sugestões encontradas**")
-            s1,s2,s3=st.columns(3)
+            with st.spinner("Analisando o documento..."):
+                suggestion = cached_document_analysis(up.getvalue(), up.type or "", up.name)
+            s1, s2, s3 = st.columns(3)
             s1.metric("Tipo", suggestion["category"])
-            s2.metric("Competência", suggestion["reference_month"] or "Não encontrada")
+            s2.metric("Competência", suggestion["reference_month"] or "—")
             s3.metric("Confiança", suggestion["confidence"])
             details = []
             if suggestion["value"] is not None:
@@ -1382,24 +1429,23 @@ elif page == "Documentos":
             if suggestion["document_number"]:
                 details.append(f"identificador: {suggestion['document_number']}")
             if details:
-                st.caption(" • ".join(details))
+                st.caption(" · ".join(details))
             if suggestion["warning"]:
                 st.info(suggestion["warning"])
             if suggestion["text_preview"]:
-                with st.expander("Ver trecho reconhecido"):
+                with st.expander("Trecho reconhecido"):
                     st.text(suggestion["text_preview"])
-            st.caption("Revise as sugestões antes de salvar; o Razync não altera seus lançamentos automaticamente.")
 
         suggested_category = suggestion["category"] if suggestion else "Nota Fiscal"
         suggested_reference = suggestion["reference_month"] if suggestion else ""
-        a,b=st.columns(2)
-        category=a.selectbox(
+        a, b = st.columns(2)
+        category = a.selectbox(
             "Tipo de documento",
             DOCUMENT_CATEGORIES,
             index=DOCUMENT_CATEGORIES.index(suggested_category),
             key=f"doc_category_{up.name if up else 'empty'}",
         )
-        reference=b.text_input(
+        reference = b.text_input(
             "Competência",
             value=suggested_reference,
             placeholder="AAAA-MM",
@@ -1407,52 +1453,80 @@ elif page == "Documentos":
         )
         valid_reference = not reference.strip() or valid_competence(reference.strip())
         if not valid_reference:
-            st.warning("Use o formato AAAA-MM para a competência, por exemplo 2026-08.")
-        if st.button("Salvar documento",type="primary",width="stretch",disabled=up is None or not valid_reference):
+            st.warning("Use o formato AAAA-MM, por exemplo 2026-08.")
+        if st.button(
+            "Salvar documento",
+            type="primary",
+            width="stretch",
+            disabled=up is None or not valid_reference,
+        ):
             if up:
                 try:
                     save_uploaded_document(user, up, category, reference.strip())
                 except Exception:
                     st.error("Não foi possível armazenar o documento agora.")
                 else:
-                    st.success("Documento salvo com segurança.")
+                    st.success("Documento salvo.")
                     st.rerun()
-    section("Arquivos salvos")
+
+    with info_col, st.container(key="rz_panel_documents_info"):
+        st.caption("ORGANIZAÇÃO")
+        st.markdown("**Use a competência para encontrar tudo depois.**")
+        st.caption("O Razync sugere o tipo e a competência, mas você sempre confirma antes de salvar.")
+        st.markdown(
+            '<div class="rz-inline-meta"><span>Nota Fiscal</span><span>DAS</span><span>Extrato</span><span>Comprovante</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    section("Biblioteca", "Abra, baixe ou exclua seus arquivos.")
     if not docs:
-        empty_state("Nenhum documento salvo", "Adicione comprovantes, notas e extratos. Eles ficam organizados por tipo e competência para facilitar os fechamentos.", "▱")
+        empty_state(
+            "Nenhum documento salvo",
+            "Adicione seus arquivos para facilitar fechamentos e conferências.",
+            "▱",
+        )
     else:
-        ddf=pd.DataFrame(docs)
-        visible_columns=[column for column in ["filename","category","reference_month","created_at"] if column in ddf.columns]
-        professional_table(ddf[visible_columns], max_visible_rows=10)
-        did=st.selectbox("Abrir documento",[d["id"] for d in docs],format_func=lambda x:next(d["filename"] for d in docs if d["id"]==x))
-        selected_meta = next(d for d in docs if int(d["id"]) == int(did))
-        prepared_key = f"_prepared_document_{uid}_{int(did)}"
-        if st.button("Preparar arquivo para download", key=f"prepare_doc_{did}", width="stretch"):
-            try:
-                selected = get_document(uid,int(did))
-                if not selected:
-                    raise RuntimeError("Documento não encontrado")
-                content = document_bytes(selected)
-            except Exception:
-                st.error("Não foi possível baixar o documento agora.")
-            else:
-                st.session_state[prepared_key] = {
-                    "content": content,
-                    "filename": selected["filename"],
-                    "mime_type": selected["mime_type"] or "application/octet-stream",
-                }
-        prepared_document = st.session_state.get(prepared_key)
-        if prepared_document:
-            st.download_button(
-                "Baixar arquivo",
-                prepared_document["content"],
-                file_name=prepared_document["filename"],
-                mime=prepared_document["mime_type"],
-                width="stretch",
+        with st.container(key="rz_panel_documents_library"):
+            ddf = pd.DataFrame(docs)
+            visible_columns = [
+                column for column in ["filename","category","reference_month","created_at"]
+                if column in ddf.columns
+            ]
+            professional_table(ddf[visible_columns], max_visible_rows=10)
+            did = st.selectbox(
+                "Documento",
+                [d["id"] for d in docs],
+                format_func=lambda x: next(d["filename"] for d in docs if d["id"] == x),
             )
+            selected_meta = next(d for d in docs if int(d["id"]) == int(did))
+            prepared_key = f"_prepared_document_{uid}_{int(did)}"
+            if st.button("Preparar download", key=f"prepare_doc_{did}", width="stretch"):
+                try:
+                    selected = get_document(uid, int(did))
+                    if not selected:
+                        raise RuntimeError("Documento não encontrado")
+                    content = document_bytes(selected)
+                except Exception:
+                    st.error("Não foi possível baixar o documento agora.")
+                else:
+                    st.session_state[prepared_key] = {
+                        "content": content,
+                        "filename": selected["filename"],
+                        "mime_type": selected["mime_type"] or "application/octet-stream",
+                    }
+            prepared_document = st.session_state.get(prepared_key)
+            if prepared_document:
+                st.download_button(
+                    "Baixar arquivo",
+                    prepared_document["content"],
+                    file_name=prepared_document["filename"],
+                    mime=prepared_document["mime_type"],
+                    width="stretch",
+                )
+
         with st.expander("Excluir documento"):
             st.caption("A exclusão remove o arquivo armazenado no Razync.")
-            if st.button("Excluir documento selecionado",width="stretch"):
+            if st.button("Excluir documento selecionado", key="delete_document_btn", width="stretch"):
                 try:
                     remove_saved_document(uid, selected_meta)
                 except Exception:
@@ -1460,8 +1534,10 @@ elif page == "Documentos":
                 else:
                     st.session_state.pop(prepared_key, None)
                     st.rerun()
-        st.subheader("Cobertura documental")
-        coverage=document_coverage(docs,CURRENT_YEAR); professional_table(coverage, max_visible_rows=12)
+
+        with st.expander("Cobertura documental"):
+            coverage = document_coverage(docs, CURRENT_YEAR)
+            professional_table(coverage, max_visible_rows=12)
 
 elif page == "Espaço do Contador":
     header("Espaço do Contador", "Prepare um pacote organizado para compartilhar sem liberar sua senha.")
@@ -1676,16 +1752,70 @@ elif page == "Primeiros Passos":
         helper_note(tip)
 
 elif page == "Meu MEI":
-    header("Meu MEI","Cadastre os dados usados nos relatórios e alertas.")
-    with st.form("profile_form"):
-        cnpj=st.text_input("CNPJ",value=str(profile.get("cnpj") or "")); business=st.text_input("Razão social",value=str(profile.get("business_name") or "")); trade=st.text_input("Nome fantasia",value=str(profile.get("trade_name") or "")); activity=st.text_input("Atividade principal",value=str(profile.get("main_activity") or "")); activity_type=st.selectbox("Tipo de atividade",["Serviços","Comércio","Indústria","Misto"],index=["Serviços","Comércio","Indústria","Misto"].index(profile.get("activity_type") if profile.get("activity_type") in ["Serviços","Comércio","Indústria","Misto"] else "Serviços")); opening_date=st.date_input("Data de abertura",value=opening or date.today()); annual_limit=st.number_input("Limite anual personalizado (opcional)",min_value=0.0,value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),step=1000.0); city=st.text_input("Município",value=str(profile.get("city") or "")); state=st.text_input("UF",value=str(profile.get("state") or ""),max_chars=2); phone=st.text_input("Telefone",value=str(profile.get("phone") or "")); municipal=st.text_input("Inscrição municipal",value=str(profile.get("municipal_registration") or "")); state_reg=st.text_input("Inscrição estadual",value=str(profile.get("state_registration") or "")); has_employee=st.checkbox("Possui empregado",value=bool(profile.get("has_employee",False)))
-        if st.form_submit_button("Salvar dados",width="stretch"):
-            if cnpj.strip() and not valid_cnpj(cnpj):
-                st.error("CNPJ inválido. Confira os 14 dígitos antes de salvar.")
-            else:
-                save_profile(uid,cnpj=cnpj,business_name=business,trade_name=trade,main_activity=activity,activity_type=activity_type,opening_date=opening_date,annual_limit=annual_limit,city=city,state=state.upper(),phone=phone,municipal_registration=municipal,state_registration=state_reg,has_employee=has_employee)
-                st.success("Dados salvos.")
-                st.rerun()
+    header("Meu MEI", "Mantenha os dados que alimentam alertas, relatórios e documentos do Razync.")
+
+    essential_values = [
+        profile.get("cnpj"), profile.get("business_name") or profile.get("trade_name"),
+        profile.get("main_activity"), profile.get("opening_date"),
+    ]
+    completed = sum(bool(value) for value in essential_values)
+    p1, p2, p3 = st.columns(3)
+    p1.metric("Dados essenciais", f"{completed}/4")
+    p2.metric("Tipo de atividade", profile.get("activity_type") or "Não definido")
+    p3.metric("Município", profile.get("city") or "Não definido")
+
+    with st.container(key="rz_panel_mei_profile"):
+        st.caption("DADOS DO NEGÓCIO")
+        with st.form("profile_form"):
+            c1, c2 = st.columns(2)
+            cnpj = c1.text_input("CNPJ", value=str(profile.get("cnpj") or ""))
+            opening_date = c2.date_input("Data de abertura", value=opening or date.today())
+
+            c1, c2 = st.columns(2)
+            business = c1.text_input("Razão social", value=str(profile.get("business_name") or ""))
+            trade = c2.text_input("Nome fantasia", value=str(profile.get("trade_name") or ""))
+
+            activity = st.text_input("Atividade principal", value=str(profile.get("main_activity") or ""))
+            c1, c2 = st.columns(2)
+            activity_types = ["Serviços","Comércio","Indústria","Misto"]
+            activity_type = c1.selectbox(
+                "Tipo de atividade",
+                activity_types,
+                index=activity_types.index(profile.get("activity_type")) if profile.get("activity_type") in activity_types else 0,
+            )
+            annual_limit = c2.number_input(
+                "Limite anual monitorado",
+                min_value=0.0,
+                value=float(profile.get("annual_limit") or MEI_ANNUAL_LIMIT),
+                step=1000.0,
+            )
+
+            with st.expander("Endereço e contato"):
+                c1, c2 = st.columns([2, 1])
+                city = c1.text_input("Município", value=str(profile.get("city") or ""))
+                state = c2.text_input("UF", value=str(profile.get("state") or ""), max_chars=2)
+                phone = st.text_input("Telefone", value=str(profile.get("phone") or ""))
+
+            with st.expander("Inscrições e empregado"):
+                c1, c2 = st.columns(2)
+                municipal = c1.text_input("Inscrição municipal", value=str(profile.get("municipal_registration") or ""))
+                state_reg = c2.text_input("Inscrição estadual", value=str(profile.get("state_registration") or ""))
+                has_employee = st.checkbox("Possui empregado", value=bool(profile.get("has_employee", False)))
+
+            if st.form_submit_button("Salvar dados do MEI", type="primary", width="stretch"):
+                if cnpj.strip() and not valid_cnpj(cnpj):
+                    st.error("CNPJ inválido. Confira os 14 dígitos antes de salvar.")
+                else:
+                    save_profile(
+                        uid, cnpj=cnpj, business_name=business, trade_name=trade,
+                        main_activity=activity, activity_type=activity_type,
+                        opening_date=opening_date, annual_limit=annual_limit,
+                        city=city, state=state.upper(), phone=phone,
+                        municipal_registration=municipal,
+                        state_registration=state_reg, has_employee=has_employee,
+                    )
+                    st.success("Dados salvos.")
+                    st.rerun()
 
 elif page == "Central de Notificações":
     header("Central de Notificações", "Priorize vencimentos, resolva no local certo e leve os prazos para o calendário.")
