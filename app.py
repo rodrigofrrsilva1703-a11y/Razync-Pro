@@ -1601,7 +1601,7 @@ elif page == "DASN-SIMEI":
         st.caption("RESUMO PARA CONFERÊNCIA")
         employee = st.checkbox(
             "O MEI teve empregado no ano?",
-            value=bool(profile.get("has_employee", False)),
+            value=bool(employees) or bool(profile.get("has_employee", False)),
         )
         pdf = cached_dasn_summary_pdf(profile, year, services, sales, employee)
         st.download_button(
@@ -1766,6 +1766,8 @@ elif page == "Empregado":
     e1, e2 = st.columns(2)
     e1.metric("Cadastrados", len(employees))
     e2.metric("Ativos", active_employees)
+    if active_employees >= 1:
+        st.info("Pela regra vigente do MEI, mantenha no máximo um empregado ativo. Para substituir, marque o atual como inativo antes de cadastrar outro ativo.")
 
     with st.container(key="rz_panel_employee_new"):
         st.caption("CADASTRAR EMPREGADO")
@@ -1784,6 +1786,8 @@ elif page == "Empregado":
                     st.error("Informe o nome do empregado.")
                 elif cpf.strip() and not valid_cpf(cpf):
                     st.error("CPF inválido.")
+                elif status == "Ativo" and active_employees >= 1:
+                    st.error("Já existe um empregado ativo. O MEI pode manter no máximo um empregado ativo pela regra vigente.")
                 else:
                     add_employee(
                         uid, name=name.strip(), cpf=cpf.strip(),
