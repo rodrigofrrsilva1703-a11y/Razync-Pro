@@ -484,7 +484,7 @@ elif page == "Financeiro":
     )
 
 elif page == "Movimentações":
-    header("Movimentações", "Registre entradas e saídas sem complicação. Os detalhes ficam disponíveis quando você precisar.")
+    header("Movimentações", "Registre o que entrou e saiu sem preencher mais do que o necessário.")
 
     month_view = transactions[
         (transactions["tx_date"].dt.year == CURRENT_YEAR)
@@ -492,38 +492,48 @@ elif page == "Movimentações":
     ] if not transactions.empty else transactions
     month_receita = float(month_view.loc[month_view["tx_type"] == "Receita", "value"].sum()) if not month_view.empty else 0.0
     month_despesa = float(month_view.loc[month_view["tx_type"] == "Despesa", "value"].sum()) if not month_view.empty else 0.0
+    movement_result = month_receita - month_despesa
+
     m1, m2, m3 = st.columns(3)
     with m1:
-        stat_card("Entradas neste mês", brl(month_receita))
+        stat_card("Entradas", brl(month_receita), detail="mês atual")
     with m2:
-        stat_card("Saídas neste mês", brl(month_despesa))
+        stat_card("Saídas", brl(month_despesa), detail="mês atual")
     with m3:
-        movement_result = month_receita - month_despesa
         stat_card(
-            "Resultado neste mês",
+            "Resultado",
             brl(movement_result),
+            detail="mês atual",
             tone="positive" if movement_result >= 0 else "danger",
         )
 
-    entry_col, help_col = st.columns([1.55, .85], gap="large")
-    with entry_col, st.container(key="rz_panel_movement_entry"):
-        st.caption("NOVO LANÇAMENTO")
+    form_col, side_col = st.columns([1.75, .85], gap="large")
+    with form_col:
+        st.markdown("#### Novo lançamento")
         with st.form("tx_form", clear_on_submit=True):
             tx_type = st.segmented_control(
                 "Tipo",
                 ["Receita", "Despesa"],
                 default="Receita",
                 selection_mode="single",
-                format_func=lambda option: "Entrada · Receita" if option == "Receita" else "Saída · Despesa",
+                format_func=lambda option: "Entrada" if option == "Receita" else "Saída",
                 key="tx_type_new",
                 width="stretch",
             ) or "Receita"
-            a, b = st.columns(2)
+
+            a, b = st.columns([1, .72])
             value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
             tx_date = b.date_input("Data", value=date.today())
-            desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente ou compra de material")
+            desc = st.text_input(
+                "Descrição",
+                placeholder="Ex.: pagamento do cliente ou compra de material",
+            )
+
             revenue_categories = ["Serviços", "Comércio", "Indústria", "Outros"]
-            expense_categories = ["Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Serviços", "Outros"]
+            expense_categories = [
+                "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing",
+                "Pró-labore/Retirada", "Serviços", "Outros",
+            ]
             category_options = revenue_categories if tx_type == "Receita" else expense_categories
             activity_type = str(profile.get("activity_type") or "")
             default_revenue_category = (
@@ -537,147 +547,223 @@ elif page == "Movimentações":
                 "Categoria",
                 category_options,
                 index=category_options.index(default_category),
-                help="A categoria das receitas alimenta o Relatório Mensal e a DASN-SIMEI.",
             )
-            with st.expander("Adicionar detalhes"):
-                counterparty = st.text_input("Cliente ou fornecedor")
+
+            with st.expander("Detalhes opcionais"):
                 a, b = st.columns(2)
-                payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
-                doc = b.text_input("Nota ou documento")
-            submitted = st.form_submit_button("Salvar movimentação", type="primary", width="stretch")
+                counterparty = a.text_input("Cliente ou fornecedor")
+                payment = b.selectbox(
+                    "Pagamento",
+                    ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"],
+                )
+                doc = st.text_input("Nota ou documento")
+
+            submitted = st.form_submit_button(
+                "Salvar movimentação",
+                type="primary",
+            )
             if submitted:
                 if value <= 0:
                     st.error("Informe um valor maior que zero.")
                 elif not desc.strip():
-                    st.error("Informe uma descrição para identificar o lançamento.")
+                    st.error("Informe uma descrição.")
                 else:
                     add_transaction(
-                        uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(),
-                        category=category, value=value, document_number=doc.strip(),
-                        counterparty=counterparty.strip(), payment_method=payment,
+                        uid,
+                        tx_date=tx_date,
+                        tx_type=tx_type,
+                        description=desc.strip(),
+                        category=category,
+                        value=value,
+                        document_number=doc.strip(),
+                        counterparty=counterparty.strip(),
+                        payment_method=payment,
                     )
                     st.rerun()
 
-    with help_col, st.container(key="rz_panel_movement_help"):
-        st.caption("COMO ORGANIZAR")
-        st.markdown("**Registre o essencial primeiro.**")
-        st.caption("Valor, data e descrição já são suficientes para alimentar o painel e os relatórios.")
-        st.markdown(
-            '<div class="rz-inline-meta"><span>PIX</span><span>Cartão</span><span>Boleto</span><span>Dinheiro</span></div>',
-            unsafe_allow_html=True,
-        )
-        if st.button("Importar extrato", key="movement_import_statement", type="primary", width="stretch"):
+    with side_col:
+        st.markdown("#### Em vez de digitar")
+        st.caption("Se você já tem o extrato do banco, importe e revise os lançamentos de uma vez.")
+        if st.button(
+            "Importar extrato",
+            key="movement_import_statement",
+            type="primary",
+            width="stretch",
+        ):
             navigate_to("Importar Extrato")
-        with st.expander("Mais opções"):
-            if st.button("Configurar recorrências", key="movement_recurring", width="stretch"):
-                navigate_to("Recorrências")
+        st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
+        st.caption("ORGANIZAÇÃO")
+        st.write("• Use uma descrição curta e reconhecível.")
+        st.write("• Categoria é o que alimenta relatórios.")
+        st.write("• Documento e cliente são opcionais.")
 
-    section("Histórico", "Busque, filtre e revise seus lançamentos.")
+    st.markdown("#### Histórico")
     if transactions.empty:
         empty_state(
             "Nenhuma movimentação registrada",
-            "Sua primeira receita ou despesa aparecerá aqui e atualizará automaticamente o Dashboard e os relatórios.",
+            "Sua primeira entrada ou saída aparecerá aqui.",
             "↕",
         )
     else:
-        with st.container(key="rz_panel_movement_history"):
-            f1, f2, f3 = st.columns([1, 1, 2])
-            type_filter = f1.selectbox("Tipo", ["Todos", "Receita", "Despesa"])
-            category_options = ["Todas"] + sorted(str(x) for x in transactions["category"].dropna().unique())
-            category_filter = f2.selectbox("Categoria", category_options)
-            search_filter = f3.text_input("Buscar", placeholder="Descrição, cliente ou documento")
-            filtered_view = filter_transactions(
-                transactions,
-                tx_type=type_filter,
-                category=category_filter,
-                search=search_filter,
-            )
-            view, total_tx, current_tx_page, max_tx_page = paginate_frame(
-                filtered_view,
-                st.session_state.get("tx_history_page", 1),
-                page_size=50,
-            )
-            st.caption(f"{total_tx} lançamento(s) encontrado(s)")
-            view["Data"] = view["tx_date"].dt.date
-            view["Tipo"] = view["tx_type"]
-            view["Descrição"] = view["description"]
-            view["Categoria"] = view["category"]
-            view["Valor"] = view["value"]
-            professional_table(
-                view[["id","Data","Tipo","Descrição","Categoria","Valor"]],
-                max_visible_rows=10,
-                column_config={
-                    "id": None,
-                    "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-                    "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                },
-            )
-            if total_tx > 50:
-                pprev, pinfo, pnext = st.columns([1, 2, 1])
-                if pprev.button("← Anterior", disabled=current_tx_page <= 1, width="stretch"):
-                    st.session_state["tx_history_page"] = current_tx_page - 1
-                    st.rerun()
-                pinfo.caption(f"Página {current_tx_page} de {max_tx_page}")
-                if pnext.button("Próxima →", disabled=current_tx_page >= max_tx_page, width="stretch"):
-                    st.session_state["tx_history_page"] = current_tx_page + 1
-                    st.rerun()
+        f1, f2, f3 = st.columns([1, 1, 2])
+        type_filter = f1.selectbox("Tipo", ["Todos", "Receita", "Despesa"])
+        category_options = ["Todas"] + sorted(
+            str(x) for x in transactions["category"].dropna().unique()
+        )
+        category_filter = f2.selectbox("Categoria", category_options)
+        search_filter = f3.text_input(
+            "Buscar",
+            placeholder="Descrição, cliente ou documento",
+        )
+        filtered_view = filter_transactions(
+            transactions,
+            tx_type=type_filter,
+            category=category_filter,
+            search=search_filter,
+        )
+        view, total_tx, current_tx_page, max_tx_page = paginate_frame(
+            filtered_view,
+            st.session_state.get("tx_history_page", 1),
+            page_size=50,
+        )
+        view = view.copy()
+        view["Data"] = view["tx_date"].dt.date
+        view["Tipo"] = view["tx_type"]
+        view["Descrição"] = view["description"]
+        view["Categoria"] = view["category"]
+        view["Valor"] = view["value"]
+        professional_table(
+            view[["id", "Data", "Tipo", "Descrição", "Categoria", "Valor"]],
+            max_visible_rows=10,
+            column_config={
+                "id": None,
+                "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+            },
+        )
+        st.caption(f"{total_tx} lançamento(s) encontrado(s)")
 
-        with st.expander("Editar lançamento"):
-            edit_id = st.selectbox(
-                "Lançamento",
-                transactions["id"].tolist(),
-                format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}",
-                key="edit_tx_id",
-            )
-            edit_row = transactions.loc[transactions["id"] == edit_id].iloc[0]
-            with st.form("edit_tx_form"):
-                e1, e2 = st.columns(2)
-                edit_type = e1.selectbox("Tipo", ["Receita", "Despesa"], index=0 if edit_row["tx_type"] == "Receita" else 1)
-                edit_date = e2.date_input("Data", value=edit_row["tx_date"].date())
-                edit_description = st.text_input("Descrição", value=str(edit_row["description"] or ""))
-                e1, e2 = st.columns(2)
-                standard_edit_categories = ["Serviços", "Comércio", "Indústria", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"]
-                current_edit_category = str(edit_row["category"] or "Outros")
-                edit_category_options = list(dict.fromkeys([current_edit_category, *standard_edit_categories]))
-                edit_category = e1.selectbox(
-                    "Categoria",
-                    edit_category_options,
-                    index=0,
-                )
-                edit_value = e2.number_input("Valor", min_value=0.01, value=float(edit_row["value"]), step=10.0)
-                e1, e2 = st.columns(2)
-                edit_counterparty = e1.text_input("Cliente ou fornecedor", value=str(edit_row["counterparty"] or ""))
-                edit_document = e2.text_input("Nota ou documento", value=str(edit_row["document_number"] or ""))
-                edit_payment = st.text_input("Forma de pagamento", value=str(edit_row["payment_method"] or ""))
-                save_edit = st.form_submit_button("Salvar alterações", type="primary", width="stretch")
-            if save_edit:
-                if not edit_description.strip():
-                    st.error("Informe uma descrição.")
-                else:
-                    update_transaction(
-                        uid, int(edit_id), tx_date=edit_date, tx_type=edit_type,
-                        description=edit_description.strip(),
-                        category=edit_category.strip() or "Outros",
-                        value=edit_value, document_number=edit_document.strip(),
-                        counterparty=edit_counterparty.strip(),
-                        payment_method=edit_payment.strip(),
-                    )
-                    st.success("Lançamento atualizado.")
-                    st.rerun()
-
-        with st.expander("Excluir lançamento"):
-            item = st.selectbox(
-                "Selecione",
-                transactions["id"].tolist(),
-                format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}",
-                key="delete_tx_id",
-            )
-            st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
-            if st.button("Excluir lançamento selecionado", key="delete_tx_button", width="stretch"):
-                deleted = transactions.loc[transactions["id"] == item].iloc[0].to_dict()
-                st.session_state["_undo_transaction"] = transaction_restore_payload(deleted)
-                delete_transaction(uid, int(item))
+        if total_tx > 50:
+            pprev, pinfo, pnext = st.columns([1, 2, 1])
+            if pprev.button(
+                "← Anterior",
+                disabled=current_tx_page <= 1,
+                width="stretch",
+            ):
+                st.session_state["tx_history_page"] = current_tx_page - 1
                 st.rerun()
+            pinfo.caption(f"Página {current_tx_page} de {max_tx_page}")
+            if pnext.button(
+                "Próxima →",
+                disabled=current_tx_page >= max_tx_page,
+                width="stretch",
+            ):
+                st.session_state["tx_history_page"] = current_tx_page + 1
+                st.rerun()
+
+        with st.expander("Gerenciar lançamentos"):
+            edit_tab, delete_tab = st.tabs(["Editar", "Excluir"])
+
+            with edit_tab:
+                edit_id = st.selectbox(
+                    "Lançamento",
+                    transactions["id"].tolist(),
+                    format_func=lambda x: (
+                        f"#{x} · {transactions.loc[transactions['id']==x,'description'].iloc[0]}"
+                    ),
+                    key="edit_tx_id",
+                )
+                edit_row = transactions.loc[transactions["id"] == edit_id].iloc[0]
+                with st.form("edit_tx_form"):
+                    e1, e2 = st.columns(2)
+                    edit_type = e1.selectbox(
+                        "Tipo",
+                        ["Receita", "Despesa"],
+                        index=0 if edit_row["tx_type"] == "Receita" else 1,
+                    )
+                    edit_date = e2.date_input(
+                        "Data",
+                        value=edit_row["tx_date"].date(),
+                    )
+                    edit_description = st.text_input(
+                        "Descrição",
+                        value=str(edit_row["description"] or ""),
+                    )
+                    e1, e2 = st.columns(2)
+                    standard_edit_categories = [
+                        "Serviços", "Comércio", "Indústria", "Materiais", "Aluguel",
+                        "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros",
+                    ]
+                    current_edit_category = str(edit_row["category"] or "Outros")
+                    edit_category_options = list(
+                        dict.fromkeys([current_edit_category, *standard_edit_categories])
+                    )
+                    edit_category = e1.selectbox(
+                        "Categoria",
+                        edit_category_options,
+                        index=0,
+                    )
+                    edit_value = e2.number_input(
+                        "Valor",
+                        min_value=0.01,
+                        value=float(edit_row["value"]),
+                        step=10.0,
+                    )
+                    with st.expander("Detalhes"):
+                        e1, e2 = st.columns(2)
+                        edit_counterparty = e1.text_input(
+                            "Cliente ou fornecedor",
+                            value=str(edit_row["counterparty"] or ""),
+                        )
+                        edit_document = e2.text_input(
+                            "Nota ou documento",
+                            value=str(edit_row["document_number"] or ""),
+                        )
+                        edit_payment = st.text_input(
+                            "Forma de pagamento",
+                            value=str(edit_row["payment_method"] or ""),
+                        )
+                    save_edit = st.form_submit_button(
+                        "Salvar alterações",
+                        type="primary",
+                    )
+
+                if save_edit:
+                    if not edit_description.strip():
+                        st.error("Informe uma descrição.")
+                    else:
+                        update_transaction(
+                            uid,
+                            int(edit_id),
+                            tx_date=edit_date,
+                            tx_type=edit_type,
+                            description=edit_description.strip(),
+                            category=edit_category.strip() or "Outros",
+                            value=edit_value,
+                            document_number=edit_document.strip(),
+                            counterparty=edit_counterparty.strip(),
+                            payment_method=edit_payment.strip(),
+                        )
+                        st.rerun()
+
+            with delete_tab:
+                item = st.selectbox(
+                    "Lançamento",
+                    transactions["id"].tolist(),
+                    format_func=lambda x: (
+                        f"#{x} · {transactions.loc[transactions['id']==x,'description'].iloc[0]}"
+                    ),
+                    key="delete_tx_id",
+                )
+                st.caption("A exclusão é definitiva.")
+                if st.button(
+                    "Excluir lançamento",
+                    key="delete_tx_button",
+                ):
+                    deleted = transactions.loc[transactions["id"] == item].iloc[0].to_dict()
+                    st.session_state["_undo_transaction"] = transaction_restore_payload(deleted)
+                    delete_transaction(uid, int(item))
+                    st.rerun()
 
 elif page == "Recorrências":
     header("Lançamentos Recorrentes", "Automatize receitas e despesas que se repetem sem perder o controle.")
