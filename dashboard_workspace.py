@@ -11,6 +11,7 @@ from compact_cards import metric_card
 from customer_experience import build_today_plan
 from growth_tools import build_notifications
 from onboarding_tools import onboarding_progress
+from mei_obligations import upcoming_automatic_obligations
 from product_core import action_items
 from smart_insights import build_proactive_insights
 from table_ui import professional_table
@@ -36,9 +37,35 @@ def render_dashboard_workspace(
     priorities = action_items(
         profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue
     )
-    notifications = build_notifications(das_rows, obligations, annual_revenue, annual_limit)
+    raw_opening = profile.get("opening_date")
+    if isinstance(raw_opening, str):
+        try:
+            raw_opening = date.fromisoformat(raw_opening[:10])
+        except ValueError:
+            raw_opening = None
+    opening_date = raw_opening if isinstance(raw_opening, date) else None
+    automatic_upcoming = upcoming_automatic_obligations(
+        current_year,
+        opening_date,
+        das_rows,
+        today=today,
+        days_ahead=30,
+    )
+    reminder_obligations = [*obligations, *automatic_upcoming]
+    notifications = build_notifications(
+        das_rows,
+        reminder_obligations,
+        annual_revenue,
+        annual_limit,
+        today=today,
+    )
     tasks = build_today_plan(priorities, notifications, setup, limit=4)["items"]
-    deadlines = upcoming_deadlines(das_rows, obligations, today=today, days=30)
+    deadlines = upcoming_deadlines(
+        das_rows,
+        reminder_obligations,
+        today=today,
+        days=30,
+    )
 
     st.markdown(
         '<div class="rz-dash-intro"><div><span>SEU DIA EM ORDEM</span>'
@@ -135,7 +162,7 @@ def render_dashboard_workspace(
     with deadline_col:
         st.markdown("#### Próximos vencimentos")
         if not deadlines:
-            st.caption("Nenhum vencimento cadastrado para os próximos 30 dias.")
+            st.caption("Nenhum vencimento identificado para os próximos 30 dias.")
         for index, deadline in enumerate(deadlines[:3]):
             with st.container(key=f"dashboard_deadline_{index}"):
                 st.markdown(f"**{deadline['title']}** · {deadline['date'].strftime('%d/%m')}")
