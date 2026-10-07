@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import streamlit as st
 
-from commercial_readiness import PLAN_CATALOG, data_rights_summary
 from compact_cards import navigation_card
 
 
@@ -23,18 +22,19 @@ def render_account_workspace(*, navigate, developer_access: bool) -> None:
             if navigation_card(label, key=f"account_{index}", help_text=help_text):
                 navigate(page)
 
-    st.markdown("#### Plano e recursos")
-    current = "Pro" if developer_access else "Essencial"
-    plan = PLAN_CATALOG[current]
-    st.caption(plan["description"])
+    st.markdown("#### Produto")
+    st.caption("O ambiente atual está em acesso direto para desenvolvimento e não possui uma assinatura individual vinculada.")
     if navigation_card(
-        "Ver plano e assinatura",
+        "Ver planos e recursos",
         key="account_plan",
-        help_text="Detalhes do plano atual",
+        help_text="Comparar os recursos previstos para cada plano",
     ):
         navigate("Plano e Assinatura")
 
-    with st.expander("Privacidade e direitos sobre os dados"):
-        for item in data_rights_summary():
-            st.markdown(f"**{item['title']}** · {item['status']}")
-            st.caption(item["detail"])
+    with st.expander("Dados e privacidade"):
+        st.markdown("**Exportar dados** · disponível")
+        st.caption("Use o Backup para gerar uma cópia dos dados e documentos do workspace.")
+        st.markdown("**Corrigir dados** · disponível")
+        st.caption("Dados do MEI, movimentações e demais registros podem ser atualizados no sistema.")
+        st.markdown("**Contas individuais** · temporariamente desativadas")
+        st.caption("Login, isolamento por usuário e exclusão de conta voltam a ser tratados quando a autenticação for reativada.")
