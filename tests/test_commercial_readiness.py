@@ -53,7 +53,7 @@ class CommercialReadinessTests(unittest.TestCase):
         self.assertIn('"Produtividade"', product_core)
         self.assertIn('"Conta e Sistema"', product_core)
         self.assertIn('"Produtividade": "Produtividade"', navigation)
-        self.assertIn('"Conta e Sistema": "Conta e sistema"', navigation)
+        self.assertIn('"Conta e Sistema": "Sistema e dados"', navigation)
 
 
 if __name__ == "__main__":
