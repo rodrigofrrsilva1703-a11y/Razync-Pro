@@ -7,7 +7,7 @@ import streamlit as st
 
 from activity_center import build_activity_items, render_activity_center
 from automation_tools import upcoming_deadlines
-from compact_cards import metric_card
+from compact_cards import stat_card
 from customer_experience import build_today_plan
 from growth_tools import build_notifications
 from onboarding_tools import onboarding_progress
@@ -77,17 +77,15 @@ def render_dashboard_workspace(
     # what is left, and how much of the MEI limit is already used.
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        if metric_card("Entradas do mês", brl(month_in), key="dash_month_in", help_text="Abrir Financeiro"):
-            navigate("Financeiro")
+        stat_card("Entradas do mês", brl(month_in), detail="Receitas registradas")
     with m2:
-        if metric_card("Saídas do mês", brl(month_out), key="dash_month_out", help_text="Abrir Financeiro"):
-            navigate("Financeiro")
+        stat_card("Saídas do mês", brl(month_out), detail="Despesas registradas")
     with m3:
-        if metric_card("Resultado do mês", brl(month_result), key="dash_month_result", help_text="Abrir Financeiro"):
-            navigate("Financeiro")
+        result_tone = "positive" if month_result >= 0 else "danger"
+        stat_card("Resultado do mês", brl(month_result), detail="Entradas menos saídas", tone=result_tone)
     with m4:
-        if metric_card("Limite MEI usado", f"{limit_pct:.1f}%", key="dash_limit", help_text="Abrir Fiscal MEI"):
-            navigate("Fiscal")
+        limit_tone = "warning" if limit_pct >= 80 else "neutral"
+        stat_card("Limite MEI usado", f"{limit_pct:.1f}%", detail="Faturamento anual", tone=limit_tone)
 
     focus, health = st.columns([1.55, 1], gap="large")
     with focus, st.container(key="dashboard_focus"):
@@ -129,18 +127,13 @@ def render_dashboard_workspace(
             if st.button("Ver dados do MEI", key="dash_health_mei", width="stretch"):
                 navigate("Meu MEI")
 
-    st.markdown("#### Ações rápidas")
-    action_a, action_b, action_c = st.columns(3, gap="medium")
-    with action_a, st.container(key="dashboard_action_register"):
-        if st.button("＋  Registrar entrada ou saída", key="rz_quick_card_new_tx", width="stretch"):
+    action_a, action_b, action_space = st.columns([1, 1, 2.1], gap="small")
+    with action_a:
+        if st.button("＋ Nova movimentação", key="dashboard_new_tx", type="primary", width="stretch"):
             navigate("Movimentações")
-    with action_b, st.container(key="dashboard_action_import"):
-        if st.button("↥  Importar extrato bancário", key="rz_quick_card_import", width="stretch"):
+    with action_b:
+        if st.button("Importar extrato", key="dashboard_import_statement", width="stretch"):
             navigate("Importar Extrato")
-    with action_c, st.container(key="dashboard_action_help"):
-        if st.button("✦  Perguntar ao Razync", key="rz_quick_card_ai", width="stretch"):
-            st.session_state["razync_floating_open"] = True
-            st.rerun()
 
     task_col, deadline_col = st.columns(2, gap="large")
     with task_col:
@@ -152,12 +145,6 @@ def render_dashboard_workspace(
             with st.container(key=f"dashboard_task_{index}"):
                 st.markdown(f"**{task['title']}**")
                 st.caption(task["detail"])
-                if task["page"] != "Dashboard" and st.button(
-                    "Abrir tarefa",
-                    key=f"dashboard_task_open_{index}",
-                    width="stretch",
-                ):
-                    navigate(task["page"])
 
     with deadline_col:
         st.markdown("#### Próximos vencimentos")
@@ -167,12 +154,8 @@ def render_dashboard_workspace(
             with st.container(key=f"dashboard_deadline_{index}"):
                 st.markdown(f"**{deadline['title']}** · {deadline['date'].strftime('%d/%m')}")
                 st.caption(deadline["status"])
-                if st.button(
-                    "Ver prazo",
-                    key=f"dashboard_deadline_open_{index}",
-                    width="stretch",
-                ):
-                    navigate(deadline["page"])
+        if deadlines and st.button("Ver prazos e obrigações", key="dashboard_open_obligations", width="stretch"):
+            navigate("Obrigações")
 
     with st.expander("Ver detalhes e histórico"):
         st.markdown("##### Faturamento anual")
