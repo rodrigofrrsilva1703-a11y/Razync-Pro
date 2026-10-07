@@ -1210,17 +1210,25 @@ elif page == "Notas Fiscais":
     n3.metric("Valor emitido acumulado", brl(total_amount))
 
     issuer, action = st.columns([1.55, .9], gap="large")
+    activity_type = str(profile.get("activity_type") or "")
+    service_activity = activity_type in {"Serviços", "Misto"} or not activity_type
     with issuer, st.container(key="rz_panel_nfse_official"):
         st.caption("EMISSÃO OFICIAL")
         st.markdown(f"**{profile.get('trade_name') or profile.get('business_name') or 'Complete os dados do MEI'}**")
         st.caption(f"CNPJ: {profile.get('cnpj') or 'não cadastrado'} · Atividade: {profile.get('main_activity') or 'não cadastrada'}")
-        st.caption("A autorização da NFS-e acontece no Emissor Nacional. O Razync não solicita sua senha gov.br.")
+        if service_activity:
+            st.caption("Para prestação de serviços do MEI, a NFS-e é emitida pelo padrão nacional. O Razync não solicita sua senha gov.br.")
+        else:
+            st.caption("Para comércio ou indústria, o documento fiscal aplicável pode depender da Secretaria da Fazenda do seu estado. O Razync registra a nota, mas não presume o emissor correto.")
     with action, st.container(key="rz_panel_nfse_actions"):
         st.caption("AÇÕES")
-        st.link_button("Abrir Emissor Nacional", OFFICIAL_SERVICES["nfse"]["url"], type="primary", width="stretch")
-        if st.button("Importar notas emitidas", key="open_nfse_import", width="stretch"):
-            st.session_state["_navigate_to"] = "Importar NFS-e"
-            st.rerun()
+        if service_activity:
+            st.link_button("Abrir Emissor Nacional de NFS-e", OFFICIAL_SERVICES["nfse"]["url"], type="primary", width="stretch")
+            if st.button("Importar NFS-e emitidas", key="open_nfse_import", width="stretch"):
+                st.session_state["_navigate_to"] = "Importar NFS-e"
+                st.rerun()
+        else:
+            st.info("Consulte o emissor fiscal indicado pela SEFAZ do seu estado para operações de comércio/indústria.")
 
     with st.container(key="rz_panel_invoice_new"):
         st.caption("CADASTRAR NOTA")
