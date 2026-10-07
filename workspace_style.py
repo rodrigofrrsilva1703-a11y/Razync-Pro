@@ -216,6 +216,63 @@ def inject_workspace_style() -> None:
             background: var(--rz-primary-soft) !important;
         }
 
+
+        /* Reusable tool panels */
+        [class*="st-key-rz_panel_"] {
+            padding: 1rem 1.05rem;
+            border: 1px solid var(--rz-border);
+            border-radius: 15px;
+            background: var(--rz-surface);
+            box-shadow: none;
+        }
+        [class*="st-key-rz_panel_"] [data-testid="stCaptionContainer"]:first-child p {
+            margin-bottom: .15rem !important;
+            color: var(--rz-primary) !important;
+            font-size: .64rem !important;
+            font-weight: 820 !important;
+            letter-spacing: .09em !important;
+            text-transform: uppercase;
+        }
+        .rz-step-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: .6rem;
+            margin: .25rem 0 .9rem;
+        }
+        .rz-step {
+            min-height: 74px;
+            padding: .72rem .78rem;
+            border: 1px solid var(--rz-border);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--rz-surface) 96%, var(--rz-primary) 4%);
+        }
+        .rz-step b {
+            display: block;
+            margin-bottom: .18rem;
+            color: var(--rz-text) !important;
+            font-size: .76rem;
+        }
+        .rz-step span {
+            color: var(--rz-muted) !important;
+            font-size: .69rem;
+            line-height: 1.35;
+        }
+        .rz-inline-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .42rem;
+            margin: .15rem 0 .8rem;
+        }
+        .rz-inline-meta span {
+            padding: .28rem .52rem;
+            border: 1px solid var(--rz-border);
+            border-radius: 999px;
+            background: var(--rz-soft);
+            color: var(--rz-muted) !important;
+            font-size: .66rem;
+            font-weight: 690;
+        }
+
         /* Dashboard hero */
         .rz-dash-intro {
             display: flex;
@@ -479,6 +536,18 @@ def inject_workspace_style() -> None:
             [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] {
                 min-height: 5rem !important;
                 padding: .7rem !important;
+            }
+            [class*="st-key-rz_panel_"] {
+                padding: .78rem .8rem;
+                border-radius: 13px;
+            }
+            .rz-step-grid {
+                grid-template-columns: 1fr;
+                gap: .42rem;
+            }
+            .rz-step {
+                min-height: 0;
+                padding: .6rem .68rem;
             }
             .st-key-floating_ai_launcher {
                 right: .65rem !important;
