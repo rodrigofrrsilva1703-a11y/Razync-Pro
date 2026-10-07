@@ -2,36 +2,29 @@ from pathlib import Path
 import unittest
 
 
-class ModernLoginV3Tests(unittest.TestCase):
+class ModernWorkspaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = Path("workspace_style.py").read_text(encoding="utf-8")
 
-    def test_marketing_hero_is_visible_and_structured(self):
-        for token in (
-            ".rz-login-kicker",
-            ".rz-login-shell h1",
-            ".rz-login-lead",
-            ".rz-login-benefits",
-            ".rz-login-proof",
-        ):
-            self.assertIn(token, self.source)
-        self.assertIn("display: grid !important", self.source)
-        self.assertIn("grid-template-columns: repeat(3", self.source)
+    def test_page_hierarchy_is_compact_and_responsive(self):
+        self.assertIn("clamp(1.72rem, 2.35vw, 2.28rem)", self.source)
+        self.assertIn("max-width: 760px !important", self.source)
+        self.assertIn("max-width: 1280px !important", self.source)
 
-    def test_auth_card_remains_compact_and_centered(self):
-        self.assertIn("max-width: 460px !important", self.source)
-        self.assertIn("border-radius: 22px !important", self.source)
-        self.assertIn("box-shadow: 0 28px 80px", self.source)
+    def test_metric_cards_have_desktop_and_mobile_sizes(self):
+        self.assertIn("min-height: 92px !important", self.source)
+        self.assertIn("min-height: 76px !important", self.source)
 
-    def test_demo_remains_secondary_without_fixed_overlay(self):
+    def test_mobile_layout_stacks_columns(self):
+        self.assertIn("@media (max-width: 820px)", self.source)
+        self.assertIn("@media (max-width: 520px)", self.source)
+        self.assertIn("flex: 1 1 100% !important", self.source)
+
+    def test_floating_ai_remains_touch_friendly(self):
+        self.assertIn(".st-key-floating_ai_launcher", self.source)
+        self.assertIn("min-height: 44px !important", self.source)
         self.assertIn("border-radius: 999px !important", self.source)
-        self.assertNotIn("bottom: 1rem !important", self.source)
-
-    def test_mobile_stacks_marketing_benefits(self):
-        self.assertIn("@media (max-width: 760px)", self.source)
-        self.assertIn("grid-template-columns: 1fr !important", self.source)
-        self.assertIn("@media (max-width: 480px)", self.source)
 
 
 if __name__ == "__main__":
