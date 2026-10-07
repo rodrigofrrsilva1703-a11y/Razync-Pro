@@ -2,43 +2,35 @@ from pathlib import Path
 import unittest
 
 
-class LoginVisualMarketingTests(unittest.TestCase):
+class DirectAccessVisualTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.base_source = Path("ui_system.py").read_text(encoding="utf-8")
         cls.workspace_source = Path("workspace_style.py").read_text(encoding="utf-8")
 
-    def test_base_login_structure_is_preserved(self):
-        self.assertIn(".rz-login-benefits", self.base_source)
-        self.assertIn(".rz-login-proof", self.base_source)
+    def test_obsolete_login_visual_layer_is_removed(self):
+        self.assertNotIn(".rz-login-shell", self.base_source)
+        self.assertNotIn(".rz-login-shell", self.workspace_source)
+        self.assertNotIn(".rz-login-benefits", self.workspace_source)
 
-    def test_workspace_reactivates_marketing_with_controlled_layout(self):
-        self.assertIn(".rz-login-benefits", self.workspace_source)
-        self.assertIn("display: grid !important", self.workspace_source)
-        self.assertIn("max-width: 820px !important", self.workspace_source)
+    def test_workspace_has_consistent_saas_surface(self):
+        self.assertIn("RAZYNC PRO · WORKSPACE V6", self.workspace_source)
+        self.assertIn("max-width: 1280px !important", self.workspace_source)
+        self.assertIn("var(--rz-surface)", self.workspace_source)
+        self.assertIn("var(--rz-border)", self.workspace_source)
 
-    def test_authentication_remains_visually_compact(self):
-        self.assertIn("max-width: 460px !important", self.workspace_source)
-        self.assertIn("border-radius: 22px !important", self.workspace_source)
+    def test_mobile_sidebar_does_not_cover_the_full_screen(self):
+        self.assertIn("width: min(300px, 88vw) !important", self.workspace_source)
+        self.assertIn("min-width: min(300px, 88vw) !important", self.workspace_source)
 
-    def test_login_blocks_share_the_same_center_axis(self):
-        self.assertIn("width: fit-content !important", self.workspace_source)
-        self.assertIn("text-align: center !important", self.workspace_source)
-        self.assertIn(".rz-demo-note", self.workspace_source)
+    def test_mobile_columns_stack_predictably(self):
+        self.assertIn("@media (max-width: 520px)", self.workspace_source)
+        self.assertIn("flex: 1 1 100% !important", self.workspace_source)
+        self.assertIn("width: 100% !important", self.workspace_source)
 
-    def test_desktop_login_uses_a_modern_split_layout(self):
-        self.assertIn("Login V4: composição SaaS em dois painéis", self.workspace_source)
-        self.assertIn("grid-template-columns: minmax(0, 1.08fr)", self.workspace_source)
-        self.assertIn("linear-gradient(112deg, #071522", self.workspace_source)
-
-    def test_desktop_background_fills_the_viewport(self):
-        self.assertIn("min-height: 100vh !important", self.workspace_source)
-        self.assertIn("max-width: none !important", self.workspace_source)
-        self.assertIn("border-radius: 0 !important", self.workspace_source)
-
-    def test_demo_action_is_secondary(self):
-        self.assertIn("border-radius: 999px !important", self.workspace_source)
-        self.assertIn("color: var(--rz-muted) !important", self.workspace_source)
+    def test_reduced_motion_is_respected(self):
+        self.assertIn("@media (prefers-reduced-motion: reduce)", self.workspace_source)
+        self.assertIn("animation: none !important", self.workspace_source)
 
 
 if __name__ == "__main__":
