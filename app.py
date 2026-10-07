@@ -1894,86 +1894,89 @@ elif page == "Espaço do Contador":
         st.rerun()
 
 elif page == "Central de Automações":
-    header("Central de Automações", "O Razync revisa seus dados, antecipa pendências e prepara as próximas ações sem alterar nada sem sua confirmação.")
+    header("Automações", "Revise prioridades, previsões e tarefas assistidas sem perder o controle das decisões.")
     automation = automation_overview(
         profile, transactions, invoices, das_rows, obligations, docs,
         CURRENT_YEAR, date.today().month,
     )
     closing = automation["closing"]
+
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Fechamento do mês", f"{closing['score']}%")
-    c2.metric("Conciliações sugeridas", len(automation["invoice_matches"]))
-    c3.metric("DAS identificados", len(automation["das_matches"]))
+    c1.metric("Fechamento", f"{closing['score']}%")
+    c2.metric("Conciliações", len(automation["invoice_matches"]))
+    c3.metric("DAS encontrados", len(automation["das_matches"]))
     c4.metric("Sem documento", automation["documents"]["missing_count"])
 
-    section("Resumo automático de hoje", "Prioridades explicadas e com acesso direto ao local certo.")
-    for idx, item in enumerate(automation["action_items"][:6]):
-        action_text, action_button = st.columns([4.7, 1.2])
-        with action_text:
-            level = "danger" if item["priority"] == 1 else "warn" if item["priority"] == 2 else "info" if item["priority"] == 3 else "ok"
-            alert_card(level, item["title"], item["detail"])
-        with action_button:
-            if item["page"] and st.button("Abrir", key=f"automation_action_{idx}", width="stretch"):
-                st.session_state["_navigate_to"] = item["page"]
-                st.rerun()
+    priorities = automation["action_items"][:5]
+    if priorities:
+        section("O que merece atenção agora", "Abra direto a rotina certa para resolver.")
+        with st.container(key="rz_panel_automation_priorities"):
+            for idx, item in enumerate(priorities):
+                level = (
+                    "danger" if item["priority"] == 1
+                    else "warn" if item["priority"] == 2
+                    else "info" if item["priority"] == 3
+                    else "ok"
+                )
+                alert_card(level, item["title"], item["detail"])
+                if item["page"] and st.button(
+                    "Abrir rotina",
+                    key=f"automation_action_{idx}",
+                    width="stretch",
+                ):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
+    else:
+        st.success("Nenhuma prioridade importante identificada agora.")
 
-    today_tab, closing_tab, review_tab, forecast_tab, share_tab = st.tabs([
-        "Hoje", "Fechamento", "Conciliação", "Previsão", "Cobranças e contador"
+    closing_tab, review_tab, forecast_tab, share_tab = st.tabs([
+        "Fechamento", "Revisões", "Previsão", "Compartilhar"
     ])
 
-    with today_tab:
-        st.subheader("12 rotinas disponíveis")
-        routines = [
-            ("Fechamento mensal", "Automática", "Revisa movimentações, notas, documentos e DAS."),
-            ("Conciliação", "Assistida", "Sugere vínculos e aguarda sua confirmação."),
-            ("Categorias inteligentes", "Automática", "Reutiliza suas próprias classificações anteriores."),
-            ("DAS", "Assistida", "Localiza possíveis pagamentos no extrato."),
-            ("Documentos", "Automática", "Lê PDFs e sugere tipo, competência e valor."),
-            ("NFS-e", "Assistida", "Importa arquivos e bloqueia números já cadastrados."),
-            ("Previsão financeira", "Automática", "Projeta os próximos três meses."),
-            ("Alertas inteligentes", "Automática", "Mostra somente situações que exigem atenção."),
-            ("Pacote do contador", "Assistida", "Prepara relatório e backup sem compartilhar senhas."),
-            ("Backup", "Assistida", "Gera um pacote completo sob demanda."),
-            ("Cobrança de clientes", "Assistida", "Prepara lembretes; você decide se envia."),
-            ("Assistente proativo", "Automática", "Apresenta as prioridades no painel."),
-        ]
-        professional_table(pd.DataFrame(routines, columns=["Rotina", "Modo", "O que faz"]), max_visible_rows=7)
-        q1, q2, q3 = st.columns(3)
-        if q1.button("Importar NFS-e", width="stretch"):
-            st.session_state["_navigate_to"] = "Importar NFS-e"; st.rerun()
-        if q2.button("Organizar documentos", width="stretch"):
-            st.session_state["_navigate_to"] = "Documentos"; st.rerun()
-        if q3.button("Ver alertas", width="stretch"):
-            st.session_state["_navigate_to"] = "Central de Notificações"; st.rerun()
-
     with closing_tab:
+        st.caption(f"Fechamento de {date.today().month:02d}/{CURRENT_YEAR}")
         st.progress(closing["score"] / 100)
-        st.caption(f"Fechamento de {date.today().month:02d}/{CURRENT_YEAR}: {closing['score']}% pronto")
-        checklist = pd.DataFrame(closing["checklist"])
-        professional_table(checklist, max_visible_rows=7)
+        professional_table(pd.DataFrame(closing["checklist"]), max_visible_rows=7)
         if st.button("Abrir fechamento mensal", key="automation_closing", width="stretch"):
-            st.session_state["_navigate_to"] = "Fechamento Mensal"; st.rerun()
+            st.session_state["_navigate_to"] = "Fechamento Mensal"
+            st.rerun()
 
     with review_tab:
-        st.subheader("Possíveis pagamentos de DAS")
+        st.markdown("##### Possíveis pagamentos de DAS")
         if automation["das_matches"]:
             professional_table(pd.DataFrame(automation["das_matches"]), max_visible_rows=7)
-            st.caption("O Razync apenas sugere. Confirme o pagamento na página DAS depois de conferir o extrato.")
+            st.caption("O Razync apenas sugere. Confirme o pagamento na página DAS.")
         else:
-            st.success("Nenhum possível pagamento de DAS aguardando revisão.")
-        st.subheader("Despesas fora do padrão")
+            st.success("Nenhum possível pagamento aguardando revisão.")
+
+        st.markdown("##### Despesas fora do padrão")
         if automation["anomalies"]:
-            anomaly_df = pd.DataFrame(automation["anomalies"]).rename(columns={"description": "Descrição", "category": "Categoria", "value": "Valor", "reference": "Mediana"})
-            professional_table(anomaly_df, max_visible_rows=7, column_config={"Valor": st.column_config.NumberColumn(format="R$ %.2f"), "Mediana": st.column_config.NumberColumn(format="R$ %.2f")})
+            anomaly_df = pd.DataFrame(automation["anomalies"]).rename(columns={
+                "description": "Descrição",
+                "category": "Categoria",
+                "value": "Valor",
+                "reference": "Mediana",
+            })
+            professional_table(
+                anomaly_df,
+                max_visible_rows=7,
+                column_config={
+                    "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
+                    "Mediana": st.column_config.NumberColumn(format="R$ %.2f"),
+                },
+            )
         else:
-            st.success("Nenhuma despesa fora do padrão foi identificada.")
-        if st.button("Abrir conciliação inteligente", key="automation_reconcile", width="stretch"):
-            st.session_state["_navigate_to"] = "Conciliação"; st.rerun()
+            st.success("Nenhuma despesa fora do padrão identificada.")
+
+        if st.button("Abrir conciliação", key="automation_reconcile", width="stretch"):
+            st.session_state["_navigate_to"] = "Conciliação"
+            st.rerun()
 
     with forecast_tab:
         st.caption("Projeção baseada na média dos últimos três meses cadastrados.")
         professional_table(
-            automation["forecast"], max_visible_rows=6,
+            automation["forecast"],
+            max_visible_rows=6,
             column_config={
                 "Receitas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Despesas previstas": st.column_config.NumberColumn(format="R$ %.2f"),
@@ -1987,24 +1990,34 @@ elif page == "Central de Automações":
             st.success("A projeção atual não indica saldo negativo nos próximos três meses.")
 
     with share_tab:
-        st.subheader("Lembretes de recebimento")
         reminders = automation["reminders"]
+        st.markdown("##### Lembretes de recebimento")
         if not reminders:
             st.success("Nenhuma nota emitida está aguardando conciliação com recebimento.")
         else:
-            reminder_labels = {item["invoice_id"]: f"Nota {item['number'] or item['invoice_id']} · {item['customer']} · {brl(item['amount'])}" for item in reminders}
-            reminder_id = st.selectbox("Nota para preparar lembrete", list(reminder_labels), format_func=lambda value: reminder_labels[value])
+            reminder_labels = {
+                item["invoice_id"]: f"Nota {item['number'] or item['invoice_id']} · {item['customer']} · {brl(item['amount'])}"
+                for item in reminders
+            }
+            reminder_id = st.selectbox(
+                "Nota",
+                list(reminder_labels),
+                format_func=lambda value: reminder_labels[value],
+            )
             reminder = next(item for item in reminders if item["invoice_id"] == reminder_id)
-            st.text_area("Mensagem preparada", value=reminder["message"], height=140)
+            st.text_area("Mensagem preparada", value=reminder["message"], height=120)
             r1, r2 = st.columns(2)
             r1.link_button("Abrir no WhatsApp", reminder["whatsapp_url"], width="stretch")
             r2.link_button("Abrir no e-mail", reminder["email_url"], width="stretch")
-            st.caption("Nenhuma mensagem é enviada automaticamente. Revise antes de enviar.")
+            st.caption("Nada é enviado automaticamente. Revise antes de enviar.")
+
         p1, p2 = st.columns(2)
-        if p1.button("Abrir Espaço do Contador", width="stretch"):
-            st.session_state["_navigate_to"] = "Espaço do Contador"; st.rerun()
+        if p1.button("Espaço do Contador", width="stretch"):
+            st.session_state["_navigate_to"] = "Espaço do Contador"
+            st.rerun()
         if p2.button("Preparar backup", width="stretch"):
-            st.session_state["_navigate_to"] = "Backup"; st.rerun()
+            st.session_state["_navigate_to"] = "Backup"
+            st.rerun()
 
 elif page == "Assistente Razync":
     from assistant_workspace import render_ai_assistant
@@ -2032,44 +2045,76 @@ elif page == "Assistente Razync":
     )
 
 elif page == "Primeiros Passos":
-    header("Primeiros Passos", "Configure o Razync Pro para o seu MEI e deixe os alertas, limites e relatórios mais úteis.")
+    header("Primeiros Passos", "Configure o essencial e deixe o Razync útil desde os primeiros minutos.")
     progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
-    c1,c2 = st.columns([1,3])
-    c1.metric("Configuração", f"{progress['percent']}%")
-    with c2:
+
+    p1, p2 = st.columns([1, 2.2])
+    with p1:
+        st.metric("Configuração", f"{progress['percent']}%")
+    with p2:
         st.caption(f"{progress['done']} de {progress['total']} etapas concluídas")
         st.progress(progress["percent"] / 100)
 
     next_step = next_onboarding_step(progress)
     if next_step:
-        alert_card("info", f"Próxima etapa: {next_step['action']}", next_step["detail"])
-        if next_step["page"] != "Primeiros Passos" and st.button(next_step["action"], key="onboarding_next_action", type="primary", width="stretch"):
-            st.session_state["_navigate_to"] = next_step["page"]
-            st.rerun()
+        with st.container(key="rz_panel_onboarding_next"):
+            st.caption("PRÓXIMO PASSO")
+            st.markdown(f"**{next_step['action']}**")
+            st.caption(next_step["detail"])
+            if next_step["page"] != "Primeiros Passos" and st.button(
+                next_step["action"],
+                key="onboarding_next_action",
+                type="primary",
+                width="stretch",
+            ):
+                st.session_state["_navigate_to"] = next_step["page"]
+                st.rerun()
     else:
-        st.success("Configuração inicial concluída. O Razync já consegue gerar alertas e relatórios mais completos.")
+        st.success("Configuração inicial concluída.")
 
-    section("1. Dados essenciais do negócio", "Você pode completar os detalhes avançados depois em Meu MEI.")
-    with st.form("onboarding_profile"):
-        a,b = st.columns(2)
-        business_name = a.text_input("Nome do negócio", value=str(profile.get("trade_name") or profile.get("business_name") or ""))
-        cnpj = b.text_input("CNPJ", value=str(profile.get("cnpj") or ""))
-        a,b = st.columns(2)
-        main_activity = a.text_input("Atividade principal", value=str(profile.get("main_activity") or ""), placeholder="Ex.: design gráfico, comércio de roupas...")
-        activity_options = ["Serviços","Comércio","Indústria","Misto"]
-        current_activity = profile.get("activity_type") if profile.get("activity_type") in activity_options else "Serviços"
-        activity_type = b.selectbox("Tipo de atividade", activity_options, index=activity_options.index(current_activity))
-        opening_date = st.date_input("Data de abertura", value=opening or date.today())
-        if st.form_submit_button("Salvar configuração básica", type="primary", width="stretch"):
-            save_profile(uid, business_name=business_name, trade_name=business_name, cnpj=cnpj, main_activity=main_activity, activity_type=activity_type, opening_date=opening_date)
-            st.rerun()
+    with st.container(key="rz_panel_onboarding_profile"):
+        st.caption("DADOS ESSENCIAIS")
+        with st.form("onboarding_profile"):
+            a, b = st.columns(2)
+            business_name = a.text_input(
+                "Nome do negócio",
+                value=str(profile.get("trade_name") or profile.get("business_name") or ""),
+            )
+            cnpj = b.text_input("CNPJ", value=str(profile.get("cnpj") or ""))
+            a, b = st.columns(2)
+            main_activity = a.text_input(
+                "Atividade principal",
+                value=str(profile.get("main_activity") or ""),
+                placeholder="Ex.: design gráfico, comércio de roupas",
+            )
+            activity_options = ["Serviços","Comércio","Indústria","Misto"]
+            current_activity = (
+                profile.get("activity_type")
+                if profile.get("activity_type") in activity_options
+                else "Serviços"
+            )
+            activity_type = b.selectbox(
+                "Tipo de atividade",
+                activity_options,
+                index=activity_options.index(current_activity),
+            )
+            opening_date = st.date_input("Data de abertura", value=opening or date.today())
+            if st.form_submit_button("Salvar dados básicos", type="primary", width="stretch"):
+                if cnpj.strip() and not valid_cnpj(cnpj):
+                    st.error("CNPJ inválido. Confira os 14 dígitos.")
+                else:
+                    save_profile(
+                        uid,
+                        business_name=business_name,
+                        trade_name=business_name,
+                        cnpj=cnpj,
+                        main_activity=main_activity,
+                        activity_type=activity_type,
+                        opening_date=opening_date,
+                    )
+                    st.rerun()
 
-    section("2. Próximas etapas")
-    progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(docs))
-    st.caption("Roteiro recomendado para os primeiros minutos no Razync.")
-    for setup_item in first_session_plan(progress):
-        if not setup_item["done"]:
-            st.write(f"○ **{setup_item['title']}** — {setup_item['detail']}")
+    section("Roteiro inicial", "Conclua apenas o que ainda estiver pendente.")
     step_cards = []
     for step in progress["steps"]:
         state_class = "is-done" if step["done"] else "is-pending"
@@ -2078,16 +2123,25 @@ elif page == "Primeiros Passos":
             f'<div class="rz-status-step {state_class}"><strong>{escape(step["title"])}</strong>'
             f'<span>{state_label} · {escape(step["detail"])}</span></div>'
         )
-    st.markdown('<div class="rz-status-grid">' + "".join(step_cards) + "</div>", unsafe_allow_html=True)
+    st.markdown(
+        '<div class="rz-status-grid">' + "".join(step_cards) + "</div>",
+        unsafe_allow_html=True,
+    )
 
-    a,b,c = st.columns(3)
-    if a.button("Registrar movimentação", width="stretch"): st.session_state["_navigate_to"]="Movimentações"; st.rerun()
-    if b.button("Configurar DAS", width="stretch"): st.session_state["_navigate_to"]="DAS"; st.rerun()
-    if c.button("Adicionar documento", width="stretch"): st.session_state["_navigate_to"]="Documentos"; st.rerun()
+    a, b, d = st.columns(3)
+    if a.button("Registrar movimentação", width="stretch"):
+        st.session_state["_navigate_to"] = "Movimentações"
+        st.rerun()
+    if b.button("Configurar DAS", width="stretch"):
+        st.session_state["_navigate_to"] = "DAS"
+        st.rerun()
+    if d.button("Adicionar documento", width="stretch"):
+        st.session_state["_navigate_to"] = "Documentos"
+        st.rerun()
 
-    section("Recomendações do Razync")
-    for tip in recommended_setup(profile):
-        helper_note(tip)
+    with st.expander("Recomendações do Razync"):
+        for tip in recommended_setup(profile):
+            helper_note(tip)
 
 elif page == "Meu MEI":
     header("Meu MEI", "Mantenha os dados que alimentam alertas, relatórios e documentos do Razync.")
@@ -2248,23 +2302,53 @@ elif page == "Plano e Assinatura":
         st.info("O checkout comercial ainda não está configurado. O uso atual permanece inalterado.")
 
 elif page == "Histórico de Atividades":
-    header("Histórico de Atividades","Consulte alterações registradas automaticamente nos seus dados do Razync.")
-    audit_rows=list_audit_logs(uid,250)
+    header("Histórico de Atividades", "Consulte inclusões, alterações e exclusões registradas pelo Razync.")
+    audit_rows = list_audit_logs(uid, 250)
+
     if not audit_rows:
-        empty_state("Nenhuma atividade registrada", "As próximas inclusões, alterações e exclusões aparecerão aqui.", "◷")
+        empty_state(
+            "Nenhuma atividade registrada",
+            "As próximas inclusões, alterações e exclusões aparecerão aqui.",
+            "◷",
+        )
     else:
-        action_labels={"INSERT":"Criado","UPDATE":"Alterado","DELETE":"Excluído"}
-        module_labels={"transactions":"Movimentações","das_items":"DAS","documents":"Documentos","invoices":"Notas fiscais","contacts":"Contatos","employees":"Empregado","obligations":"Obrigações","recurring_transactions":"Recorrências","mei_profiles":"Meu MEI"}
-        audit_view=pd.DataFrame([{
-            "Data":row.get("created_at"),
-            "Módulo":module_labels.get(row.get("table_name"),row.get("table_name")),
-            "Ação":action_labels.get(row.get("action"),row.get("action")),
-            "Registro":row.get("record_id") or "—",
-        } for row in audit_rows])
-        filter_module=st.selectbox("Filtrar módulo",["Todos"]+sorted(audit_view["Módulo"].dropna().unique().tolist()))
-        if filter_module!="Todos": audit_view=audit_view[audit_view["Módulo"]==filter_module]
-        professional_table(audit_view, max_visible_rows=10, column_config={"Data":st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm")})
-        st.caption("Por segurança, senhas e conteúdo binário de documentos nunca são incluídos no histórico.")
+        action_labels = {"INSERT":"Criado","UPDATE":"Alterado","DELETE":"Excluído"}
+        module_labels = {
+            "transactions":"Movimentações",
+            "das_items":"DAS",
+            "documents":"Documentos",
+            "invoices":"Notas fiscais",
+            "contacts":"Contatos",
+            "employees":"Empregado",
+            "obligations":"Obrigações",
+            "recurring_transactions":"Recorrências",
+            "mei_profiles":"Meu MEI",
+        }
+        audit_view = pd.DataFrame([
+            {
+                "Data": row.get("created_at"),
+                "Módulo": module_labels.get(row.get("table_name"), row.get("table_name")),
+                "Ação": action_labels.get(row.get("action"), row.get("action")),
+                "Registro": row.get("record_id") or "—",
+            }
+            for row in audit_rows
+        ])
+        h1, h2 = st.columns([1.2, 2])
+        filter_module = h1.selectbox(
+            "Módulo",
+            ["Todos"] + sorted(audit_view["Módulo"].dropna().unique().tolist()),
+        )
+        h2.caption(f"{len(audit_rows)} evento(s) mais recentes registrados")
+        if filter_module != "Todos":
+            audit_view = audit_view[audit_view["Módulo"] == filter_module]
+
+        with st.container(key="rz_panel_audit_history"):
+            professional_table(
+                audit_view,
+                max_visible_rows=12,
+                column_config={"Data": st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm")},
+            )
+        st.caption("Senhas e conteúdo binário de documentos nunca são incluídos no histórico.")
 
 elif page == "Status do Sistema":
     header("Status do Sistema", "Veja a infraestrutura ativa do Razync Pro e o que ainda é provisório.")
