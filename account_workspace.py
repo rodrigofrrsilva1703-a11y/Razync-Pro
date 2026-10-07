@@ -33,8 +33,6 @@ def render_account_workspace(*, navigate, developer_access: bool) -> None:
 
     with st.expander("Dados e privacidade"):
         st.markdown("**Exportação** · disponível")
-        st.caption("Use o Backup para gerar uma cópia do workspace.")
+        st.caption("Use Backup e exportação para salvar uma cópia dos seus registros.")
         st.markdown("**Correção de dados** · disponível")
         st.caption("Cadastros e movimentações podem ser atualizados no próprio sistema.")
-        st.markdown("**Contas individuais** · temporariamente desativadas")
-        st.caption("Login e isolamento por usuário voltam quando a autenticação for reativada.")
