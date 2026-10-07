@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from fiscal_rules import competence_list, das_due_date, dasn_deadline, monthly_report_due_date
 
@@ -64,3 +64,30 @@ def automatic_obligations(year: int, opening_date: date | None = None, today: da
             "details": row["Descrição"],
         })
     return sorted(rows, key=lambda x: x["Vencimento"])
+
+
+def upcoming_automatic_obligations(
+    year: int,
+    opening_date: date | None,
+    das_rows: list[dict],
+    *,
+    today: date | None = None,
+    days_ahead: int = 90,
+) -> list[dict]:
+    """Return only future automatic reminders that are not already controlled elsewhere."""
+    current = today or date.today()
+    horizon = current + timedelta(days=max(int(days_ahead), 0))
+    controlled_das = {
+        str(item.get("competence") or "")
+        for item in das_rows
+        if item.get("competence")
+    }
+    result: list[dict] = []
+    for row in automatic_obligations(year, opening_date, current):
+        due = row.get("due_date")
+        if not isinstance(due, date) or due < current or due > horizon:
+            continue
+        if str(row.get("title") or "").startswith("DAS ") and str(row.get("competence") or "") in controlled_das:
+            continue
+        result.append(dict(row))
+    return result
