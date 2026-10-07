@@ -945,10 +945,16 @@ elif page == "Conciliação":
             if st.button("Criar receita desta nota", width="stretch"):
                 issue = source["issue_date"]
                 tx_date_value = issue.date() if hasattr(issue, "date") else issue
+                invoice_type_value = str(source.get("invoice_type") or "")
+                revenue_category = (
+                    "Serviços" if invoice_type_value == "Serviço"
+                    else "Indústria" if "Indústr" in invoice_type_value or "Industr" in invoice_type_value
+                    else "Comércio"
+                )
                 add_transaction(
                     uid, tx_date=tx_date_value, tx_type="Receita",
                     description=source.get("description") or f"Nota {source.get('number') or ''}",
-                    category="Serviços" if source.get("invoice_type") == "Serviço" else "Vendas",
+                    category=revenue_category,
                     value=float(source.get("amount") or 0),
                     document_number=str(source.get("number") or ""),
                     counterparty=str(source.get("customer") or ""),
@@ -1184,7 +1190,12 @@ elif page == "Relatório Mensal":
             mime="application/pdf",
             width="stretch",
         )
-        st.caption("O relatório usa os dados cadastrados no Razync. Guarde também os documentos comprobatórios.")
+        st.caption("O PDF do Razync é um resumo de apoio. Para cumprir a obrigação formal, confira/preencha o Relatório Mensal oficial e mantenha-o arquivado com os documentos.")
+        st.link_button(
+            "Abrir Relatório Mensal oficial",
+            OFFICIAL_SERVICES["monthly_report"]["url"],
+            width="stretch",
+        )
 
 elif page == "Notas Fiscais":
     header("Notas Fiscais", "Organize as notas emitidas e acompanhe o que já entrou no financeiro.")
@@ -1236,7 +1247,7 @@ elif page == "Notas Fiscais":
         with st.form("invoice_form", clear_on_submit=True):
             a, b, ccol = st.columns(3)
             issue = a.date_input("Data de emissão", value=date.today())
-            inv_type = b.selectbox("Tipo", ["Serviço","Venda/Comércio"])
+            inv_type = b.selectbox("Tipo", ["Serviço","Comércio","Indústria"])
             amount = ccol.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
             a, b = st.columns(2)
             number = a.text_input("Número da nota")
@@ -1620,7 +1631,13 @@ elif page == "DASN-SIMEI":
             mime="application/pdf",
             width="stretch",
         )
-        st.caption("O Razync organiza as informações, mas não transmite a DASN-SIMEI ao Portal do Simples Nacional.")
+        st.caption("O Razync organiza as informações, mas não transmite a DASN-SIMEI.")
+        st.link_button(
+            "Abrir serviço oficial da DASN-SIMEI",
+            OFFICIAL_SERVICES["dasn"]["url"],
+            type="primary",
+            width="stretch",
+        )
 
 elif page == "Obrigações":
     header("Prazos e Obrigações", "Acompanhe compromissos automáticos do MEI e tarefas específicas do negócio.")
