@@ -1368,7 +1368,7 @@ elif page == "Relatório Mensal":
         )
 
 elif page == "Notas Fiscais":
-    header("Notas Fiscais", "Organize as notas emitidas e acompanhe o que já entrou no financeiro.")
+    header("Notas Fiscais", "Emissão, cadastro e histórico em um fluxo único.")
 
     total_notes = len(invoices)
     active_invoices = (
@@ -1381,178 +1381,244 @@ elif page == "Notas Fiscais":
         if not active_invoices.empty and "amount" in active_invoices.columns
         else 0.0
     )
-    month_notes = active_invoices[
-        (active_invoices["issue_date"].dt.year == CURRENT_YEAR)
-        & (active_invoices["issue_date"].dt.month == date.today().month)
-    ] if not active_invoices.empty else active_invoices
+    month_notes = (
+        active_invoices[
+            (active_invoices["issue_date"].dt.year == CURRENT_YEAR)
+            & (active_invoices["issue_date"].dt.month == date.today().month)
+        ]
+        if not active_invoices.empty else active_invoices
+    )
     month_amount = float(month_notes["amount"].sum()) if not month_notes.empty else 0.0
-    n1, n2, n3 = st.columns(3)
-    n1.metric("Notas cadastradas", total_notes)
-    n2.metric("Valor no mês", brl(month_amount))
-    n3.metric("Valor emitido acumulado", brl(total_amount))
 
-    issuer, action = st.columns([1.55, .9], gap="large")
+    n1, n2, n3 = st.columns(3)
+    with n1:
+        stat_card("Notas", str(total_notes), detail="cadastradas")
+    with n2:
+        stat_card("Emitido no mês", brl(month_amount), detail="notas ativas")
+    with n3:
+        stat_card("Emitido acumulado", brl(total_amount), detail="notas ativas")
+
     activity_type = str(profile.get("activity_type") or "")
     service_activity = activity_type in {"Serviços", "Misto"} or not activity_type
-    with issuer, st.container(key="rz_panel_nfse_official"):
+
+    official_col, official_action = st.columns([2, .9], gap="large")
+    with official_col:
         st.caption("EMISSÃO OFICIAL")
-        st.markdown(f"**{profile.get('trade_name') or profile.get('business_name') or 'Complete os dados do MEI'}**")
-        st.caption(f"CNPJ: {profile.get('cnpj') or 'não cadastrado'} · Atividade: {profile.get('main_activity') or 'não cadastrada'}")
         if service_activity:
-            st.caption("Para prestação de serviços do MEI, a NFS-e é emitida pelo padrão nacional. O Razync não solicita sua senha gov.br.")
+            st.markdown("**Serviços do MEI usam o padrão nacional de NFS-e.**")
+            st.caption(
+                "A emissão acontece no ambiente oficial. O Razync organiza os dados e nunca pede sua senha gov.br."
+            )
         else:
-            st.caption("Para comércio ou indústria, o documento fiscal aplicável pode depender da Secretaria da Fazenda do seu estado. O Razync registra a nota, mas não presume o emissor correto.")
-    with action, st.container(key="rz_panel_nfse_actions"):
-        st.caption("AÇÕES")
+            st.markdown("**Comércio e indústria podem depender da SEFAZ do estado.**")
+            st.caption(
+                "O Razync registra e organiza a nota sem presumir qual emissor estadual é o correto."
+            )
+    with official_action:
         if service_activity:
-            st.link_button("Abrir Emissor Nacional de NFS-e", OFFICIAL_SERVICES["nfse"]["url"], type="primary", width="stretch")
-            if st.button("Importar NFS-e emitidas", key="open_nfse_import", width="stretch"):
+            st.link_button(
+                "Abrir Emissor Nacional",
+                OFFICIAL_SERVICES["nfse"]["url"],
+                type="primary",
+                width="stretch",
+            )
+            if st.button(
+                "Importar NFS-e",
+                key="open_nfse_import",
+                width="stretch",
+            ):
                 st.session_state["_navigate_to"] = "Importar NFS-e"
                 st.rerun()
-        else:
-            st.info("Consulte o emissor fiscal indicado pela SEFAZ do seu estado para operações de comércio/indústria.")
 
-    with st.container(key="rz_panel_invoice_new"):
-        st.caption("CADASTRAR NOTA")
-        with st.form("invoice_form", clear_on_submit=True):
-            a, b, ccol = st.columns(3)
-            issue = a.date_input("Data de emissão", value=date.today())
-            inv_type = b.selectbox("Tipo", ["Serviço","Comércio","Indústria"])
-            amount = ccol.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+    st.markdown("#### Cadastrar nota")
+    with st.form("invoice_form", clear_on_submit=True):
+        a, b, ccol = st.columns([1, 1, 1])
+        issue = a.date_input("Emissão", value=date.today())
+        inv_type = b.selectbox("Tipo", ["Serviço", "Comércio", "Indústria"])
+        amount = ccol.number_input(
+            "Valor",
+            min_value=0.0,
+            step=10.0,
+            format="%.2f",
+        )
+
+        a, b = st.columns(2)
+        number = a.text_input("Número da nota")
+        customer = b.text_input("Cliente", placeholder="Nome do cliente")
+        desc = st.text_input(
+            "Descrição",
+            placeholder="Serviço prestado ou venda realizada",
+        )
+
+        with st.expander("Detalhes opcionais"):
             a, b = st.columns(2)
-            number = a.text_input("Número da nota")
-            customer = b.text_input("Cliente", placeholder="Nome do cliente")
-            desc = st.text_input("Descrição", placeholder="Ex.: serviço prestado ou venda realizada")
-            with st.expander("Adicionar detalhes"):
-                custdoc = st.text_input("CPF/CNPJ do cliente")
-                status = st.selectbox("Situação", ["Emitida","Cancelada"])
-            submit = st.form_submit_button("Salvar nota", type="primary", width="stretch")
-            if submit:
-                clean_number = number.strip()
-                existing_numbers = (
-                    set(invoices["number"].fillna("").astype(str).str.strip())
-                    if not invoices.empty and "number" in invoices.columns
-                    else set()
-                )
-                existing_numbers.discard("")
-                if amount <= 0:
-                    st.error("Informe um valor maior que zero.")
-                elif clean_number and clean_number in existing_numbers:
-                    st.error("Já existe uma nota com esse número. Edite a nota existente em vez de criar uma duplicata.")
-                else:
-                    add_invoice(
-                        uid, issue_date=issue, invoice_type=inv_type,
-                        number=clean_number, customer=customer.strip(),
-                        customer_document=custdoc.strip(), description=desc.strip(),
-                        amount=amount, status=status,
-                    )
-                    st.rerun()
+            custdoc = a.text_input("CPF/CNPJ do cliente")
+            status = b.selectbox("Situação", ["Emitida", "Cancelada"])
 
-    section("Notas cadastradas", "Consulte rapidamente o histórico de emissão.")
+        submit = st.form_submit_button(
+            "Salvar nota",
+            type="primary",
+        )
+        if submit:
+            clean_number = number.strip()
+            existing_numbers = (
+                set(invoices["number"].fillna("").astype(str).str.strip())
+                if not invoices.empty and "number" in invoices.columns
+                else set()
+            )
+            existing_numbers.discard("")
+            if amount <= 0:
+                st.error("Informe um valor maior que zero.")
+            elif clean_number and clean_number in existing_numbers:
+                st.error("Já existe uma nota com esse número.")
+            else:
+                add_invoice(
+                    uid,
+                    issue_date=issue,
+                    invoice_type=inv_type,
+                    number=clean_number,
+                    customer=customer.strip(),
+                    customer_document=custdoc.strip(),
+                    description=desc.strip(),
+                    amount=amount,
+                    status=status,
+                )
+                st.rerun()
+
+    st.markdown("#### Histórico")
     if invoices.empty:
         empty_state(
-            "Nenhuma nota fiscal cadastrada",
-            "Cadastre ou importe suas notas para acompanhar faturamento e facilitar a conciliação.",
+            "Nenhuma nota cadastrada",
+            "Cadastre ou importe suas notas para acompanhar o faturamento.",
             "▤",
         )
     else:
-        with st.container(key="rz_panel_invoice_history"):
-            professional_table(
-                invoices,
-                max_visible_rows=10,
-                column_config={
-                    "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-                    "issue_date": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"),
-                },
-            )
-        with st.expander("Editar uma nota"):
-            edit_iid = st.selectbox(
-                "Nota",
-                invoices["id"].tolist(),
-                format_func=lambda value: (
-                    f"{invoices.loc[invoices['id'] == value, 'number'].iloc[0] or '#'+str(value)} · "
-                    f"{invoices.loc[invoices['id'] == value, 'customer'].iloc[0] or 'Sem cliente'}"
-                ),
-                key="editinv",
-            )
-            invoice_row = invoices.loc[invoices["id"] == edit_iid].iloc[0]
-            raw_issue = invoice_row["issue_date"]
-            issue_value = raw_issue.date() if hasattr(raw_issue, "date") else raw_issue
-            current_type = str(invoice_row.get("invoice_type") or "Serviço")
-            type_options = ["Serviço", "Comércio", "Indústria"]
-            if current_type not in type_options:
-                type_options = [current_type, *type_options]
-            with st.form("edit_invoice_form"):
-                a, b, d = st.columns(3)
-                edit_issue = a.date_input("Data de emissão", value=issue_value)
-                edit_type = b.selectbox(
-                    "Tipo",
-                    type_options,
-                    index=type_options.index(current_type),
-                )
-                edit_amount = d.number_input(
-                    "Valor",
-                    min_value=0.01,
-                    value=float(invoice_row.get("amount") or 0.01),
-                    step=10.0,
-                    format="%.2f",
-                )
-                a, b = st.columns(2)
-                edit_number = a.text_input("Número", value=str(invoice_row.get("number") or ""))
-                edit_customer = b.text_input("Cliente", value=str(invoice_row.get("customer") or ""))
-                edit_description = st.text_input("Descrição", value=str(invoice_row.get("description") or ""))
-                a, b = st.columns(2)
-                edit_customer_document = a.text_input(
-                    "CPF/CNPJ do cliente",
-                    value=str(invoice_row.get("customer_document") or ""),
-                )
-                current_status = str(invoice_row.get("status") or "Emitida")
-                edit_status = b.selectbox(
-                    "Situação",
-                    ["Emitida", "Cancelada"],
-                    index=1 if current_status == "Cancelada" else 0,
-                )
-                save_invoice_edit = st.form_submit_button("Salvar alterações", type="primary", width="stretch")
-            if save_invoice_edit:
-                clean_number = edit_number.strip()
-                other_numbers = set(
-                    invoices.loc[invoices["id"] != edit_iid, "number"]
-                    .fillna("")
-                    .astype(str)
-                    .str.strip()
-                )
-                other_numbers.discard("")
-                if clean_number and clean_number in other_numbers:
-                    st.error("Outra nota já usa esse número.")
-                else:
-                    update_invoice(
-                        uid,
-                        int(edit_iid),
-                        issue_date=edit_issue,
-                        invoice_type=edit_type,
-                        number=clean_number,
-                        customer=edit_customer.strip(),
-                        customer_document=edit_customer_document.strip(),
-                        description=edit_description.strip(),
-                        amount=edit_amount,
-                        status=edit_status,
-                    )
-                    st.rerun()
+        view_columns = [
+            column for column in [
+                "id", "issue_date", "invoice_type", "number",
+                "customer", "amount", "status",
+            ]
+            if column in invoices.columns
+        ]
+        professional_table(
+            invoices[view_columns],
+            max_visible_rows=10,
+            column_config={
+                "id": None,
+                "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                "issue_date": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"),
+            },
+        )
 
-        with st.expander("Excluir uma nota"):
-            iid = st.selectbox(
-                "Selecione",
-                invoices["id"].tolist(),
-                format_func=lambda value: (
-                    f"{invoices.loc[invoices['id'] == value, 'number'].iloc[0] or '#'+str(value)} · "
-                    f"{invoices.loc[invoices['id'] == value, 'customer'].iloc[0] or 'Sem cliente'}"
-                ),
-                key="delinv",
-            )
-            st.caption("Confira antes de excluir: esta ação é definitiva.")
-            if st.button("Excluir nota selecionada", key="delete_invoice_btn", width="stretch"):
-                delete_invoice(uid, int(iid))
-                st.rerun()
+        with st.expander("Gerenciar notas"):
+            edit_tab, delete_tab = st.tabs(["Editar", "Excluir"])
+
+            with edit_tab:
+                edit_iid = st.selectbox(
+                    "Nota",
+                    invoices["id"].tolist(),
+                    format_func=lambda value: (
+                        f"{invoices.loc[invoices['id'] == value, 'number'].iloc[0] or '#'+str(value)} · "
+                        f"{invoices.loc[invoices['id'] == value, 'customer'].iloc[0] or 'Sem cliente'}"
+                    ),
+                    key="editinv",
+                )
+                invoice_row = invoices.loc[invoices["id"] == edit_iid].iloc[0]
+                raw_issue = invoice_row["issue_date"]
+                issue_value = raw_issue.date() if hasattr(raw_issue, "date") else raw_issue
+                current_type = str(invoice_row.get("invoice_type") or "Serviço")
+                type_options = ["Serviço", "Comércio", "Indústria"]
+                if current_type not in type_options:
+                    type_options = [current_type, *type_options]
+
+                with st.form("edit_invoice_form"):
+                    a, b, d = st.columns(3)
+                    edit_issue = a.date_input("Emissão", value=issue_value)
+                    edit_type = b.selectbox(
+                        "Tipo",
+                        type_options,
+                        index=type_options.index(current_type),
+                    )
+                    edit_amount = d.number_input(
+                        "Valor",
+                        min_value=0.01,
+                        value=float(invoice_row.get("amount") or 0.01),
+                        step=10.0,
+                        format="%.2f",
+                    )
+                    a, b = st.columns(2)
+                    edit_number = a.text_input(
+                        "Número",
+                        value=str(invoice_row.get("number") or ""),
+                    )
+                    edit_customer = b.text_input(
+                        "Cliente",
+                        value=str(invoice_row.get("customer") or ""),
+                    )
+                    edit_description = st.text_input(
+                        "Descrição",
+                        value=str(invoice_row.get("description") or ""),
+                    )
+                    with st.expander("Detalhes"):
+                        a, b = st.columns(2)
+                        edit_customer_document = a.text_input(
+                            "CPF/CNPJ",
+                            value=str(invoice_row.get("customer_document") or ""),
+                        )
+                        current_status = str(invoice_row.get("status") or "Emitida")
+                        edit_status = b.selectbox(
+                            "Situação",
+                            ["Emitida", "Cancelada"],
+                            index=1 if current_status == "Cancelada" else 0,
+                        )
+                    save_invoice_edit = st.form_submit_button(
+                        "Salvar alterações",
+                        type="primary",
+                    )
+
+                if save_invoice_edit:
+                    clean_number = edit_number.strip()
+                    other_numbers = set(
+                        invoices.loc[invoices["id"] != edit_iid, "number"]
+                        .fillna("")
+                        .astype(str)
+                        .str.strip()
+                    )
+                    other_numbers.discard("")
+                    if clean_number and clean_number in other_numbers:
+                        st.error("Outra nota já usa esse número.")
+                    else:
+                        update_invoice(
+                            uid,
+                            int(edit_iid),
+                            issue_date=edit_issue,
+                            invoice_type=edit_type,
+                            number=clean_number,
+                            customer=edit_customer.strip(),
+                            customer_document=edit_customer_document.strip(),
+                            description=edit_description.strip(),
+                            amount=edit_amount,
+                            status=edit_status,
+                        )
+                        st.rerun()
+
+            with delete_tab:
+                iid = st.selectbox(
+                    "Nota",
+                    invoices["id"].tolist(),
+                    format_func=lambda value: (
+                        f"{invoices.loc[invoices['id'] == value, 'number'].iloc[0] or '#'+str(value)} · "
+                        f"{invoices.loc[invoices['id'] == value, 'customer'].iloc[0] or 'Sem cliente'}"
+                    ),
+                    key="delinv",
+                )
+                st.caption("A exclusão é definitiva.")
+                if st.button(
+                    "Excluir nota",
+                    key="delete_invoice_btn",
+                ):
+                    delete_invoice(uid, int(iid))
+                    st.rerun()
 
 elif page == "Importar NFS-e":
     header("Importar NFS-e", "Traga as notas exportadas do portal oficial sem digitar uma por uma.")
