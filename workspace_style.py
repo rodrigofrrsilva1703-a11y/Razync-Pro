@@ -23,6 +23,16 @@ def inject_workspace_style() -> None:
             padding: 1.55rem 1.55rem 3.2rem !important;
         }
 
+        @keyframes rz-rise {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .rz-page-title,
+        [class*="st-key-rz_panel_"],
+        [class*="st-key-rz_metric_card_"] {
+            animation: rz-rise .22s ease-out both;
+        }
+
         /* Page rhythm */
         .rz-eyebrow {
             margin-bottom: .28rem !important;
@@ -510,8 +520,18 @@ def inject_workspace_style() -> None:
             .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container {
                 padding: .95rem .75rem 4.5rem !important;
             }
-            [data-testid="stHorizontalBlock"] {
+            [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
                 gap: .55rem !important;
+                flex-wrap: wrap !important;
+            }
+            [data-testid="stMain"] [data-testid="column"] {
+                flex: 1 1 210px !important;
+                min-width: 0 !important;
+                width: auto !important;
+            }
+            [data-testid="stSidebar"] {
+                width: min(300px, 88vw) !important;
+                min-width: min(300px, 88vw) !important;
             }
             .rz-page-title {
                 font-size: 1.62rem !important;
@@ -560,8 +580,12 @@ def inject_workspace_style() -> None:
                 padding-left: .58rem !important;
                 padding-right: .58rem !important;
             }
-            [data-testid="stHorizontalBlock"] {
+            [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
                 gap: .42rem !important;
+            }
+            [data-testid="stMain"] [data-testid="column"] {
+                flex: 1 1 100% !important;
+                width: 100% !important;
             }
             [data-testid="stMain"] div[data-testid="stButton"] button,
             [data-testid="stMain"] [data-testid="stDownloadButton"] button {
