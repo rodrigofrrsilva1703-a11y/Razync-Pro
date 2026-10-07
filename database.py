@@ -65,18 +65,22 @@ def _resolve_database_url():
             configured = "postgresql+psycopg://" + configured[len("postgresql://"):]
         return configured
 
-    fallback = Path(tempfile.gettempdir()) / "razync_pro.db"
+    volume_mount = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+    if volume_mount:
+        fallback = Path(volume_mount) / "razync_pro.db"
+    else:
+        fallback = Path(tempfile.gettempdir()) / "razync_pro.db"
     return f"sqlite:///{fallback.as_posix()}"
 
 
 def _diagnose_operational_error(exc: Exception) -> str:
     raw = str(getattr(exc, "orig", exc)).lower()
     if "password authentication failed" in raw or "authentication failed" in raw:
-        return "A senha do banco foi recusada pelo Supabase. Redefina a Database Password e atualize SUPABASE_DB_PASSWORD nos Secrets do Streamlit."
+        return "A senha do banco foi recusada pelo Supabase. Redefina a Database Password e atualize SUPABASE_DB_PASSWORD nas variáveis protegidas do ambiente."
     if "tenant or user not found" in raw or "user not found" in raw:
         return "O usuário do Session Pooler não foi reconhecido. Confira SUPABASE_DB_USER e o Project Ref do Razync Pro."
     if "could not translate host name" in raw or "name or service not known" in raw or "nodename nor servname" in raw:
-        return "O endereço do Session Pooler não pôde ser resolvido. Confira SUPABASE_DB_HOST no Streamlit Secrets."
+        return "O endereço do Session Pooler não pôde ser resolvido. Confira SUPABASE_DB_HOST nas variáveis protegidas do ambiente."
     if "timeout" in raw or "timed out" in raw:
         return "A conexão com o Supabase expirou. O host/porta do pooler pode estar incorreto ou temporariamente indisponível."
     if "connection refused" in raw:
@@ -87,7 +91,7 @@ def _diagnose_operational_error(exc: Exception) -> str:
         return "O pool de conexões do Supabase atingiu o limite. Aguarde alguns instantes e reinicie o app."
     if "server closed the connection" in raw or "connection reset" in raw:
         return "O Supabase encerrou a conexão durante a abertura. Reinicie o app e tente novamente."
-    return "Não foi possível abrir a conexão com o PostgreSQL. Confira senha, host, usuário e porta do Session Pooler nos Secrets do Streamlit."
+    return "Não foi possível abrir a conexão com o PostgreSQL. Confira senha, host, usuário e porta do Session Pooler nas variáveis protegidas do ambiente."
 
 
 DATABASE_URL = _resolve_database_url()
@@ -133,12 +137,41 @@ def _read_snapshot_from_postgres(user_id: int):
 
 
 def database_runtime_info() -> dict[str, Any]:
-    is_sqlite = str(DATABASE_URL).startswith("sqlite")
+    raw_url = str(DATABASE_URL)
+    is_sqlite = raw_url.startswith("sqlite")
+    volume_mount = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+    sqlite_path = ""
+    if is_sqlite:
+        sqlite_path = raw_url.split("sqlite:///", 1)[-1]
+        try:
+            sqlite_path = str(Path(sqlite_path).resolve())
+        except Exception:
+            sqlite_path = str(sqlite_path)
+    persistent_sqlite = bool(
+        is_sqlite
+        and volume_mount
+        and sqlite_path
+        and (
+            sqlite_path == str(Path(volume_mount).resolve())
+            or sqlite_path.startswith(str(Path(volume_mount).resolve()) + os.sep)
+        )
+    )
+    persistent = (not is_sqlite) or persistent_sqlite
+    if not is_sqlite:
+        backend = "PostgreSQL / Supabase"
+        host = _secret("SUPABASE_DB_HOST") or "Session Pooler Supabase"
+    elif persistent_sqlite:
+        backend = "SQLite persistente (volume Railway)"
+        host = volume_mount
+    else:
+        backend = "SQLite temporário"
+        host = "armazenamento temporário do container"
     return {
-        "backend": "SQLite temporário" if is_sqlite else "PostgreSQL / Supabase",
-        "persistent": not is_sqlite,
+        "backend": backend,
+        "persistent": persistent,
         "production_ready": not is_sqlite,
-        "host": "local temporário" if is_sqlite else (_secret("SUPABASE_DB_HOST") or "Session Pooler Supabase"),
+        "host": host,
+        "sqlite_on_volume": persistent_sqlite,
     }
 
 users = Table(
