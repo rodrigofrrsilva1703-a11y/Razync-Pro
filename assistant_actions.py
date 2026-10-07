@@ -10,11 +10,11 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 TRANSACTION_CATEGORIES = (
-    "Serviços", "Vendas", "Materiais", "Aluguel", "Transporte",
+    "Serviços", "Comércio", "Indústria", "Materiais", "Aluguel", "Transporte",
     "Taxas", "Marketing", "Pró-labore/Retirada", "Outros",
 )
 PAYMENT_METHODS = ("PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro")
-INVOICE_TYPES = ("Serviço", "Venda/Comércio")
+INVOICE_TYPES = ("Serviço", "Comércio", "Indústria")
 RECURRENCE_FREQUENCIES = ("Semanal", "Mensal", "Anual")
 _ACTION_VERBS = (
     "adicione", "adiciona", "adicionar", "anote", "anota", "anotar",
@@ -149,7 +149,8 @@ def _category(text: str, tx_type: str) -> str:
     plain = _plain(text)
     rules = (
         (("servico", "serviço"), "Serviços"),
-        (("venda", "produto"), "Vendas"),
+        (("industria", "industrializado", "fabricacao", "fabricação"), "Indústria"),
+        (("venda", "produto", "comercio", "comércio", "loja"), "Comércio"),
         (("material", "insumo", "mercadoria"), "Materiais"),
         (("aluguel",), "Aluguel"),
         (("transporte", "combustivel", "uber", "frete"), "Transporte"),
@@ -260,7 +261,13 @@ def _local_arguments(question: str, action_type: str, today: date) -> dict[str, 
         "document_number": "",
         "counterparty": "",
         "payment_method": "",
-        "invoice_type": "Venda/Comércio" if "venda" in _plain(question) else "Serviço",
+        "invoice_type": (
+            "Indústria"
+            if any(term in _plain(question) for term in ("industria", "industrializado", "fabricacao"))
+            else "Comércio"
+            if any(term in _plain(question) for term in ("venda", "comercio", "produto"))
+            else "Serviço"
+        ),
         "number": (number_match.group(1) if number_match else "").strip(),
         "customer": (customer_match.group(1) if customer_match else "").strip()[:180],
         "customer_document": "",
@@ -352,6 +359,8 @@ def _normalize_draft(
     if action_type == "transaction":
         tx_type = str(arguments.get("tx_type") or "")
         category = str(arguments.get("category") or "Outros")
+        if category == "Vendas":
+            category = "Comércio"
         payment = str(arguments.get("payment_method") or "Outro")
         description = str(arguments.get("description") or "").strip()[:255]
         payload = {
@@ -405,6 +414,8 @@ def _normalize_draft(
 
     if action_type == "invoice":
         invoice_type = str(arguments.get("invoice_type") or "Serviço")
+        if invoice_type == "Venda/Comércio":
+            invoice_type = "Comércio"
         description = str(arguments.get("description") or "").strip()[:255]
         payload = {
             "issue_date": when.isoformat(),
