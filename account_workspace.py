@@ -2,39 +2,42 @@ from __future__ import annotations
 
 import streamlit as st
 
-from compact_cards import navigation_card
-
 
 def render_account_workspace(*, navigate, developer_access: bool) -> None:
     st.caption("SISTEMA E DADOS")
-    st.caption("Configurações, integrações, histórico e exportações em um só lugar.")
+    st.caption("Configurações e dados do Razync em uma área mais simples.")
 
-    tools = (
-        ("Dados do MEI", "Meu MEI", "Cadastro e informações do negócio"),
-        ("Histórico", "Histórico de Atividades", "Ações registradas no sistema"),
-        ("Backup e exportação", "Backup", "Baixar uma cópia dos seus dados"),
-        ("Integrações", "Integrações", "Recursos e serviços conectados"),
-        ("Status do sistema", "Status do Sistema", "Saúde dos serviços do Razync"),
-    )
-    columns = st.columns(3)
-    for index, (label, page, help_text) in enumerate(tools):
-        with columns[index % 3]:
-            if navigation_card(label, key=f"account_{index}", help_text=help_text):
-                navigate(page)
+    a1, a2, spacer = st.columns([1, 1, 1.5], gap="small")
+    if a1.button("Dados do MEI", type="primary", width="stretch"):
+        navigate("Meu MEI")
+    if a2.button("Backup e exportação", width="stretch"):
+        navigate("Backup")
 
-    st.markdown("#### Produto")
-    st.caption("O ambiente atual está em acesso direto para desenvolvimento e não possui uma assinatura individual vinculada.")
-    if navigation_card(
-        "Ver planos e recursos",
-        key="account_plan",
-        help_text="Comparar os recursos previstos para cada plano",
-    ):
-        navigate("Plano e Assinatura")
+    st.markdown("#### Gestão do sistema")
+    with st.container(key="rz_panel_account_system"):
+        left, right = st.columns(2, gap="large")
+        with left:
+            st.markdown("**Integrações**")
+            st.caption("Serviços conectados e recursos externos.")
+            if st.button("Abrir integrações", key="account_integrations", width="stretch"):
+                navigate("Integrações")
+        with right:
+            st.markdown("**Histórico de atividades**")
+            st.caption("Inclusões, alterações e exclusões registradas.")
+            if st.button("Abrir histórico", key="account_history", width="stretch"):
+                navigate("Histórico de Atividades")
+
+    with st.expander("Mais configurações"):
+        b1, b2 = st.columns(2)
+        if b1.button("Status do sistema", width="stretch"):
+            navigate("Status do Sistema")
+        if b2.button("Planos e recursos", width="stretch"):
+            navigate("Plano e Assinatura")
 
     with st.expander("Dados e privacidade"):
-        st.markdown("**Exportar dados** · disponível")
-        st.caption("Use o Backup para gerar uma cópia dos dados e documentos do workspace.")
-        st.markdown("**Corrigir dados** · disponível")
-        st.caption("Dados do MEI, movimentações e demais registros podem ser atualizados no sistema.")
+        st.markdown("**Exportação** · disponível")
+        st.caption("Use o Backup para gerar uma cópia do workspace.")
+        st.markdown("**Correção de dados** · disponível")
+        st.caption("Cadastros e movimentações podem ser atualizados no próprio sistema.")
         st.markdown("**Contas individuais** · temporariamente desativadas")
-        st.caption("Login, isolamento por usuário e exclusão de conta voltam a ser tratados quando a autenticação for reativada.")
+        st.caption("Login e isolamento por usuário voltam quando a autenticação for reativada.")
