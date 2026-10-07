@@ -14,13 +14,13 @@ postgresql://USUARIO:SENHA@HOST:5432/BANCO
 
 O Razync Pro converte automaticamente a conexão para o driver `psycopg` utilizado no projeto.
 
-## 2. Streamlit Community Cloud
+## 2. Railway
 
-No painel do aplicativo:
+No serviço do Railway:
 
-1. Abra `Manage app`.
-2. Entre em `Settings` / `Secrets`.
-3. Configure:
+1. Abra o projeto `Razync-Pro`.
+2. Entre em `Variables`.
+3. Configure as variáveis de ambiente:
 
 ```toml
 APP_ENVIRONMENT = "production"
@@ -39,19 +39,19 @@ OPENAI_DAILY_REQUEST_LIMIT = "20"
 SENTRY_DSN = "https://..." # opcional, observabilidade externa
 ```
 
-Use somente a chave publicável do Supabase no Streamlit; nunca configure `service_role` ou secret key administrativa no aplicativo. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”.
+Use somente a chave publicável do Supabase no aplicativo; nunca configure `service_role` ou chave administrativa no processo web. O `SESSION_COOKIE_SECRET` cifra o refresh token salvo no navegador para a opção “Manter conectado”.
 
-4. Salve e reinicie o aplicativo.
+4. Salve as variáveis e faça um novo deploy do serviço.
 
 Depois do reinício, abra no Razync Pro:
 
-`Conta e sistema → Status do sistema`
+`Sistema e dados → Status do sistema`
 
 O banco deve aparecer como `PostgreSQL`, com persistência ativa.
 
 ## 3. Contas, autenticação e exclusão
 
-O ambiente de produção usa Supabase Auth para login, confirmação de e-mail, recuperação de senha e renovação de sessão. Contas legadas podem ser vinculadas à identidade confirmada usando o mesmo e-mail, preservando os dados existentes.
+A arquitetura suporta Supabase Auth para login, confirmação de e-mail, recuperação de senha e renovação de sessão. No ambiente atual, a autenticação está temporariamente desativada para facilitar o desenvolvimento visual. Contas legadas podem ser vinculadas à identidade confirmada usando o mesmo e-mail, preservando os dados existentes.
 
 A exclusão de conta é executada pela Edge Function protegida `delete-account`, com JWT obrigatório. Ela remove primeiro os documentos privados, depois o registro interno do usuário (cascateando os dados de negócio) e por último a identidade Supabase Auth. A chave administrativa permanece somente no ambiente seguro da Edge Function.
 
@@ -100,7 +100,7 @@ RAZYNC_BACKUP_SUPABASE_SECRET_KEY
 RAZYNC_BACKUP_PASSPHRASE
 ```
 
-A secret key de backup fica somente no GitHub Actions e nunca entra no Streamlit ou no repositório. Use uma passphrase longa, exclusiva e guardada fora do GitHub; sem ela o backup criptografado não pode ser restaurado.
+A secret key de backup fica somente no GitHub Actions e nunca entra no serviço web ou no repositório. Use uma passphrase longa, exclusiva e guardada fora do GitHub; sem ela o backup criptografado não pode ser restaurado.
 
 Além disso:
 
@@ -128,6 +128,6 @@ A interface classifica integrações como **Ativo**, **Assistido** ou **Configur
 
 ## 10. Validação antes da liberação
 
-O workflow `Razync Pro CI` roda automaticamente em pull requests e pushes ao `main`, com permissões de leitura, validação de dependências, sintaxe, imports e a suíte completa de testes. Execute também `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo login real, recuperação de senha, upload/download, isolamento entre contas, tema claro/escuro, exclusão de uma conta de teste e teste em celular/tablet/desktop.
+O workflow `Razync Pro CI` roda automaticamente em pull requests e pushes ao `main`, com permissões de leitura, validação de dependências, sintaxe, imports e a suíte completa de testes. Execute também `PRODUCTION_CHECKLIST.md` no ambiente publicado, incluindo upload/download, tema claro/escuro e teste em celular/tablet/desktop. Os testes de login, recuperação e isolamento entre contas voltam a ser obrigatórios antes da reativação comercial da autenticação.
 
 A proteção da branch `main` deve exigir o check `Razync Pro CI` e bloquear push direto sempre que o plano/permissões do repositório permitirem.
