@@ -7,7 +7,7 @@ from fiscal_rules import competence_list, das_due_date, dasn_deadline, monthly_r
 
 def _status(due: date, today: date) -> str:
     if due < today:
-        return "Vencida"
+        return "Prazo passado"
     if (due - today).days <= 7:
         return "Próxima"
     return "Futura"
