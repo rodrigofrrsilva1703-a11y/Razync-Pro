@@ -4,24 +4,20 @@ from calendar import monthrange
 from datetime import date, timedelta
 from typing import Iterable
 
-# Regras oficiais monitoradas por ano. Mantemos as regras em um único módulo
-# para facilitar atualização quando houver mudança normativa.
+# Limite legal vigente do MEI. Propostas legislativas futuras não entram
+# nos cálculos até que tenham sido efetivamente aprovadas e sancionadas.
 MEI_ANNUAL_LIMIT = 81_000.0
 MEI_LIMITS_BY_YEAR = {
-    2026: 81_000.0,
-    2027: 110_000.0,
-    2028: 140_000.0,
+    2026: MEI_ANNUAL_LIMIT,
 }
 DASN_DEADLINE_MONTH = 5
 DASN_DEADLINE_DAY = 31
 
 
 def official_annual_limit(year: int) -> float:
-    if year <= 2026:
-        return 81_000.0
-    if year == 2027:
-        return 110_000.0
-    return 140_000.0
+    # Em outubro de 2026, o limite vigente continua em R$ 81 mil.
+    # PLP 186/2026 propõe novos valores, mas ainda não está em vigor.
+    return MEI_LIMITS_BY_YEAR.get(int(year), MEI_ANNUAL_LIMIT)
 
 
 def monthly_proportion_for(year: int) -> float:
@@ -32,12 +28,9 @@ def annual_limit_for(opening_date: date | None, year: int, configured_limit: flo
     official = official_annual_limit(year)
     configured = float(configured_limit or 0)
 
-    # Bancos antigos podem ter 81 mil gravados como valor padrão. A partir de
-    # 2027 esse valor legado não deve impedir a atualização automática oficial.
-    if configured > 0 and not (year >= 2027 and abs(configured - 81_000.0) < 0.01):
-        base = configured
-    else:
-        base = official
+    # Um limite manual explícito pode ser usado para simulações internas.
+    # Sem configuração manual, sempre prevalece o limite legal vigente.
+    base = configured if configured > 0 else official
 
     if opening_date and opening_date.year == year:
         months = 13 - opening_date.month
