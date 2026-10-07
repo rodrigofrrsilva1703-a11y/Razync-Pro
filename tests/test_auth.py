@@ -92,35 +92,21 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertFalse(created)
 
 
-class LoginUiRegressionTests(unittest.TestCase):
-    def test_app_has_no_development_login_bypass(self):
+class DirectAccessUiRegressionTests(unittest.TestCase):
+    def test_direct_access_mode_has_no_hidden_dev_credentials_or_login_forms(self):
         root = Path(__file__).resolve().parents[1]
         app_source = (root / "app.py").read_text(encoding="utf-8")
         sidebar_source = (root / "sidebar_workspace.py").read_text(encoding="utf-8")
+
         self.assertNotIn('email = "dev@local"', app_source)
         self.assertNotIn('password = "dev"', app_source)
-        self.assertIn('st.form("login_form")', app_source)
-        self.assertIn('st.form("signup_form")', app_source)
-        self.assertIn('st.form("password_recovery_form")', app_source)
-        self.assertIn("supabase_sign_in", app_source)
-        self.assertIn("github_sign_in", app_source)
-        self.assertIn("resolve_trusted_developer_user", app_source)
-        self.assertIn("Acesso administrativo com GitHub", app_source)
-        self.assertIn('class="rz-github-admin-login"', app_source)
-        self.assertIn('target="_blank"', app_source)
-        self.assertIn('rel="noopener noreferrer"', app_source)
-        self.assertIn("escape(github_authorization_url(), quote=True)", app_source)
-        self.assertNotIn(
-            'st.link_button(\n                "Acesso administrativo com GitHub"',
-            app_source,
-        )
-        callback = app_source.index("identity = github_sign_in")
-        session_saved = app_source.index(
-            'st.session_state["user"] = user', callback
-        )
-        callback_cleared = app_source.index("st.query_params.clear()", callback)
-        self.assertLess(session_saved, callback_cleared)
-        self.assertIn('st.button("Sair"', sidebar_source)
+        self.assertIn("resolve_public_workspace_user", app_source)
+        self.assertIn('st.session_state["auth_provider"] = "public"', app_source)
+        self.assertNotIn('st.form("login_form")', app_source)
+        self.assertNotIn('st.form("signup_form")', app_source)
+        self.assertNotIn('st.form("password_recovery_form")', app_source)
+        self.assertNotIn('st.button("Sair"', sidebar_source)
+
         workflows = root / ".github" / "workflows"
         self.assertEqual(
             {path.name for path in workflows.glob("*.yml")},
