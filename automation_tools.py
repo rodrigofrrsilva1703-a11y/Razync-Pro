@@ -26,6 +26,7 @@ def financial_projection(
     annual_limit: float,
     year: int,
     today: date | None = None,
+    opening_date: date | None = None,
 ) -> dict:
     today = today or date.today()
     if transactions.empty:
@@ -35,7 +36,13 @@ def financial_projection(
         revenue = float(current[current["tx_type"] == "Receita"]["value"].sum()) if not current.empty else 0.0
         expense = float(current[current["tx_type"] == "Despesa"]["value"].sum()) if not current.empty else 0.0
 
-    elapsed_months = today.month if today.year == year else (12 if year < today.year else 1)
+    if today.year == year:
+        first_month = opening_date.month if opening_date and opening_date.year == year else 1
+        elapsed_months = max(today.month - first_month + 1, 1)
+    elif year < today.year:
+        elapsed_months = max(13 - opening_date.month, 1) if opening_date and opening_date.year == year else 12
+    else:
+        elapsed_months = 1
     projected_revenue = revenue / max(elapsed_months, 1) * 12
     projected_expense = expense / max(elapsed_months, 1) * 12
     projected_result = projected_revenue - projected_expense
