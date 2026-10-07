@@ -106,7 +106,7 @@ def financial_summary_pdf(profile: dict, year: int, analysis: dict) -> bytes:
     data = [
         ["Indicador", "Valor"],
         ["Receitas", _brl(float(analysis.get("revenue", 0)))],
-        ["Despesas", _brl(float(analysis.get("expenses", 0)))],
+        ["Despesas", _brl(float(analysis.get("expense", analysis.get("expenses", 0))))],
         ["Resultado estimado", _brl(float(analysis.get("result", 0)))],
         ["Margem estimada", f"{float(analysis.get('margin', 0)):.1f}%"],
     ]
@@ -136,7 +136,7 @@ def closing_summary_pdf(profile: dict, year: int, month: int, closing: dict) -> 
     data = [
         ["Indicador", "Valor"],
         ["Receitas", _brl(float(closing.get("revenue", 0)))],
-        ["Despesas", _brl(float(closing.get("expenses", 0)))],
+        ["Despesas", _brl(float(closing.get("expense", closing.get("expenses", 0))))],
         ["Resultado", _brl(float(closing.get("result", 0)))],
         ["Organização do mês", f"{int(closing.get('score', 0))}%"],
         ["Situação do DAS", str(closing.get("das_status", "-"))],
