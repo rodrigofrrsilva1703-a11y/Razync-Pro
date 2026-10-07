@@ -6,33 +6,35 @@ class DashboardInteractionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dashboard = Path("dashboard_workspace.py").read_text(encoding="utf-8")
-        cls.ui = Path("ui_system.py").read_text(encoding="utf-8")
+        cls.ui = Path("workspace_style.py").read_text(encoding="utf-8")
         cls.assistant = Path("assistant_workspace.py").read_text(encoding="utf-8")
         cls.app = Path("app.py").read_text(encoding="utf-8")
 
-    def test_priority_and_deadline_cards_are_full_surface_actions(self):
-        self.assertIn("def _action_card", self.dashboard)
-        self.assertIn('key=f"priority_{idx}"', self.dashboard)
-        self.assertIn('key=f"deadline_{idx}"', self.dashboard)
-        self.assertNotIn('st.button("Resolver", key=f"dashv2_action_', self.dashboard)
+    def test_priority_and_deadline_actions_have_explicit_routes(self):
+        self.assertIn('key="dash_primary_next"', self.dashboard)
+        self.assertIn('key=f"dashboard_task_open_{index}"', self.dashboard)
+        self.assertIn('key=f"dashboard_deadline_open_{index}"', self.dashboard)
+        self.assertIn('navigate(task["page"])', self.dashboard)
+        self.assertIn('navigate(deadline["page"])', self.dashboard)
 
     def test_insight_hands_structured_context_to_ai(self):
-        self.assertIn('razync_ai_pending_question', self.dashboard)
-        self.assertIn('razync_ai_pending_context', self.dashboard)
+        self.assertIn("razync_ai_pending_question", self.dashboard)
+        self.assertIn("razync_ai_pending_context", self.dashboard)
         self.assertIn('"source": "dashboard_insight"', self.dashboard)
-        self.assertIn('Contexto recebido do painel', self.assistant)
+        self.assertIn("Contexto recebido do painel", self.assistant)
 
-    def test_action_cards_have_visible_interaction_states(self):
-        self.assertIn('st-key-rz_action_card_', self.ui)
-        self.assertIn('transform:translateY(-1px)', self.ui)
+    def test_interactive_cards_have_visible_hover_state(self):
+        self.assertIn('st-key-rz_metric_card_', self.ui)
+        self.assertIn("transform: translateY(-1px)", self.ui)
 
-    def test_action_cards_are_compact_and_keep_details_as_help(self):
-        self.assertIn('min-height:58px!important', self.ui)
-        self.assertIn('help=detail', self.dashboard)
-        self.assertNotIn('f"**{title}**\\n\\n{detail}\\n\\n{meta} →"', self.dashboard)
+    def test_dashboard_is_decision_first_and_compact(self):
+        self.assertIn("PRÓXIMO PASSO", self.dashboard)
+        self.assertIn("Ações rápidas", self.dashboard)
+        self.assertIn("Próximos vencimentos", self.dashboard)
+        self.assertIn("Ver detalhes e histórico", self.dashboard)
 
-    def test_notification_center_uses_the_same_clickable_card_pattern(self):
-        self.assertIn('rz_action_card_{level}_notification_', self.app)
+    def test_notification_center_uses_clickable_card_pattern(self):
+        self.assertIn("rz_action_card_{level}_notification_", self.app)
         self.assertNotIn('key=f"notification_action_', self.app)
 
 
