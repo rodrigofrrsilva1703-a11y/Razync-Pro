@@ -924,6 +924,18 @@ def _render_pending_action(*, key_prefix: str) -> None:
                         index=invoice_types.index(current_invoice_type),
                         key=f"{key_prefix}_invoice_type",
                     )
+                    invoice_types = ["Serviço", "Comércio", "Indústria"]
+                    current_invoice_type = str(payload.get("invoice_type") or "Serviço")
+                    if current_invoice_type == "Venda/Comércio":
+                        current_invoice_type = "Comércio"
+                    if current_invoice_type not in invoice_types:
+                        invoice_types = [current_invoice_type, *invoice_types]
+                    updates["invoice_type"] = st.selectbox(
+                        "Tipo da nota",
+                        invoice_types,
+                        index=invoice_types.index(current_invoice_type),
+                        key=f"{key_prefix}_invoice_type",
+                    )
                     updates["number"] = st.text_input("Número da nota", value=str(payload.get("number") or ""), key=f"{key_prefix}_number")
                     updates["customer"] = st.text_input("Cliente", value=str(payload.get("customer") or ""), key=f"{key_prefix}_customer")
                     updates["description"] = st.text_input("Descrição", value=str(payload.get("description") or ""), key=f"{key_prefix}_description")
