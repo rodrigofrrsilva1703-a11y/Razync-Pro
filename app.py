@@ -22,7 +22,7 @@ from fiscal_rules import (
     MEI_ANNUAL_LIMIT, annual_limit_for, build_alerts, competence_list,
     das_due_date, das_status,
 )
-from mei_obligations import automatic_obligations
+from mei_obligations import automatic_obligations, upcoming_automatic_obligations
 from business_tools import monthly_closing, financial_analysis, consistency_checks
 from product_core import NAV_GROUPS, group_for_page, action_items, reconciliation_summary, assistant_answer
 from backup_tools import backup_checksum, build_backup_zip, document_coverage
@@ -2536,7 +2536,20 @@ elif page == "Meu MEI":
 
 elif page == "Central de Notificações":
     header("Alertas e Calendário", "Veja somente o que exige atenção e leve os prazos importantes para seu calendário.")
-    notification_items = build_notifications(das_rows, obligations, year_revenue, limit)
+    automatic_reminders = upcoming_automatic_obligations(
+        CURRENT_YEAR,
+        opening,
+        das_rows,
+        today=date.today(),
+        days_ahead=90,
+    )
+    notification_items = build_notifications(
+        das_rows,
+        [*obligations, *automatic_reminders],
+        year_revenue,
+        limit,
+        today=date.today(),
+    )
     urgent_count = sum(1 for item in notification_items if item.get("level") == "urgent")
 
     n1, n2 = st.columns(2)
@@ -2566,7 +2579,7 @@ elif page == "Central de Notificações":
             mime="text/calendar",
             width="stretch",
         )
-    st.caption("Os alertas usam os dados cadastrados no Razync. Confirme datas e valores nos documentos oficiais.")
+    st.caption("Os alertas combinam dados cadastrados e prazos automáticos futuros. Confirme datas e valores nos documentos oficiais.")
 
 elif page == "Integrações":
     header("Integrações", "Entenda o que já está conectado, o que é assistido e o que depende de terceiros.")
