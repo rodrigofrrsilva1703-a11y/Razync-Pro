@@ -57,7 +57,7 @@ from productivity_workspace import render_productivity_workspace
 from account_workspace import render_account_workspace
 from validators import valid_cnpj, valid_cpf, cpf_or_cnpj_status, valid_competence
 from commercial_readiness import PLAN_CATALOG, integration_maturity, production_checklist
-from monitoring import safe_error
+from monitoring import safe_error, safe_event
 
 CURRENT_YEAR = date.today().year
 BRAND_LOGO_PATH = ensure_brand_assets()
@@ -124,6 +124,13 @@ def cached_reconciliation(transactions_data: pd.DataFrame, invoices_data: pd.Dat
 st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="wide", initial_sidebar_state="expanded")
 try:
     init_db()
+    _runtime_info = database_runtime_info()
+    safe_event(
+        "database_runtime",
+        backend=_runtime_info.get("backend"),
+        status="persistent" if _runtime_info.get("persistent") else "temporary",
+        environment="railway" if os.getenv("RAILWAY_PROJECT_ID") else "local",
+    )
 except DatabaseConnectionError as exc:
     safe_error("database_init_failed", exc, operation="init_db", backend="database")
     st.error("Não foi possível conectar o Razync Pro ao banco definitivo.")
