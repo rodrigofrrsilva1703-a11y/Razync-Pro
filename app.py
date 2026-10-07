@@ -1134,16 +1134,24 @@ elif page == "Relatório Mensal":
             "Mês": r["month_name"],
             "Com documento": r["with_doc"],
             "Sem documento": r["without_doc"],
+            "Comércio": r["commerce"],
+            "Indústria": r["industry"],
             "Serviços": r["services"],
-            "Vendas/Comércio": r["sales"],
             "Total": r["total"],
         }
         for r in rows
     ])
     total_year = float(dfm["Total"].sum()) if not dfm.empty else 0.0
+    if year == CURRENT_YEAR:
+        first_month = opening.month if opening and opening.year == year else 1
+        elapsed_months = max(date.today().month - first_month + 1, 1)
+    elif opening and opening.year == year:
+        elapsed_months = max(13 - opening.month, 1)
+    else:
+        elapsed_months = 12
     r1, r2 = st.columns(2)
     r1.metric("Receita no ano", brl(total_year))
-    r2.metric("Média mensal", brl(total_year / 12 if total_year else 0.0))
+    r2.metric("Média mensal", brl(total_year / elapsed_months if total_year else 0.0))
 
     with st.container(key="rz_panel_monthly_report"):
         st.caption("VISÃO ANUAL")
@@ -1152,13 +1160,20 @@ elif page == "Relatório Mensal":
             max_visible_rows=12,
             column_config={
                 col: st.column_config.NumberColumn(format="R$ %.2f")
-                for col in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]
+                for col in ["Com documento","Sem documento","Comércio","Indústria","Serviços","Total"]
             },
         )
 
     with st.container(key="rz_panel_monthly_pdf"):
         st.caption("GERAR PDF")
-        month = st.selectbox("Competência", list(range(1,13)), format_func=lambda m: MONTH_NAMES_PT[m - 1], key="pdfmonth")
+        default_month = date.today().month if year == CURRENT_YEAR else 12
+        month = st.selectbox(
+            "Competência",
+            list(range(1,13)),
+            index=default_month - 1,
+            format_func=lambda m: MONTH_NAMES_PT[m - 1],
+            key="pdfmonth",
+        )
         selected_row = rows[month-1]
         pdf = cached_monthly_report_pdf(profile, year, [selected_row])
         st.download_button(
@@ -1174,16 +1189,25 @@ elif page == "Notas Fiscais":
     header("Notas Fiscais", "Organize as notas emitidas e acompanhe o que já entrou no financeiro.")
 
     total_notes = len(invoices)
-    total_amount = float(invoices["amount"].sum()) if not invoices.empty and "amount" in invoices.columns else 0.0
-    month_notes = invoices[
-        (invoices["issue_date"].dt.year == CURRENT_YEAR)
-        & (invoices["issue_date"].dt.month == date.today().month)
-    ] if not invoices.empty else invoices
+    active_invoices = (
+        invoices[invoices["status"] == "Emitida"]
+        if not invoices.empty and "status" in invoices.columns
+        else invoices
+    )
+    total_amount = (
+        float(active_invoices["amount"].sum())
+        if not active_invoices.empty and "amount" in active_invoices.columns
+        else 0.0
+    )
+    month_notes = active_invoices[
+        (active_invoices["issue_date"].dt.year == CURRENT_YEAR)
+        & (active_invoices["issue_date"].dt.month == date.today().month)
+    ] if not active_invoices.empty else active_invoices
     month_amount = float(month_notes["amount"].sum()) if not month_notes.empty else 0.0
     n1, n2, n3 = st.columns(3)
     n1.metric("Notas cadastradas", total_notes)
     n2.metric("Valor no mês", brl(month_amount))
-    n3.metric("Valor acumulado", brl(total_amount))
+    n3.metric("Valor emitido acumulado", brl(total_amount))
 
     issuer, action = st.columns([1.55, .9], gap="large")
     with issuer, st.container(key="rz_panel_nfse_official"):
