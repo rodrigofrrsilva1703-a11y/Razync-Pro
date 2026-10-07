@@ -30,7 +30,7 @@ from backup_tools import backup_checksum, build_backup_zip, document_coverage
 from onboarding_tools import onboarding_progress, recommended_setup, first_session_plan
 from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from automation_tools import financial_projection, upcoming_deadlines
-from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
+from ui_system import inject_design_system, page_header, section, alert_card, empty_state, helper_note, apply_plot_theme, tokens
 from ui_helpers import MONTH_NAMES_PT, filter_transactions, paginate_frame
 from growth_tools import (
     build_notifications, checkout_url, integration_readiness, normalize_nfse,
@@ -451,10 +451,7 @@ if undo_transaction:
 
 # Dashboard V2 uses only the local snapshot while navigating.
 if page == "Dashboard":
-    business_label = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
-    cnpj_label = str(profile.get("cnpj") or "").strip() or None
-    header("Visão geral", "O que importa hoje para manter seu MEI organizado.")
-    business_card(business_label, CURRENT_YEAR, cnpj_label)
+    header("Início", "Seu negócio, seus números e o que realmente precisa de atenção.")
     render_dashboard_workspace(
         profile=profile, transactions=transactions, invoices=invoices,
         das_rows=das_rows, obligations=obligations, documents=docs,
