@@ -1362,6 +1362,7 @@ elif page == "DAS":
         month = mcol.selectbox(
             "Mês",
             list(range(1,13)),
+            index=date.today().month - 1,
             format_func=lambda m: MONTH_NAMES_PT[m - 1],
             key="dasmonth",
         )
@@ -1370,6 +1371,26 @@ elif page == "DAS":
     payment_suggestions = das_payment_matches(das_rows, transactions)
     journey = das_journey(competence, das_rows, docs, payment_suggestions)
     current_das = next((item for item in das_rows if item.get("competence") == competence), None)
+
+    current_due = current_das.get("due_date") if current_das else None
+    if isinstance(current_due, str):
+        try:
+            current_due = date.fromisoformat(current_due[:10])
+        except ValueError:
+            current_due = None
+    due_default = current_due if isinstance(current_due, date) else das_due_date(competence)
+
+    current_payment = current_das.get("payment_date") if current_das else None
+    if isinstance(current_payment, str):
+        try:
+            current_payment = date.fromisoformat(current_payment[:10])
+        except ValueError:
+            current_payment = None
+    payment_default = current_payment if isinstance(current_payment, date) else date.today()
+
+    amount_default = float(current_das.get("amount") or 0) if current_das else 0.0
+    status_default = str(current_das.get("status") or "Pendente") if current_das else "Pendente"
+    notes_default = str(current_das.get("notes") or "") if current_das else ""
 
     s1, s2, s3 = st.columns(3)
     s1.metric("Organização", f"{journey['percent']}%")
@@ -1425,16 +1446,37 @@ elif page == "DAS":
 
     with register_col, st.container(key="rz_panel_das_register"):
         st.caption("REGISTRAR CONTROLE")
-        due = st.date_input("Vencimento", value=das_due_date(competence), key="das_due")
-        amount = st.number_input("Valor do DAS", min_value=0.0, step=1.0, format="%.2f", key="das_amount")
-        status = st.selectbox("Situação", ["Pendente","Pago"], key="das_status")
+        due = st.date_input(
+            "Vencimento (confirme na guia)",
+            value=due_default,
+            key=f"das_due_{competence}",
+        )
+        st.caption("A guia oficial prevalece, inclusive quando feriado altera o vencimento.")
+        amount = st.number_input(
+            "Valor do DAS",
+            min_value=0.0,
+            value=amount_default,
+            step=1.0,
+            format="%.2f",
+            key=f"das_amount_{competence}",
+        )
+        status = st.selectbox(
+            "Situação",
+            ["Pendente","Pago"],
+            index=1 if status_default == "Pago" else 0,
+            key=f"das_status_{competence}",
+        )
         payment_date = None
         if status == "Pago":
-            payment_date = st.date_input("Data de pagamento", value=date.today(), key="das_payment_date")
+            payment_date = st.date_input(
+                "Data de pagamento",
+                value=payment_default,
+                key=f"das_payment_date_{competence}",
+            )
         guide = st.file_uploader(
             "Guia oficial em PDF",
             type=["pdf"],
-            key="das_guide_upload",
+            key=f"das_guide_upload_{competence}",
             help="Opcional. O arquivo será guardado junto aos documentos.",
         )
         if guide is not None:
@@ -1450,7 +1492,12 @@ elif page == "DAS":
                 st.warning("A competência identificada no PDF é diferente da selecionada.")
             for guide_warning in guide_analysis["warnings"]:
                 st.info(guide_warning)
-        notes = st.text_area("Observações", key="das_notes", height=90)
+        notes = st.text_area(
+            "Observações",
+            value=notes_default,
+            key=f"das_notes_{competence}",
+            height=90,
+        )
         if st.button("Salvar controle do DAS", type="primary", width="stretch"):
             if amount <= 0:
                 st.warning("Informe o valor exibido na guia oficial.")
