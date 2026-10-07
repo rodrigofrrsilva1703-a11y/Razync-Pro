@@ -6,6 +6,7 @@ class CompactCardsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.compact = Path("compact_cards.py").read_text(encoding="utf-8")
+        cls.workspace = Path("workspace_style.py").read_text(encoding="utf-8")
         cls.dashboard = Path("dashboard_workspace.py").read_text(encoding="utf-8")
         cls.finance = Path("finance_workspace.py").read_text(encoding="utf-8")
         cls.fiscal = Path("fiscal_workspace.py").read_text(encoding="utf-8")
@@ -13,15 +14,16 @@ class CompactCardsTests(unittest.TestCase):
         cls.account = Path("account_workspace.py").read_text(encoding="utf-8")
         cls.productivity = Path("productivity_workspace.py").read_text(encoding="utf-8")
 
-    def test_metric_cards_are_compact(self):
-        self.assertIn('min-height: 58px !important', self.compact)
-        self.assertIn('[class*="st-key-rz_metric_card_"] button', self.compact)
-        self.assertNotIn('min-height:112px', self.compact)
+    def test_metric_cards_use_consistent_compact_surface(self):
+        self.assertIn('[class*="st-key-rz_metric_card_"] button', self.workspace)
+        self.assertIn("min-height: 92px !important", self.workspace)
+        self.assertIn("min-height: 76px !important", self.workspace)
+        self.assertIn("def metric_card", self.compact)
 
     def test_primary_workspaces_use_compact_card_layer(self):
         for source in (self.dashboard, self.finance, self.fiscal):
-            self.assertIn('metric_card(', source)
-        self.assertIn('inject_compact_cards()', self.app)
+            self.assertIn("metric_card(", source)
+        self.assertIn("inject_compact_cards()", self.app)
 
     def test_secondary_information_is_collapsed(self):
         self.assertIn('st.expander("Resumo anual e últimos lançamentos")', self.finance)
@@ -36,8 +38,8 @@ class CompactCardsTests(unittest.TestCase):
 
     def test_clicks_do_not_execute_destructive_actions(self):
         for source in (self.dashboard, self.finance, self.fiscal):
-            self.assertNotIn('delete_', source)
-            self.assertNotIn('confirm_action(', source)
+            self.assertNotIn("delete_", source)
+            self.assertNotIn("confirm_action(", source)
 
     def test_secondary_hubs_use_calm_navigation_cards(self):
         self.assertIn("def navigation_card", self.compact)
