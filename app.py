@@ -1192,15 +1192,37 @@ elif page == "Fiscal":
     )
 
 elif page == "DAS":
-    header("DAS","Gere a guia no PGMEI oficial e mantenha competência, vencimento, valor, pagamento e PDF organizados no Razync.")
-    year=st.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="dasyear")
-    month=st.selectbox("Competência",list(range(1,13)),format_func=lambda m:f"{m:02d}/{year}",key="dasmonth")
-    competence=f"{year}-{month:02d}"
-    official_pgmei_url=OFFICIAL_SERVICES["das"]["url"]
+    header("DAS Mensal", "Gere a guia no portal oficial e acompanhe vencimento, pagamento e documento em um só lugar.")
+
+    with st.container(key="rz_panel_das_period"):
+        st.caption("COMPETÊNCIA")
+        ycol, mcol = st.columns(2)
+        year = ycol.selectbox("Ano", list(range(CURRENT_YEAR-2, CURRENT_YEAR+1)), index=2, key="dasyear")
+        month = mcol.selectbox(
+            "Mês",
+            list(range(1,13)),
+            format_func=lambda m: MONTH_NAMES_PT[m - 1],
+            key="dasmonth",
+        )
+    competence = f"{year}-{month:02d}"
+    official_pgmei_url = OFFICIAL_SERVICES["das"]["url"]
     payment_suggestions = das_payment_matches(das_rows, transactions)
     journey = das_journey(competence, das_rows, docs, payment_suggestions)
+    current_das = next((item for item in das_rows if item.get("competence") == competence), None)
 
-    section("Andamento desta competência", "O Razync acompanha a jornada, mas nunca confirma pagamento sem sua revisão.")
+    s1, s2, s3 = st.columns(3)
+    s1.metric("Organização", f"{journey['percent']}%")
+    s2.metric(
+        "Situação",
+        das_status(current_das.get("status", "Pendente"), current_das.get("due_date"))
+        if current_das else "Não registrado",
+    )
+    s3.metric(
+        "Valor",
+        brl(float(current_das.get("amount") or 0)) if current_das else "—",
+    )
+
+    section("Andamento", "Veja rapidamente o que já foi concluído nesta competência.")
     st.progress(journey["percent"] / 100)
     journey_cards = []
     for journey_step in journey["steps"]:
@@ -1212,32 +1234,79 @@ elif page == "DAS":
         )
     st.markdown('<div class="rz-status-grid">' + "".join(journey_cards) + "</div>", unsafe_allow_html=True)
 
-    section("Emitir guia oficial", "A emissão e o pagamento acontecem no ambiente da Receita Federal; o Razync organiza o processo e guarda a guia.")
-    step1,step2,step3=st.columns(3)
-    step1.markdown("**1. Abra o PGMEI**")
-    step1.caption("Use somente o endereço oficial da Receita Federal.")
-    step2.markdown("**2. Gere o DAS**")
-    step2.caption(f"Informe o CNPJ e selecione a competência {month:02d}/{year}.")
-    step3.markdown("**3. Volte ao Razync**")
-    step3.caption("Registre o valor e anexe o PDF emitido.")
+    issue_col, register_col = st.columns([1.1, 1], gap="large")
+    with issue_col, st.container(key="rz_panel_das_official"):
+        st.caption("GERAR GUIA OFICIAL")
+        st.markdown(
+            """
+            <div class="rz-step-grid">
+              <div class="rz-step"><b>1 · Abra o PGMEI</b><span>Use o portal oficial da Receita Federal.</span></div>
+              <div class="rz-step"><b>2 · Gere o DAS</b><span>Escolha a competência correta.</span></div>
+              <div class="rz-step"><b>3 · Volte ao Razync</b><span>Registre valor, status e PDF.</span></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        cnpj = str(profile.get("cnpj") or "").strip()
+        if cnpj:
+            st.code(cnpj, language=None)
+            st.caption("CNPJ cadastrado no Razync.")
+        else:
+            st.warning("Cadastre o CNPJ em Meu MEI antes de gerar a guia.")
+        st.link_button(
+            "Abrir PGMEI oficial",
+            official_pgmei_url,
+            type="primary",
+            width="stretch",
+            help="Abre o site oficial da Receita Federal.",
+        )
+        st.caption("O Razync não solicita nem armazena sua senha gov.br.")
 
-    cnpj=str(profile.get("cnpj") or "").strip()
-    if cnpj:
-        st.code(cnpj,language=None)
-        st.caption("CNPJ cadastrado em Meu MEI — copie para informar no portal oficial.")
-    else:
-        st.warning("Cadastre o CNPJ em Meu MEI antes de emitir a guia para reduzir o risco de usar dados incorretos.")
-    st.link_button(
-        "Gerar DAS no site oficial",
-        official_pgmei_url,
-        type="primary",
-        width="stretch",
-        help="Abre o PGMEI no domínio receita.fazenda.gov.br.",
-    )
-    st.caption("Por segurança, o Razync nunca pede nem armazena sua senha gov.br. Confira no pagamento o favorecido oficial e os dados do CNPJ.")
+    with register_col, st.container(key="rz_panel_das_register"):
+        st.caption("REGISTRAR CONTROLE")
+        due = st.date_input("Vencimento", value=das_due_date(competence), key="das_due")
+        amount = st.number_input("Valor do DAS", min_value=0.0, step=1.0, format="%.2f", key="das_amount")
+        status = st.selectbox("Situação", ["Pendente","Pago"], key="das_status")
+        payment_date = None
+        if status == "Pago":
+            payment_date = st.date_input("Data de pagamento", value=date.today(), key="das_payment_date")
+        guide = st.file_uploader(
+            "Guia oficial em PDF",
+            type=["pdf"],
+            key="das_guide_upload",
+            help="Opcional. O arquivo será guardado junto aos documentos.",
+        )
+        if guide is not None:
+            with st.spinner("Lendo a guia..."):
+                guide_analysis = cached_das_guide_analysis(guide.getvalue(), guide.name)
+            ga1, ga2 = st.columns(2)
+            ga1.metric("Competência lida", guide_analysis["competence"] or "—")
+            ga2.metric(
+                "Valor provável",
+                brl(guide_analysis["amount"]) if guide_analysis["amount"] is not None else "—",
+            )
+            if guide_analysis["competence"] and guide_analysis["competence"] != competence:
+                st.warning("A competência identificada no PDF é diferente da selecionada.")
+            for guide_warning in guide_analysis["warnings"]:
+                st.info(guide_warning)
+        notes = st.text_area("Observações", key="das_notes", height=90)
+        if st.button("Salvar controle do DAS", type="primary", width="stretch"):
+            if amount <= 0:
+                st.warning("Informe o valor exibido na guia oficial.")
+            else:
+                try:
+                    upsert_das(uid, competence, due, amount, status, payment_date, notes)
+                    if guide is not None:
+                        save_uploaded_document(user, guide, "DAS", competence)
+                except Exception:
+                    st.error("Não foi possível salvar o controle do DAS agora.")
+                else:
+                    st.success("DAS registrado.")
+                    st.rerun()
 
-    competence_matches = [item for item in payment_suggestions if item.get("competence") == competence]
-    current_das = next((item for item in das_rows if item.get("competence") == competence), None)
+    competence_matches = [
+        item for item in payment_suggestions if item.get("competence") == competence
+    ]
     if competence_matches and current_das:
         match = competence_matches[0]
         alert_card(
@@ -1247,62 +1316,43 @@ elif page == "DAS":
         )
         if st.button("Conferi e quero marcar como pago", key="confirm_das_match", width="stretch"):
             upsert_das(
-                uid, competence, current_das.get("due_date"), float(current_das.get("amount") or match["value"]),
-                "Pago", match["date"], (str(current_das.get("notes") or "") + "\nPagamento conciliado com movimentação após confirmação do usuário.").strip(),
+                uid, competence, current_das.get("due_date"),
+                float(current_das.get("amount") or match["value"]),
+                "Pago", match["date"],
+                (str(current_das.get("notes") or "") + "\nPagamento conciliado com movimentação após confirmação do usuário.").strip(),
             )
-            st.success("Pagamento confirmado e controle do DAS atualizado.")
+            st.success("Pagamento confirmado.")
             st.rerun()
 
-    with st.expander("Registrar a guia emitida", expanded=not bool(das_rows)):
-        due=st.date_input("Vencimento da guia",value=das_due_date(competence),key="das_due")
-        amount=st.number_input("Valor do DAS",min_value=0.0,step=1.0,format="%.2f",key="das_amount")
-        status=st.selectbox("Status",["Pendente","Pago"],key="das_status")
-        payment_date=None
-        if status=="Pago":
-            payment_date=st.date_input("Data de pagamento",value=date.today(),key="das_payment_date")
-        guide=st.file_uploader(
-            "Anexar guia oficial (PDF)",
-            type=["pdf"],
-            key="das_guide_upload",
-            help="Opcional. O arquivo ficará armazenado junto aos demais documentos do Razync.",
-        )
-        if guide is not None:
-            guide_analysis = cached_das_guide_analysis(guide.getvalue(), guide.name)
-            st.markdown("**Leitura assistida da guia**")
-            ga1, ga2, ga3 = st.columns(3)
-            ga1.metric("Competência", guide_analysis["competence"] or "Não encontrada")
-            ga2.metric("Valor provável", brl(guide_analysis["amount"]) if guide_analysis["amount"] is not None else "Não encontrado")
-            ga3.metric("Confiança", guide_analysis["confidence"])
-            if guide_analysis["competence"] and guide_analysis["competence"] != competence:
-                st.warning("A competência identificada no PDF é diferente da competência selecionada. Confira antes de salvar.")
-            for guide_warning in guide_analysis["warnings"]:
-                st.info(guide_warning)
-            st.caption("A leitura é apenas uma sugestão local. Valor, competência e pagamento só são gravados após sua confirmação.")
-        notes=st.text_area("Observações",key="das_notes")
-        if st.button("Salvar controle do DAS",type="primary",width="stretch"):
-            if amount <= 0:
-                st.warning("Informe o valor exibido na guia oficial.")
-            else:
-                try:
-                    upsert_das(uid,competence,due,amount,status,payment_date,notes)
-                    if guide is not None:
-                        save_uploaded_document(user,guide,"DAS",competence)
-                except Exception:
-                    st.error("Não foi possível salvar o controle do DAS agora.")
-                else:
-                    st.success("DAS registrado no Razync.")
-                    st.rerun()
-
-    st.info("O vencimento sugerido considera o dia 20 do mês seguinte com ajuste básico para fim de semana. Sempre prevalecem a data e o valor impressos na guia oficial.")
-    current=[d for d in das_rows if str(d["competence"]).startswith(str(year))]
-    section("Competências do ano")
+    section("Competências do ano", "Acompanhe o histórico sem abrir uma competência por vez.")
+    current = [d for d in das_rows if str(d["competence"]).startswith(str(year))]
     if not current:
-        empty_state("Nenhum DAS controlado neste ano", "Gere a guia no PGMEI e registre a competência para acompanhar vencimento e pagamento.", "▣")
+        empty_state(
+            "Nenhum DAS controlado neste ano",
+            "Gere a guia no PGMEI e registre a competência para acompanhar vencimento e pagamento.",
+            "▣",
+        )
     else:
-        das_view=[]
-        for d in current:
-            das_view.append({"Competência":d["competence"],"Vencimento":d["due_date"],"Valor":d["amount"],"Status":das_status(d["status"],d["due_date"]),"Pagamento":d["payment_date"]})
-        professional_table(pd.DataFrame(das_view), max_visible_rows=12, column_config={"Valor":st.column_config.NumberColumn(format="R$ %.2f"),"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY"),"Pagamento":st.column_config.DateColumn(format="DD/MM/YYYY")})
+        das_view = [
+            {
+                "Competência": d["competence"],
+                "Vencimento": d["due_date"],
+                "Valor": d["amount"],
+                "Status": das_status(d["status"], d["due_date"]),
+                "Pagamento": d["payment_date"],
+            }
+            for d in current
+        ]
+        professional_table(
+            pd.DataFrame(das_view),
+            max_visible_rows=12,
+            column_config={
+                "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Vencimento": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                "Pagamento": st.column_config.DateColumn(format="DD/MM/YYYY"),
+            },
+        )
+        st.caption("A data e o valor impressos na guia oficial sempre prevalecem.")
 
 elif page == "DASN-SIMEI":
     header("DASN-SIMEI","Prepare os dados anuais para conferir antes da declaração oficial.")
