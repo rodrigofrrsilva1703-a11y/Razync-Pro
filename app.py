@@ -666,7 +666,7 @@ elif page == "Recorrências":
             a, b, c3 = st.columns(3)
             recurring_category = a.selectbox(
                 "Categoria",
-                ["Serviços", "Vendas", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"],
+                ["Serviços", "Comércio", "Indústria", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"],
             )
             recurring_frequency = b.selectbox("Frequência", ["Mensal", "Semanal", "Anual"])
             recurring_payment = c3.selectbox(
