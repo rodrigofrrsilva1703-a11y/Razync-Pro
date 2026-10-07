@@ -389,12 +389,6 @@ input::placeholder, textarea::placeholder {{ color:var(--rz-muted)!important; op
   [data-testid="stMetricValue"] {{ font-size:1.25rem; }}
   [data-testid="stDataFrame"] {{ max-width:calc(100vw - 1.44rem); overflow-x:auto; }}
   .stButton button, [data-testid="stFormSubmitButton"] button, [data-testid="stDownloadButton"] button {{ min-height:44px; }}
-  .stApp:has(.rz-login-shell) .block-container {{ padding:.65rem .75rem 1.5rem; }}
-  .rz-login-shell {{ margin-bottom:.55rem; }}
-  .rz-login-brand {{ margin-bottom:.62rem; }}
-  .rz-login-lead {{ font-size:.84rem; }}
-  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.6rem .7rem .82rem; border-radius:13px; }}
-  .stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.72rem; }}
   [data-testid="stTabs"] [role="tablist"] {{ overflow-x:auto; scrollbar-width:thin; justify-content:flex-start; }}
   [data-testid="stTabs"] [role="tab"] {{ flex:0 0 auto; white-space:nowrap; }}
   [data-testid="stFileUploaderDropzone"] {{ padding:.75rem; }}
@@ -412,8 +406,6 @@ input::placeholder, textarea::placeholder {{ color:var(--rz-muted)!important; op
   .block-container {{ padding-left:.58rem; padding-right:.58rem; }}
   .rz-page-title {{ font-size:1.34rem; }}
   .rz-page-sub {{ font-size:.84rem; margin-bottom:.9rem; }}
-  .rz-login-shell h1 {{ font-size:1.62rem; }}
-  .stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ padding:.52rem; }}
   [data-testid="stMetric"] {{ min-height:82px; }}
 }}
 </style>
