@@ -28,8 +28,8 @@ class CompactCardsTests(unittest.TestCase):
         self.assertIn('st.expander("Outras rotinas fiscais")', self.fiscal)
 
     def test_main_actions_remain_meaningful(self):
-        self.assertIn('navigate("Financeiro")', self.dashboard)
-        self.assertIn('navigate("Fiscal")', self.dashboard)
+        self.assertIn('navigate("Movimentações")', self.dashboard)
+        self.assertIn('navigate("Importar Extrato")', self.dashboard)
         self.assertIn('navigate("Conciliação")', self.finance)
         self.assertIn('navigate("DAS")', self.fiscal)
         self.assertIn('navigate("Documentos")', self.fiscal)
