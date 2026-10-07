@@ -24,7 +24,7 @@ class AutomationSuiteTests(unittest.TestCase):
         tx = pd.DataFrame([{"tx_date": pd.Timestamp("2026-08-01"), "tx_type": "Receita", "value": 3000.0}, {"tx_date": pd.Timestamp("2026-08-02"), "tx_type": "Despesa", "value": 1200.0}])
         result = cash_forecast(tx, 3, today=date(2026, 8, 15))
         self.assertEqual(len(result), 3)
-        self.assertGreater(result.iloc[-1]["Saldo projetado"], 0)
+        self.assertGreater(result.iloc[-1]["Resultado acumulado projetado"], 0)
 
     def test_anomaly_requires_history(self):
         tx = pd.DataFrame([
