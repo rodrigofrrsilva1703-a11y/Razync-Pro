@@ -49,7 +49,7 @@ from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_
 from finance_workspace import render_finance_workspace
 from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
-from compact_cards import inject_compact_cards
+from compact_cards import inject_compact_cards, metric_card
 from table_ui import professional_table
 from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
