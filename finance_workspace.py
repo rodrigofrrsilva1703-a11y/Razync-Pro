@@ -119,9 +119,9 @@ def render_finance_workspace(
                 y=["Receita", "Despesa", "Resultado"],
                 markers=True,
                 color_discrete_map={
-                    "Receita": "#168f80",
+                    "Receita": "#08b9ef",
                     "Despesa": "#b8756b",
-                    "Resultado": "#6b97a8",
+                    "Resultado": "#657cba",
                 },
             )
             apply_plot_theme(fig, theme, height=310)

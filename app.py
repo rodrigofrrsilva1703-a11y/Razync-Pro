@@ -1707,7 +1707,7 @@ elif page == "Importar NFS-e":
                         st.rerun()
 
 elif page == "Fiscal":
-    header("Fiscal MEI", "Acompanhe DAS, notas, obrigações e declaração anual sem se perder entre telas.")
+    header("Fiscal MEI", "Acompanhe guias do DAS, notas fiscais, prazos e declaração anual.")
     render_fiscal_workspace(
         profile=profile,
         transactions=transactions,
@@ -2093,14 +2093,15 @@ elif page == "Obrigações":
                 st.rerun()
 
 elif page == "Clientes e Fornecedores":
-    header("Clientes e Fornecedores", "Organize os contatos que aparecem nas vendas, compras e documentos.")
+    header("Clientes e fornecedores", "Organize os contatos que aparecem nas vendas, compras e documentos.")
 
     client_count = sum(1 for item in contacts if item.get("contact_type") == "Cliente")
     supplier_count = sum(1 for item in contacts if item.get("contact_type") == "Fornecedor")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Contatos", len(contacts))
-    c2.metric("Clientes", client_count)
-    c3.metric("Fornecedores", supplier_count)
+    with st.container(key="workspace_metrics_three"):
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Contatos", len(contacts))
+        c2.metric("Clientes", client_count)
+        c3.metric("Fornecedores", supplier_count)
 
     form_col, tip_col = st.columns([1.55, .85], gap="large")
     with form_col, st.container(key="rz_panel_contacts_new"):
@@ -2137,8 +2138,8 @@ elif page == "Clientes e Fornecedores":
 
     with tip_col, st.container(key="rz_panel_contacts_tip"):
         st.caption("ORGANIZAÇÃO")
-        st.markdown("**Cadastre só o que você realmente usa.**")
-        st.caption("Nome é suficiente para começar; documento e contato podem ser preenchidos depois.")
+        st.markdown("**Comece pelo nome do contato.**")
+        st.caption("CPF ou CNPJ, e-mail e telefone são opcionais. Você pode adicioná-los depois.")
         st.markdown(
             '<div class="rz-inline-meta"><span>Cliente</span><span>Fornecedor</span></div>',
             unsafe_allow_html=True,
@@ -2328,23 +2329,24 @@ elif page == "Empregado":
                 st.rerun()
 
 elif page == "Documentos":
-    header("Documentos", "Guarde o essencial sem transformar a tela em um arquivo cheio de controles.")
+    header("Documentos", "Organize notas, comprovantes e extratos para consultar e fechar o mês.")
 
-    d1, d2, d3 = st.columns(3)
-    with d1:
-        stat_card("Arquivos", str(len(docs)), detail="salvos")
-    with d2:
-        stat_card(
-            "Tipos",
-            str(len({str(item.get("category") or "") for item in docs if item.get("category")})),
-            detail="em uso",
-        )
-    with d3:
-        stat_card(
-            "Competências",
-            str(len({str(item.get("reference_month") or "") for item in docs if item.get("reference_month")})),
-            detail="organizadas",
-        )
+    with st.container(key="workspace_metrics_three"):
+        d1, d2, d3 = st.columns(3)
+        with d1:
+            stat_card("Arquivos", str(len(docs)), detail="salvos")
+        with d2:
+            stat_card(
+                "Tipos",
+                str(len({str(item.get("category") or "") for item in docs if item.get("category")})),
+                detail="em uso",
+            )
+        with d3:
+            stat_card(
+                "Competências",
+                str(len({str(item.get("reference_month") or "") for item in docs if item.get("reference_month")})),
+                detail="organizadas",
+            )
 
     upload_col, helper_col = st.columns([1.7, .8], gap="large")
     with upload_col:
@@ -2388,12 +2390,12 @@ elif page == "Documentos":
         reference = b.text_input(
             "Competência",
             value=suggested_reference,
-            placeholder="AAAA-MM",
+            placeholder="Ex.: 2026-10",
             key=f"doc_reference_{up.name if up else 'empty'}",
         )
         valid_reference = not reference.strip() or valid_competence(reference.strip())
         if not valid_reference:
-            st.warning("Use AAAA-MM. Ex.: 2026-08.")
+            st.warning("Informe o ano e o mês no formato AAAA-MM. Ex.: 2026-10.")
 
         if st.button(
             "Salvar documento",
@@ -2416,20 +2418,20 @@ elif page == "Documentos":
     with helper_col:
         st.markdown("#### Organização")
         st.caption(
-            "A competência é o que mais ajuda depois. O tipo pode ser ajustado antes de salvar."
+            "Informe o mês e o ano a que o arquivo se refere. Confira o tipo antes de salvar."
         )
         st.write("• Nota fiscal")
         st.write("• DAS")
         st.write("• Extrato")
         st.write("• Comprovante")
         st.write("• Outros")
-        st.caption("O Razync sugere. Você confirma.")
+        st.caption("Ao enviar um arquivo, confira os dados sugeridos antes de salvar.")
 
     st.markdown("#### Biblioteca")
     if not docs:
         empty_state(
             "Nenhum documento salvo",
-            "Adicione os arquivos que realmente ajudam no fechamento e na conferência.",
+            "Envie notas, comprovantes ou extratos para começar sua biblioteca.",
             "▱",
         )
     else:

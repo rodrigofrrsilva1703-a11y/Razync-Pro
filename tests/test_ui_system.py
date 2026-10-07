@@ -7,7 +7,7 @@ def test_design_system_emits_theme_tokens():
     with patch('ui_system.st.markdown') as markdown:
         inject_design_system('Claro')
     css = markdown.call_args.args[0]
-    assert '--rz-primary:#087f79' in css
+    assert '--rz-primary:#08b9ef' in css
     assert '--rz-text:#172c35' in css
     assert 'stExpandSidebarButton' in css
 
@@ -30,8 +30,8 @@ def test_new_transaction_preserves_semantic_choices():
 
 def test_light_and_dark_palettes_are_distinct():
     light, dark = tokens('Claro'), tokens('Escuro')
-    assert light['primary'] == '#087f79'
-    assert dark['primary'] == '#5ad6c4'
+    assert light['primary'] == '#08b9ef'
+    assert dark['primary'] == '#08b9ef'
     assert light['surface'] != dark['surface']
     assert light['text'] != dark['text']
     assert light['plot'] == 'plotly_white'

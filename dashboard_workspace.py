@@ -116,7 +116,7 @@ def render_dashboard_workspace(
     with st.container(key="workspace_metrics"):
         m1, m2, m3, m4 = st.columns(4)
         with m1:
-            stat_card("Entradas", brl(month_in), detail="Sem lançamentos no mês" if month_tx.empty else "Receitas deste mês", tone="positive")
+            stat_card("Entradas", brl(month_in), detail="Sem lançamentos no mês" if month_tx.empty else "Receitas deste mês", tone="neutral" if month_tx.empty else "positive")
         with m2:
             stat_card("Saídas", brl(month_out), detail="Sem lançamentos no mês" if month_tx.empty else "Despesas deste mês")
         with m3:
@@ -151,7 +151,7 @@ def render_dashboard_workspace(
                 from ui_system import apply_plot_theme
                 grouped = year_tx.assign(month=year_tx["tx_date"].dt.month).pivot_table(index="month", columns="tx_type", values="value", aggfunc="sum", fill_value=0).reindex(range(1, 13), fill_value=0)
                 figure = go.Figure()
-                for kind, color in (("Receita", "#168f80"), ("Despesa", "#abc8c5")):
+                for kind, color in (("Receita", "#08b9ef"), ("Despesa", "#9bb9cb")):
                     values = grouped[kind] if kind in grouped else [0] * 12
                     figure.add_bar(name="Entradas" if kind == "Receita" else "Saídas", x=[x[:3].lower() for x in month_names], y=values, marker_color=color, marker_cornerradius=4)
                 apply_plot_theme(figure, st.session_state.get("ui_theme", "Claro"), height=265)
@@ -186,8 +186,8 @@ def render_dashboard_workspace(
             st.markdown(
                 f'<div class="rz-panel-heading"><strong>Seu limite MEI</strong><span>{current_year}</span></div>'
                 '<div class="rz-limit-content"><div class="rz-limit-ring"><svg viewBox="0 0 108 108" aria-hidden="true">'
-                '<circle cx="54" cy="54" r="48" fill="none" stroke="#355057" stroke-width="5"/>'
-                f'<circle cx="54" cy="54" r="48" fill="none" stroke="#77dac5" stroke-width="5" stroke-linecap="round" stroke-dasharray="301.593" stroke-dashoffset="{offset:.3f}"/></svg><span>{percent_label}</span></div>'
+                '<circle cx="54" cy="54" r="48" fill="none" stroke="#29485c" stroke-width="5"/>'
+                f'<circle cx="54" cy="54" r="48" fill="none" stroke="#08b9ef" stroke-width="5" stroke-linecap="round" stroke-dasharray="301.593" stroke-dashoffset="{offset:.3f}"/></svg><span>{percent_label}</span></div>'
                 f'<div class="rz-limit-text"><strong>{brl(annual_revenue)}</strong><p>de {brl(annual_limit)}<br>no ano</p></div></div>'
                 '<div class="rz-limit-note">Baseado nas receitas registradas no seu espaço.</div>',
                 unsafe_allow_html=True,
