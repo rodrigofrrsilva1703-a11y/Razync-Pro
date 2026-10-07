@@ -469,6 +469,7 @@ elif page == "Financeiro":
         invoices=invoices,
         annual_limit=limit,
         current_year=CURRENT_YEAR,
+        opening_date=opening,
         theme=UI_THEME,
         brl=brl,
         navigate=navigate_to,
