@@ -41,16 +41,25 @@ def monthly_report_pdf(profile: dict, year: int, rows: Iterable[dict]) -> bytes:
     story.append(Paragraph(f"Empresa: {profile.get('business_name') or profile.get('trade_name') or '-'}", styles["Normal"]))
     story.append(Paragraph(f"CNPJ: {profile.get('cnpj') or '-'} | Ano: {year}", styles["Normal"]))
     story.append(Spacer(1, 4*mm))
-    data = [["Mês", "Com documento", "Sem documento", "Serviços", "Vendas", "Total"]]
+    data = [["Mês", "Com doc.", "Sem doc.", "Comércio", "Indústria", "Serviços", "Total"]]
     total = 0.0
     for row in rows:
         total += float(row.get("total", 0))
         data.append([
-            str(row.get("month_name", "")), _brl(float(row.get("with_doc", 0))), _brl(float(row.get("without_doc", 0))),
-            _brl(float(row.get("services", 0))), _brl(float(row.get("sales", 0))), _brl(float(row.get("total", 0)))
+            str(row.get("month_name", "")),
+            _brl(float(row.get("with_doc", 0))),
+            _brl(float(row.get("without_doc", 0))),
+            _brl(float(row.get("commerce", row.get("sales", 0)))),
+            _brl(float(row.get("industry", 0))),
+            _brl(float(row.get("services", 0))),
+            _brl(float(row.get("total", 0))),
         ])
-    data.append(["TOTAL", "", "", "", "", _brl(total)])
-    table = Table(data, repeatRows=1, colWidths=[29*mm, 31*mm, 31*mm, 29*mm, 29*mm, 31*mm])
+    data.append(["TOTAL", "", "", "", "", "", _brl(total)])
+    table = Table(
+        data,
+        repeatRows=1,
+        colWidths=[22*mm, 27*mm, 27*mm, 25*mm, 25*mm, 25*mm, 27*mm],
+    )
     table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#0B1220")), ("TEXTCOLOR", (0,0), (-1,0), colors.white),
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"), ("FONTSIZE", (0,0), (-1,-1), 8),
@@ -75,7 +84,7 @@ def dasn_summary_pdf(profile: dict, year: int, services: float, sales: float, em
     data = [
         ["Informação", "Valor"],
         ["Receita de serviços", _brl(services)],
-        ["Receita de comércio/mercadorias", _brl(sales)],
+        ["Receita de comércio/indústria", _brl(sales)],
         ["Receita bruta total", _brl(total)],
         ["Teve empregado no período", "Sim" if employee else "Não"],
     ]
