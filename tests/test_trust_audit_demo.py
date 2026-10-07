@@ -2,23 +2,25 @@ from pathlib import Path
 import unittest
 
 
-class TrustAuditDemoTests(unittest.TestCase):
+class TrustAuditDirectAccessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = Path("app.py").read_text(encoding="utf-8")
-        cls.migration = Path("supabase/migrations/20260814163000_audit_history.sql").read_text(encoding="utf-8").lower()
+        cls.demo = Path("demo_mode.py").read_text(encoding="utf-8")
+        cls.migration = Path(
+            "supabase/migrations/20260814163000_audit_history.sql"
+        ).read_text(encoding="utf-8").lower()
 
-    def test_signup_requires_legal_consent(self):
-        self.assertIn("signup_legal_consent", self.app)
-        self.assertIn("Aceite os Termos de Uso", self.app)
-        self.assertIn("PRIVACY_NOTICE", self.app)
+    def test_direct_access_is_explicit_and_does_not_fake_authentication(self):
+        self.assertIn("resolve_public_workspace_user", self.app)
+        self.assertIn('st.session_state["auth_provider"] = "public"', self.app)
+        self.assertNotIn('st.form("login_form")', self.app)
+        self.assertNotIn('st.form("signup_form")', self.app)
 
-    def test_demo_is_explicitly_isolated(self):
-        self.assertIn("Conhecer o Razync com dados de exemplo", self.app)
-        self.assertIn("render_demo()", self.app)
-        demo = Path("demo_mode.py").read_text(encoding="utf-8")
-        self.assertNotIn("from database", demo)
-        self.assertIn("dados fictícios", demo.lower())
+    def test_demo_module_remains_isolated_even_while_not_exposed(self):
+        self.assertNotIn("render_demo()", self.app)
+        self.assertNotIn("from database", self.demo)
+        self.assertIn("dados fictícios", self.demo.lower())
 
     def test_audit_table_has_rls_owner_policy_and_safe_payload(self):
         self.assertIn("enable row level security", self.migration)
