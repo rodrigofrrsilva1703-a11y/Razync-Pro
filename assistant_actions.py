@@ -235,7 +235,7 @@ def _local_arguments(question: str, action_type: str, today: date) -> dict[str, 
 
     if action_type == "contact":
         plain = _plain(question)
-        contact_type = "Fornecedor" if "fornecedor" in plain else "Cliente" if "cliente" in plain else "Contato"
+        contact_type = "Fornecedor" if "fornecedor" in plain else "Cliente" if "cliente" in plain else ""
         name_match = re.search(r"(?i)\b(?:cliente|fornecedor|contato)\s+(.+?)(?=\s+(?:cpf|cnpj|e-?mail|telefone|fone)\b|[,.;]|$)", question)
         email_match = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", question)
         phone_match = re.search(r"(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s]?\d{4}", question)
@@ -444,16 +444,24 @@ def _normalize_draft(
 
     if action_type == "contact":
         name = str(arguments.get("name") or "").strip()[:180]
-        contact_type = str(arguments.get("contact_type") or "Contato")
+        contact_type = str(arguments.get("contact_type") or "").strip()
+        if contact_type not in {"Cliente", "Fornecedor"}:
+            contact_type = ""
         payload = {
-            "contact_type": contact_type if contact_type in {"Cliente", "Fornecedor", "Contato"} else "Contato",
+            "contact_type": contact_type,
             "name": name, "document": str(arguments.get("document") or "").strip()[:30],
             "email": str(arguments.get("email") or "").strip()[:255],
             "phone": str(arguments.get("phone") or "").strip()[:40],
             "notes": str(arguments.get("notes") or "").strip()[:1000],
         }
-        missing = ("nome",) if not name else ()
-        return ActionDraft(action_type, payload, missing, f"{payload['contact_type']}: {name or 'sem nome'}", source, action_key or uuid4().hex, channel)
+        missing_items = []
+        if not name:
+            missing_items.append("nome")
+        if not contact_type:
+            missing_items.append("tipo do contato (cliente ou fornecedor)")
+        missing = tuple(missing_items)
+        summary_type = contact_type or "Contato"
+        return ActionDraft(action_type, payload, missing, f"{summary_type}: {name or 'sem nome'}", source, action_key or uuid4().hex, channel)
 
     raise AssistantActionError("Tipo de ação não reconhecido.")
 
