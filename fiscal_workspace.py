@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from business_tools import monthly_closing
-from compact_cards import metric_card
+from compact_cards import stat_card
 from contextual_ai import contextual_ai_button
 from fiscal_rules import das_status
 from mei_obligations import upcoming_automatic_obligations
@@ -69,17 +69,13 @@ def render_fiscal_workspace(
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        if metric_card("DAS em atraso", str(len(overdue_das)), key="fiscal_overdue_das", help_text="Abrir DAS"):
-            navigate("DAS")
+        stat_card("DAS em atraso", str(len(overdue_das)), tone="danger" if overdue_das else "neutral")
     with c2:
-        if metric_card("DAS pendentes", str(len(pending_das)), key="fiscal_pending_das", help_text="Abrir DAS"):
-            navigate("DAS")
+        stat_card("DAS pendentes", str(len(pending_das)), tone="warning" if pending_das else "neutral")
     with c3:
-        if metric_card("Notas cadastradas", str(len(invoices)), key="fiscal_invoices", help_text="Abrir Notas Fiscais"):
-            navigate("Notas Fiscais")
+        stat_card("Notas cadastradas", str(len(invoices)))
     with c4:
-        if metric_card("Limite usado", f"{limit_pct:.1f}%", key="fiscal_limit", help_text="Abrir declaração anual"):
-            navigate("DASN-SIMEI")
+        stat_card("Limite usado", f"{limit_pct:.1f}%", tone="warning" if limit_pct >= 80 else "neutral")
 
     if overdue_das:
         alert_card("danger", "DAS em atraso", f"Existem {len(overdue_das)} competência(s) vencida(s) para revisar.")
@@ -88,16 +84,20 @@ def render_fiscal_workspace(
     else:
         alert_card("ok", "Rotina fiscal em ordem", "Nenhum DAS atrasado ou obrigação manual vencida foi identificado.")
 
-    section("Ações rápidas", "Acesse diretamente as rotinas fiscais mais usadas.")
-    a1, a2, a3, a4 = st.columns(4)
-    if a1.button("DAS mensal", width="stretch"):
+    a1, a2, spacer = st.columns([1, 1, 2.1], gap="small")
+    if a1.button("DAS mensal", type="primary", width="stretch"):
         navigate("DAS")
     if a2.button("Notas fiscais", width="stretch"):
         navigate("Notas Fiscais")
-    if a3.button("Prazos e obrigações", width="stretch"):
-        navigate("Obrigações")
-    if a4.button("Declaração anual", width="stretch"):
-        navigate("DASN-SIMEI")
+
+    with st.expander("Outras rotinas fiscais"):
+        x1, x2, x3 = st.columns(3)
+        if x1.button("Prazos e obrigações", width="stretch"):
+            navigate("Obrigações")
+        if x2.button("Declaração anual", width="stretch"):
+            navigate("DASN-SIMEI")
+        if x3.button("Relatório mensal", width="stretch"):
+            navigate("Relatório Mensal")
 
     left, right = st.columns([1.35, 1], gap="large")
     with left:
@@ -134,13 +134,7 @@ def render_fiscal_workspace(
         closing = monthly_closing(
             transactions, invoices, documents, das_rows, today.year, today.month
         )
-        if metric_card(
-            "Organização do mês",
-            f"{closing['score']}%",
-            key="fiscal_closing",
-            help_text="Abrir fechamento mensal",
-        ):
-            navigate("Fechamento Mensal")
+        stat_card("Organização do mês", f"{closing['score']}%", detail="Checklist interno do Razync")
         st.progress(closing["score"] / 100)
         pending = [item for item in closing["checklist"] if not item["OK"]]
         if pending:
@@ -201,31 +195,27 @@ def render_fiscal_workspace(
     with st.expander("Notas, documentos e relatórios"):
         n1, n2, n3 = st.columns(3)
         with n1:
-            if metric_card("Notas cadastradas", str(len(invoices)), key="fiscal_notes_total", help_text="Abrir Notas Fiscais"):
-                navigate("Notas Fiscais")
+            stat_card("Notas cadastradas", str(len(invoices)))
         with n2:
-            if metric_card("Documentos", str(len(documents)), key="fiscal_documents", help_text="Abrir Documentos"):
-                navigate("Documentos")
+            stat_card("Documentos", str(len(documents)))
         with n3:
-            if metric_card("Faturamento no ano", brl(annual_revenue), key="fiscal_revenue", help_text="Abrir relatório mensal"):
-                navigate("Relatório Mensal")
+            stat_card("Faturamento no ano", brl(annual_revenue))
 
-        q1, q2, q3 = st.columns(3)
+        q1, q2 = st.columns(2)
         activity_type = str(profile.get("activity_type") or "")
         if activity_type in {"Serviços", "Misto"} or not activity_type:
             if q1.button("Importar NFS-e", width="stretch"):
                 navigate("Importar NFS-e")
         else:
-            if q1.button("Notas fiscais", width="stretch"):
+            if q1.button("Abrir notas fiscais", width="stretch"):
                 navigate("Notas Fiscais")
-        if q2.button("Relatório mensal", width="stretch"):
-            navigate("Relatório Mensal")
-        if q3.button("Documentos", width="stretch"):
+        if q2.button("Abrir documentos", width="stretch"):
             navigate("Documentos")
 
     with st.expander("Mais recursos fiscais"):
+        st.caption("Recursos de revisão que não precisam ficar sempre visíveis.")
         b1, b2 = st.columns(2)
-        if b1.button("Fechamento mensal completo", width="stretch"):
+        if b1.button("Fechamento mensal", width="stretch"):
             navigate("Fechamento Mensal")
         if b2.button("Espaço do contador", width="stretch"):
             navigate("Espaço do Contador")
