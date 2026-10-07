@@ -117,6 +117,25 @@ def cached_closing_summary_pdf(profile_data: dict, year: int, month: int, closin
     return closing_summary_pdf(profile_data, year, month, closing)
 
 
+@st.cache_data(show_spinner=False, max_entries=8)
+def cached_statement_frame(content: bytes, filename: str) -> pd.DataFrame:
+    from io import BytesIO
+    from bank_import import read_statement
+
+    uploaded = BytesIO(content)
+    uploaded.name = filename
+    return read_statement(uploaded)
+
+
+@st.cache_data(show_spinner=False, ttl=120, max_entries=16)
+def cached_reconciliation(transactions_data: pd.DataFrame, invoices_data: pd.DataFrame):
+    return (
+        reconciliation_summary(transactions_data, invoices_data),
+        smart_invoice_matches(transactions_data, invoices_data),
+        duplicate_groups(transactions_data),
+    )
+
+
 st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="wide", initial_sidebar_state="expanded")
 try:
     init_db()
@@ -459,12 +478,28 @@ elif page == "Financeiro":
     )
 
 elif page == "Movimentações":
-    header("Movimentações","Registre o que entrou e saiu do MEI. Comece pelo essencial; os detalhes ficam opcionais.")
-    with st.container(border=True):
+    header("Movimentações", "Registre entradas e saídas sem complicação. Os detalhes ficam disponíveis quando você precisar.")
+
+    month_view = transactions[
+        (transactions["tx_date"].dt.year == CURRENT_YEAR)
+        & (transactions["tx_date"].dt.month == date.today().month)
+    ] if not transactions.empty else transactions
+    month_receita = float(month_view.loc[month_view["tx_type"] == "Receita", "value"].sum()) if not month_view.empty else 0.0
+    month_despesa = float(month_view.loc[month_view["tx_type"] == "Despesa", "value"].sum()) if not month_view.empty else 0.0
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        metric_card("Entradas neste mês", brl(month_receita), key="move_month_in")
+    with m2:
+        metric_card("Saídas neste mês", brl(month_despesa), key="move_month_out")
+    with m3:
+        metric_card("Resultado neste mês", brl(month_receita - month_despesa), key="move_month_result")
+
+    entry_col, help_col = st.columns([1.55, .85], gap="large")
+    with entry_col, st.container(key="rz_panel_movement_entry"):
         st.caption("NOVO LANÇAMENTO")
         with st.form("tx_form", clear_on_submit=True):
             tx_type = st.segmented_control(
-                "Tipo do lançamento",
+                "Tipo",
                 ["Receita", "Despesa"],
                 default="Receita",
                 selection_mode="single",
@@ -472,15 +507,15 @@ elif page == "Movimentações":
                 key="tx_type_new",
                 width="stretch",
             ) or "Receita"
-            a,b = st.columns(2)
+            a, b = st.columns(2)
             value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
             tx_date = b.date_input("Data", value=date.today())
-            desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente, compra de material...")
-            with st.expander("Mais detalhes (opcional)"):
-                a,b = st.columns(2)
+            desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente ou compra de material")
+            with st.expander("Adicionar detalhes"):
+                a, b = st.columns(2)
                 category = a.selectbox("Categoria", ["Serviços","Vendas","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
                 counterparty = b.text_input("Cliente ou fornecedor")
-                a,b = st.columns(2)
+                a, b = st.columns(2)
                 payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
                 doc = b.text_input("Nota ou documento")
             submitted = st.form_submit_button("Salvar movimentação", type="primary", width="stretch")
@@ -490,41 +525,83 @@ elif page == "Movimentações":
                 elif not desc.strip():
                     st.error("Informe uma descrição para identificar o lançamento.")
                 else:
-                    add_transaction(uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(), category=category, value=value, document_number=doc.strip(), counterparty=counterparty.strip(), payment_method=payment)
+                    add_transaction(
+                        uid, tx_date=tx_date, tx_type=tx_type, description=desc.strip(),
+                        category=category, value=value, document_number=doc.strip(),
+                        counterparty=counterparty.strip(), payment_method=payment,
+                    )
                     st.rerun()
-    section("Histórico")
+
+    with help_col, st.container(key="rz_panel_movement_help"):
+        st.caption("COMO ORGANIZAR")
+        st.markdown("**Registre o essencial primeiro.**")
+        st.caption("Valor, data e descrição já são suficientes para alimentar o painel e os relatórios.")
+        st.markdown(
+            '<div class="rz-inline-meta"><span>PIX</span><span>Cartão</span><span>Boleto</span><span>Dinheiro</span></div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Importar extrato em vez de digitar", key="movement_import_statement", width="stretch"):
+            navigate_to("Importar Extrato")
+        if st.button("Configurar recorrências", key="movement_recurring", width="stretch"):
+            navigate_to("Recorrências")
+
+    section("Histórico", "Busque, filtre e revise seus lançamentos.")
     if transactions.empty:
-        empty_state("Nenhuma movimentação registrada", "Quando você adicionar a primeira receita ou despesa, ela aparecerá aqui e alimentará automaticamente o Dashboard e os relatórios.", "↕")
+        empty_state(
+            "Nenhuma movimentação registrada",
+            "Sua primeira receita ou despesa aparecerá aqui e atualizará automaticamente o Dashboard e os relatórios.",
+            "↕",
+        )
     else:
-        f1, f2, f3 = st.columns([1, 1, 2])
-        type_filter = f1.selectbox("Filtrar por tipo", ["Todos", "Receita", "Despesa"])
-        category_options = ["Todas"] + sorted(str(x) for x in transactions["category"].dropna().unique())
-        category_filter = f2.selectbox("Filtrar por categoria", category_options)
-        search_filter = f3.text_input("Buscar no histórico", placeholder="Descrição, cliente ou documento")
-        filtered_view = filter_transactions(
-            transactions,
-            tx_type=type_filter,
-            category=category_filter,
-            search=search_filter,
-        )
-        view, total_tx, current_tx_page, max_tx_page = paginate_frame(
-            filtered_view,
-            st.session_state.get("tx_history_page", 1),
-            page_size=50,
-        )
-        page_size = 50
-        st.caption(f"{total_tx} lançamento(s) encontrado(s) no histórico completo.")
-        view["Data"] = view["tx_date"].dt.date; view["Tipo"] = view["tx_type"]; view["Descrição"] = view["description"]; view["Categoria"] = view["category"]; view["Valor"] = view["value"]
-        professional_table(view[["id","Data","Tipo","Descrição","Categoria","Valor"]], max_visible_rows=10, column_config={"id":None,"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
-        if total_tx > page_size:
-            pprev, pinfo, pnext = st.columns([1,2,1])
-            if pprev.button("← Anterior", disabled=current_tx_page <= 1, width="stretch"):
-                st.session_state["tx_history_page"] = current_tx_page - 1; st.rerun()
-            pinfo.caption(f"Página {current_tx_page} de {max_tx_page} • {total_tx} lançamentos")
-            if pnext.button("Próxima →", disabled=current_tx_page >= max_tx_page, width="stretch"):
-                st.session_state["tx_history_page"] = current_tx_page + 1; st.rerun()
-        with st.expander("Editar um lançamento"):
-            edit_id = st.selectbox("Lançamento", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}", key="edit_tx_id")
+        with st.container(key="rz_panel_movement_history"):
+            f1, f2, f3 = st.columns([1, 1, 2])
+            type_filter = f1.selectbox("Tipo", ["Todos", "Receita", "Despesa"])
+            category_options = ["Todas"] + sorted(str(x) for x in transactions["category"].dropna().unique())
+            category_filter = f2.selectbox("Categoria", category_options)
+            search_filter = f3.text_input("Buscar", placeholder="Descrição, cliente ou documento")
+            filtered_view = filter_transactions(
+                transactions,
+                tx_type=type_filter,
+                category=category_filter,
+                search=search_filter,
+            )
+            view, total_tx, current_tx_page, max_tx_page = paginate_frame(
+                filtered_view,
+                st.session_state.get("tx_history_page", 1),
+                page_size=50,
+            )
+            st.caption(f"{total_tx} lançamento(s) encontrado(s)")
+            view["Data"] = view["tx_date"].dt.date
+            view["Tipo"] = view["tx_type"]
+            view["Descrição"] = view["description"]
+            view["Categoria"] = view["category"]
+            view["Valor"] = view["value"]
+            professional_table(
+                view[["id","Data","Tipo","Descrição","Categoria","Valor"]],
+                max_visible_rows=10,
+                column_config={
+                    "id": None,
+                    "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                    "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                },
+            )
+            if total_tx > 50:
+                pprev, pinfo, pnext = st.columns([1, 2, 1])
+                if pprev.button("← Anterior", disabled=current_tx_page <= 1, width="stretch"):
+                    st.session_state["tx_history_page"] = current_tx_page - 1
+                    st.rerun()
+                pinfo.caption(f"Página {current_tx_page} de {max_tx_page}")
+                if pnext.button("Próxima →", disabled=current_tx_page >= max_tx_page, width="stretch"):
+                    st.session_state["tx_history_page"] = current_tx_page + 1
+                    st.rerun()
+
+        with st.expander("Editar lançamento"):
+            edit_id = st.selectbox(
+                "Lançamento",
+                transactions["id"].tolist(),
+                format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}",
+                key="edit_tx_id",
+            )
             edit_row = transactions.loc[transactions["id"] == edit_id].iloc[0]
             with st.form("edit_tx_form"):
                 e1, e2 = st.columns(2)
@@ -543,13 +620,26 @@ elif page == "Movimentações":
                 if not edit_description.strip():
                     st.error("Informe uma descrição.")
                 else:
-                    update_transaction(uid, int(edit_id), tx_date=edit_date, tx_type=edit_type, description=edit_description.strip(), category=edit_category.strip() or "Outros", value=edit_value, document_number=edit_document.strip(), counterparty=edit_counterparty.strip(), payment_method=edit_payment.strip())
+                    update_transaction(
+                        uid, int(edit_id), tx_date=edit_date, tx_type=edit_type,
+                        description=edit_description.strip(),
+                        category=edit_category.strip() or "Outros",
+                        value=edit_value, document_number=edit_document.strip(),
+                        counterparty=edit_counterparty.strip(),
+                        payment_method=edit_payment.strip(),
+                    )
                     st.success("Lançamento atualizado.")
                     st.rerun()
-        with st.expander("Excluir um lançamento"):
-            item = st.selectbox("Selecione", transactions["id"].tolist(), format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}")
+
+        with st.expander("Excluir lançamento"):
+            item = st.selectbox(
+                "Selecione",
+                transactions["id"].tolist(),
+                format_func=lambda x: f"#{x} - {transactions.loc[transactions['id']==x,'description'].iloc[0]}",
+                key="delete_tx_id",
+            )
             st.caption("A exclusão é definitiva. Confira o lançamento antes de continuar.")
-            if st.button("Excluir lançamento selecionado", width="stretch"):
+            if st.button("Excluir lançamento selecionado", key="delete_tx_button", width="stretch"):
                 deleted = transactions.loc[transactions["id"] == item].iloc[0].to_dict()
                 st.session_state["_undo_transaction"] = transaction_restore_payload(deleted)
                 delete_transaction(uid, int(item))
@@ -659,32 +749,54 @@ elif page == "Recorrências":
 
 elif page == "Importar Extrato":
     from bank_import import (
-        read_statement, prepare_statement, is_probable_duplicate,
-        suggest_category, suggest_statement_columns,
+        prepare_statement, is_probable_duplicate, suggest_category, suggest_statement_columns,
     )
-    header("Importar Extrato","Envie CSV ou Excel. O Razync transforma o extrato em lançamentos para conciliação e relatórios.")
-    st.caption("Envie o arquivo. O Razync identifica as colunas, organiza as categorias e separa possíveis duplicidades para sua confirmação.")
-    upload = st.file_uploader("Arquivo do extrato", type=["csv","xlsx","xls"], key="statement_file")
+
+    header("Importar Extrato", "Transforme CSV ou Excel do banco em lançamentos prontos para revisar.")
+    st.markdown(
+        """
+        <div class="rz-step-grid">
+          <div class="rz-step"><b>1 · Envie</b><span>Escolha o arquivo exportado pelo banco.</span></div>
+          <div class="rz-step"><b>2 · Confira</b><span>Revise colunas, categorias e possíveis duplicidades.</span></div>
+          <div class="rz-step"><b>3 · Confirme</b><span>Somente então os lançamentos são gravados.</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.container(key="rz_panel_statement_upload"):
+        st.caption("ARQUIVO BANCÁRIO")
+        upload = st.file_uploader(
+            "CSV ou Excel",
+            type=["csv","xlsx","xls"],
+            key="statement_file",
+            help="O arquivo é analisado somente após você enviá-lo.",
+        )
+
     if upload:
         try:
-            raw = read_statement(upload)
+            with st.spinner("Lendo o extrato..."):
+                raw = cached_statement_frame(upload.getvalue(), upload.name)
             if raw.empty:
                 st.warning("O arquivo não possui linhas para importar.")
             else:
-                st.subheader("1. Confira as colunas")
-                professional_table(raw.head(8), max_visible_rows=8)
-                cols = list(raw.columns)
-                suggested_columns = suggest_statement_columns(raw)
-                def suggested_index(field: str, fallback: int) -> int:
-                    suggested = suggested_columns.get(field)
-                    return cols.index(suggested) if suggested in cols else min(fallback, len(cols) - 1)
-                a,b,c = st.columns(3)
-                date_col = a.selectbox("Coluna de data", cols, index=suggested_index("date", 0))
-                desc_col = b.selectbox("Coluna de descrição", cols, index=suggested_index("description", 1))
-                value_col = c.selectbox("Coluna de valor", cols, index=suggested_index("value", 2))
-                if all(suggested_columns.values()):
-                    st.success("Colunas identificadas automaticamente. Confira a prévia e confirme a importação.")
-                st.subheader("2. Prepare a importação")
+                with st.container(key="rz_panel_statement_mapping"):
+                    st.caption("CONFIRA AS COLUNAS")
+                    professional_table(raw.head(8), max_visible_rows=8)
+                    cols = list(raw.columns)
+                    suggested_columns = suggest_statement_columns(raw)
+
+                    def suggested_index(field: str, fallback: int) -> int:
+                        suggested = suggested_columns.get(field)
+                        return cols.index(suggested) if suggested in cols else min(fallback, len(cols) - 1)
+
+                    a, b, cmap = st.columns(3)
+                    date_col = a.selectbox("Data", cols, index=suggested_index("date", 0))
+                    desc_col = b.selectbox("Descrição", cols, index=suggested_index("description", 1))
+                    value_col = cmap.selectbox("Valor", cols, index=suggested_index("value", 2))
+                    if all(suggested_columns.values()):
+                        st.caption("✓ O Razync identificou as colunas automaticamente. Confirme antes de continuar.")
+
                 prepared = prepare_statement(raw, date_col, desc_col, value_col)
                 learned_suggestions = [
                     learned_category(
@@ -695,6 +807,7 @@ elif page == "Importar Extrato":
                 ]
                 prepared["Categoria sugerida"] = [item["category"] for item in learned_suggestions]
                 prepared["Confiança da categoria"] = [item["confidence"] for item in learned_suggestions]
+
                 if prepared.empty:
                     st.warning("Nenhuma linha válida foi encontrada com esse mapeamento.")
                 else:
@@ -705,89 +818,152 @@ elif page == "Importar Extrato":
                         )
                         for _, row in prepared.iterrows()
                     ]
-                    professional_table(prepared, max_visible_rows=10, column_config={"Valor":st.column_config.NumberColumn("Valor",format="R$ %.2f"),"Data":st.column_config.DateColumn("Data",format="DD/MM/YYYY")})
-                    only_new = st.checkbox("Ignorar possíveis duplicados", value=True)
-                    rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
-                    st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
-                    if st.button("Confirmar importação", type="primary", width="stretch"):
-                        import_rows=[{
-                            "tx_date":r["Data"],
-                            "tx_type":r["Tipo"],
-                            "description":r["Descrição"],
-                            "category":r["Categoria sugerida"],
-                            "value":float(r["Valor"]),
-                            "document_number":"",
-                            "counterparty":"",
-                            "payment_method":"Banco",
-                        } for _,r in rows_to_import.iterrows()]
-                        try:
-                            count=add_transactions_bulk(uid,import_rows)
-                        except Exception:
-                            st.error("A importação foi cancelada e nenhum lançamento foi salvo. Revise o arquivo e tente novamente.")
-                        else:
-                            st.success(f"{count} lançamento(s) importados em uma única operação.")
-                            st.session_state["_navigate_to"] = "Movimentações"
-                            st.rerun()
+                    with st.container(key="rz_panel_statement_review"):
+                        st.caption("REVISÃO FINAL")
+                        new_count = int((~prepared["Duplicado"]).sum())
+                        duplicate_count = int(prepared["Duplicado"].sum())
+                        r1, r2, r3 = st.columns(3)
+                        r1.metric("Linhas válidas", len(prepared))
+                        r2.metric("Novos lançamentos", new_count)
+                        r3.metric("Possíveis duplicados", duplicate_count)
+                        professional_table(
+                            prepared,
+                            max_visible_rows=10,
+                            column_config={
+                                "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                            },
+                        )
+                        only_new = st.checkbox("Ignorar possíveis duplicados", value=True)
+                        rows_to_import = prepared[~prepared["Duplicado"]] if only_new else prepared
+                        st.caption(f"{len(rows_to_import)} lançamento(s) serão importados.")
+                        if st.button("Confirmar importação", type="primary", width="stretch"):
+                            import_rows = [{
+                                "tx_date": r["Data"],
+                                "tx_type": r["Tipo"],
+                                "description": r["Descrição"],
+                                "category": r["Categoria sugerida"],
+                                "value": float(r["Valor"]),
+                                "document_number": "",
+                                "counterparty": "",
+                                "payment_method": "Banco",
+                            } for _, r in rows_to_import.iterrows()]
+                            try:
+                                count = add_transactions_bulk(uid, import_rows)
+                            except Exception:
+                                st.error("A importação foi cancelada e nenhum lançamento foi salvo. Revise o arquivo e tente novamente.")
+                            else:
+                                st.success(f"{count} lançamento(s) importados.")
+                                st.session_state["_navigate_to"] = "Movimentações"
+                                st.rerun()
         except Exception as exc:
             st.error(f"Não foi possível ler o arquivo: {exc}")
 
 elif page == "Conciliação":
-    header("Conciliação Inteligente", "O Razync compara notas e receitas usando número do documento, valor, data e cliente para sugerir correspondências.")
-    rec = reconciliation_summary(transactions, invoices)
-    matches = smart_invoice_matches(transactions, invoices)
-    duplicates = duplicate_groups(transactions)
-    c1,c2,c3,c4 = st.columns(4)
+    header("Conciliação", "Encontre correspondências entre notas e recebimentos sem criar lançamentos duplicados.")
+    rec, matches, duplicates = cached_reconciliation(transactions, invoices)
+
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Notas emitidas", rec["total_invoices"])
-    c2.metric("Já conciliadas", rec["reconciled_invoices"])
-    c3.metric("Sugestões encontradas", len(matches))
-    c4.metric("Possíveis duplicidades", len(duplicates))
+    c2.metric("Conciliadas", rec["reconciled_invoices"])
+    c3.metric("Sugestões", len(matches))
+    c4.metric("Duplicidades", len(duplicates))
 
-    section("Sugestões automáticas", "Revise antes de confirmar. O Razync nunca vincula automaticamente sem sua decisão.")
+    section("Correspondências sugeridas", "O Razync sugere; você decide antes de qualquer vínculo.")
     if matches.empty:
-        empty_state("Nenhuma correspondência forte encontrada", "Você pode importar um extrato ou registrar receitas para o Razync encontrar possíveis vínculos com as notas.", "≈")
+        empty_state(
+            "Nenhuma correspondência forte encontrada",
+            "Importe um extrato ou registre receitas para comparar com suas notas.",
+            "≈",
+        )
     else:
-        show_matches = matches.rename(columns={"invoice_number":"Nota","customer":"Cliente","invoice_value":"Valor da nota","tx_date":"Data do lançamento","tx_description":"Lançamento","tx_value":"Valor lançado","score":"Pontuação","confidence":"Confiança","reasons":"Motivos"})
-        professional_table(show_matches[["Nota","Cliente","Valor da nota","Data do lançamento","Lançamento","Valor lançado","Confiança","Pontuação","Motivos"]], max_visible_rows=8, column_config={"Valor da nota":st.column_config.NumberColumn("Valor da nota", format="R$ %.2f"), "Valor lançado":st.column_config.NumberColumn("Valor lançado", format="R$ %.2f"), "Data do lançamento":st.column_config.DateColumn("Data do lançamento", format="DD/MM/YYYY"), "Pontuação":st.column_config.ProgressColumn("Pontuação", min_value=0, max_value=100)})
-        option_labels = {int(r.tx_id): f"Nota {r.invoice_number or r.invoice_id} → {r.tx_description} • R$ {r.tx_value:,.2f} • confiança {r.confidence}" for r in matches.itertuples()}
-        selected_tx = st.selectbox("Sugestão para revisar", list(option_labels.keys()), format_func=lambda x: option_labels[x], key="smart_match")
-        selected = matches[matches["tx_id"] == selected_tx].iloc[0]
-        st.caption(f"Motivos: {selected['reasons']} • pontuação {int(selected['score'])}/100")
-        if st.button("Confirmar vínculo com este lançamento", type="primary", width="stretch"):
-            link_transaction_document(uid, int(selected["tx_id"]), str(selected["invoice_number"] or ""), str(selected["customer"] or ""))
-            st.success("Nota vinculada ao lançamento existente sem criar receita duplicada.")
-            st.rerun()
-
-    section("Notas ainda sem vínculo")
-    pending_inv = rec["pending_invoices"]
-    if pending_inv.empty:
-        st.success("Todas as notas numeradas estão conciliadas com receitas cadastradas.")
-    else:
-        professional_table(pending_inv, max_visible_rows=8, column_config={"Valor":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
-        with st.expander("Criar receita a partir de uma nota sem correspondência"):
-            selected_invoice = st.selectbox("Nota", pending_inv["ID"].tolist(), key="rec_invoice")
-            source = invoices[invoices["id"] == selected_invoice].iloc[0]
-            st.caption("Use somente quando não existir um recebimento correspondente entre as movimentações.")
-            if st.button("Criar nova receita desta nota", width="stretch"):
-                issue = source["issue_date"]
-                tx_date_value = issue.date() if hasattr(issue, "date") else issue
-                add_transaction(uid, tx_date=tx_date_value, tx_type="Receita", description=source.get("description") or f"Nota {source.get('number') or ''}", category="Serviços" if source.get("invoice_type") == "Serviço" else "Vendas", value=float(source.get("amount") or 0), document_number=str(source.get("number") or ""), counterparty=str(source.get("customer") or ""), payment_method="Outro")
+        with st.container(key="rz_panel_reconciliation_matches"):
+            show_matches = matches.rename(columns={
+                "invoice_number":"Nota","customer":"Cliente","invoice_value":"Valor da nota",
+                "tx_date":"Data do lançamento","tx_description":"Lançamento",
+                "tx_value":"Valor lançado","score":"Pontuação",
+                "confidence":"Confiança","reasons":"Motivos",
+            })
+            professional_table(
+                show_matches[["Nota","Cliente","Valor da nota","Data do lançamento","Lançamento","Valor lançado","Confiança","Pontuação"]],
+                max_visible_rows=8,
+                column_config={
+                    "Valor da nota": st.column_config.NumberColumn("Valor da nota", format="R$ %.2f"),
+                    "Valor lançado": st.column_config.NumberColumn("Valor lançado", format="R$ %.2f"),
+                    "Data do lançamento": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                    "Pontuação": st.column_config.ProgressColumn("Pontuação", min_value=0, max_value=100),
+                },
+            )
+            option_labels = {
+                int(row.tx_id): f"Nota {row.invoice_number or row.invoice_id} → {row.tx_description} · confiança {row.confidence}"
+                for row in matches.itertuples()
+            }
+            selected_tx = st.selectbox(
+                "Sugestão para revisar",
+                list(option_labels.keys()),
+                format_func=lambda x: option_labels[x],
+                key="smart_match",
+            )
+            selected = matches[matches["tx_id"] == selected_tx].iloc[0]
+            st.caption(f"{selected['reasons']} · pontuação {int(selected['score'])}/100")
+            if st.button("Confirmar vínculo", type="primary", width="stretch"):
+                link_transaction_document(
+                    uid,
+                    int(selected["tx_id"]),
+                    str(selected["invoice_number"] or ""),
+                    str(selected["customer"] or ""),
+                )
+                st.success("Nota vinculada ao lançamento existente.")
                 st.rerun()
 
-    section("Possíveis lançamentos duplicados")
-    if duplicates.empty:
-        st.success("Nenhuma duplicidade evidente foi encontrada nas movimentações.")
-    else:
-        professional_table(duplicates, max_visible_rows=8, column_config={"tx_date":st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "value":st.column_config.NumberColumn("Valor", format="R$ %.2f")})
-        with st.expander("Remover duplicidade"):
+    pending_inv = rec["pending_invoices"]
+    with st.expander(f"Notas ainda sem vínculo · {len(pending_inv)}", expanded=bool(len(pending_inv)) and matches.empty):
+        if pending_inv.empty:
+            st.success("Todas as notas numeradas estão conciliadas.")
+        else:
+            professional_table(
+                pending_inv,
+                max_visible_rows=8,
+                column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f")},
+            )
+            selected_invoice = st.selectbox("Nota", pending_inv["ID"].tolist(), key="rec_invoice")
+            source = invoices[invoices["id"] == selected_invoice].iloc[0]
+            st.caption("Crie uma receita somente quando não existir um recebimento correspondente.")
+            if st.button("Criar receita desta nota", width="stretch"):
+                issue = source["issue_date"]
+                tx_date_value = issue.date() if hasattr(issue, "date") else issue
+                add_transaction(
+                    uid, tx_date=tx_date_value, tx_type="Receita",
+                    description=source.get("description") or f"Nota {source.get('number') or ''}",
+                    category="Serviços" if source.get("invoice_type") == "Serviço" else "Vendas",
+                    value=float(source.get("amount") or 0),
+                    document_number=str(source.get("number") or ""),
+                    counterparty=str(source.get("customer") or ""),
+                    payment_method="Outro",
+                )
+                st.rerun()
+
+    with st.expander(f"Possíveis duplicidades · {len(duplicates)}"):
+        if duplicates.empty:
+            st.success("Nenhuma duplicidade evidente foi encontrada.")
+        else:
+            professional_table(
+                duplicates,
+                max_visible_rows=8,
+                column_config={
+                    "tx_date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                    "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                },
+            )
             duplicate_id = st.selectbox("Lançamento a excluir", duplicates["id"].tolist(), key="duplicate_delete")
-            st.caption("Confira os registros antes de excluir. A exclusão é definitiva.")
-            if st.button("Excluir lançamento selecionado", width="stretch"):
+            st.caption("Confira os registros antes de excluir.")
+            if st.button("Excluir lançamento selecionado", key="remove_duplicate", width="stretch"):
                 deleted = transactions.loc[transactions["id"] == duplicate_id].iloc[0].to_dict()
                 st.session_state["_undo_transaction"] = transaction_restore_payload(deleted)
                 delete_transaction(uid, int(duplicate_id))
                 st.rerun()
 
-    if st.button("Importar novo extrato", width="stretch"):
+    if st.button("Importar novo extrato", key="reconciliation_import", width="stretch"):
         st.session_state["_navigate_to"] = "Importar Extrato"
         st.rerun()
 
