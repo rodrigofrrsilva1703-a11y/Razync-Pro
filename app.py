@@ -1033,7 +1033,13 @@ elif page == "Análise Financeira":
 
     analysis_limit = annual_limit_for(opening, analysis_year, profile.get("annual_limit"))
     section("Leitura automática", "O que os números cadastrados indicam em linguagem simples.")
-    for insight in financial_story(analysis["revenue"], analysis["expense"], analysis["revenue"], analysis_limit):
+    for insight in financial_story(
+        analysis["revenue"],
+        analysis["expense"],
+        analysis["revenue"],
+        analysis_limit,
+        period_label="ano",
+    ):
         alert_card(insight["tone"], insight["title"], insight["detail"])
 
     monthly = analysis["monthly"]
@@ -1058,12 +1064,34 @@ elif page == "Análise Financeira":
             st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
     with right:
         section("Revisões recomendadas")
-        checks = consistency_checks(transactions, invoices, das_rows)
-        if checks:
-            for item in checks:
-                st.warning(item)
+        analysis_transactions = (
+            transactions[transactions["tx_date"].dt.year == analysis_year]
+            if not transactions.empty else transactions
+        )
+        analysis_invoices = (
+            invoices[invoices["issue_date"].dt.year == analysis_year]
+            if not invoices.empty else invoices
+        )
+        analysis_das = [
+            item for item in das_rows
+            if str(item.get("competence") or "").startswith(str(analysis_year))
+        ]
+        checks = consistency_checks(analysis_transactions, analysis_invoices, analysis_das)
+        actionable_checks = [
+            item for item in checks
+            if str(item.get("Nível") or "") != "OK"
+        ]
+        if not actionable_checks:
+            st.success("Nenhuma inconsistência básica identificada neste ano.")
         else:
-            st.success("Nenhuma inconsistência relevante encontrada.")
+            for item in actionable_checks:
+                tone = "danger" if item.get("Nível") == "Crítico" else "warn"
+                quantity = int(item.get("Quantidade") or 0)
+                alert_card(
+                    tone,
+                    str(item.get("Verificação") or "Revisar informação"),
+                    f"{quantity} ocorrência(s) encontrada(s) no ano selecionado.",
+                )
 
     with st.expander("Ver tabela mensal"):
         if not monthly.empty:
