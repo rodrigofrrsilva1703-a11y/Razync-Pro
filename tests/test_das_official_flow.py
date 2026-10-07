@@ -14,13 +14,15 @@ class DasOfficialFlowTests(unittest.TestCase):
             self.customer_experience,
         )
         self.assertIn('OFFICIAL_SERVICES["das"]["url"]', self.app)
-        self.assertIn("Gerar DAS no site oficial", self.app)
-        self.assertIn("nunca pede nem armazena sua senha gov.br", self.app)
+        self.assertIn("Abrir PGMEI oficial", self.app)
+        self.assertIn("não solicita nem armazena sua senha gov.br", self.app)
 
     def test_can_store_the_official_guide_with_the_competence(self):
-        self.assertIn('key="das_guide_upload"', self.app)
-        self.assertIn('save_uploaded_document(user,guide,"DAS",competence)', self.app)
-        self.assertIn('upsert_das(uid,competence,due,amount,status,payment_date,notes)', self.app)
+        self.assertIn('key=f"das_guide_upload_{competence}"', self.app)
+        self.assertIn('save_uploaded_document(user, guide, "DAS", competence)', self.app)
+        self.assertIn("upsert_das(", self.app)
+        self.assertIn("uid, competence", self.app)
+        self.assertIn("Vencimento (confirme na guia)", self.app)
 
 
 if __name__ == "__main__":
