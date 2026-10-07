@@ -1208,39 +1208,91 @@ elif page == "Notas Fiscais":
                 st.rerun()
 
 elif page == "Importar NFS-e":
-    header("Importar NFS-e", "Traga para o Razync as notas exportadas pelo portal da prefeitura ou pelo Emissor Nacional.")
-    st.info("Exporte as notas em CSV ou XLSX. O arquivo é lido apenas durante a importação e não é armazenado.")
-    nfse_file = st.file_uploader("Arquivo de NFS-e", type=["csv", "xlsx", "xls"], key="nfse_import")
+    header("Importar NFS-e", "Traga as notas exportadas do portal oficial sem digitar uma por uma.")
+    st.markdown(
+        """
+        <div class="rz-step-grid">
+          <div class="rz-step"><b>1 · Exporte</b><span>Baixe CSV ou Excel no emissor.</span></div>
+          <div class="rz-step"><b>2 · Mapeie</b><span>Confirme quais colunas representam cada campo.</span></div>
+          <div class="rz-step"><b>3 · Importe</b><span>Somente notas novas são adicionadas.</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.container(key="rz_panel_nfse_import"):
+        st.caption("ARQUIVO DE NFS-E")
+        nfse_file = st.file_uploader(
+            "CSV ou Excel",
+            type=["csv", "xlsx", "xls"],
+            key="nfse_import",
+            help="O arquivo-fonte é usado apenas durante a importação.",
+        )
+
     if nfse_file is not None:
         try:
             nfse_frame = read_nfse_export(nfse_file)
         except ValueError as exc:
             st.error(str(exc))
         else:
-            suggestions = suggest_nfse_columns(nfse_frame.columns)
-            options = ["—"] + list(nfse_frame.columns)
-            labels = {"date": "Data de emissão", "number": "Número da nota", "amount": "Valor", "customer": "Cliente/tomador", "document": "CPF/CNPJ", "description": "Descrição", "status": "Situação"}
-            mapping = {}
-            for field, label in labels.items():
-                suggested = suggestions.get(field)
-                index = options.index(suggested) if suggested in options else 0
-                selected = st.selectbox(label, options, index=index, key=f"nfse_{field}")
-                mapping[field] = None if selected == "—" else selected
+            with st.container(key="rz_panel_nfse_mapping"):
+                st.caption("MAPEAMENTO")
+                suggestions = suggest_nfse_columns(nfse_frame.columns)
+                options = ["—"] + list(nfse_frame.columns)
+                labels = {
+                    "date": "Data de emissão",
+                    "number": "Número da nota",
+                    "amount": "Valor",
+                    "customer": "Cliente/tomador",
+                    "document": "CPF/CNPJ",
+                    "description": "Descrição",
+                    "status": "Situação",
+                }
+                mapping = {}
+                fields = list(labels.items())
+                for index in range(0, len(fields), 2):
+                    cols = st.columns(2)
+                    for offset, (field, label) in enumerate(fields[index:index+2]):
+                        suggested = suggestions.get(field)
+                        selected_index = options.index(suggested) if suggested in options else 0
+                        selected = cols[offset].selectbox(
+                            label,
+                            options,
+                            index=selected_index,
+                            key=f"nfse_{field}",
+                        )
+                        mapping[field] = None if selected == "—" else selected
+
             try:
                 nfse_rows = normalize_nfse(nfse_frame, mapping)
             except ValueError as exc:
                 st.warning(str(exc))
                 nfse_rows = []
+
             if nfse_rows:
-                professional_table(pd.DataFrame(nfse_rows), max_visible_rows=8)
-                existing_numbers = set(invoices["number"].fillna("").astype(str)) if not invoices.empty else set()
+                existing_numbers = (
+                    set(invoices["number"].fillna("").astype(str))
+                    if not invoices.empty else set()
+                )
                 new_rows = [row for row in nfse_rows if row["number"] not in existing_numbers]
-                st.caption(f"{len(new_rows)} nota(s) nova(s); {len(nfse_rows) - len(new_rows)} já cadastrada(s).")
-                if st.button("Importar notas novas", type="primary", width="stretch", disabled=not new_rows):
-                    for row in new_rows:
-                        add_invoice(uid, **row)
-                    st.success(f"{len(new_rows)} nota(s) importada(s).")
-                    st.rerun()
+                with st.container(key="rz_panel_nfse_review"):
+                    st.caption("REVISÃO")
+                    a, b, d = st.columns(3)
+                    a.metric("Lidas", len(nfse_rows))
+                    b.metric("Novas", len(new_rows))
+                    d.metric("Já cadastradas", len(nfse_rows) - len(new_rows))
+                    professional_table(pd.DataFrame(nfse_rows), max_visible_rows=8)
+                    if st.button(
+                        "Importar notas novas",
+                        type="primary",
+                        width="stretch",
+                        disabled=not new_rows,
+                    ):
+                        for row in new_rows:
+                            add_invoice(uid, **row)
+                        st.success(f"{len(new_rows)} nota(s) importada(s).")
+                        st.session_state["_navigate_to"] = "Notas Fiscais"
+                        st.rerun()
 
 elif page == "Fiscal":
     header("Fiscal MEI", "Acompanhe DAS, notas, obrigações e declaração anual sem se perder entre telas.")
@@ -1520,15 +1572,34 @@ elif page == "Obrigações":
                 st.rerun()
 
 elif page == "Clientes e Fornecedores":
-    header("Clientes e Fornecedores","Mantenha os contatos essenciais organizados para reutilizar em vendas, compras e documentos.")
-    with st.container(border=True):
+    header("Clientes e Fornecedores", "Organize os contatos que aparecem nas vendas, compras e documentos.")
+
+    client_count = sum(1 for item in contacts if item.get("contact_type") == "Cliente")
+    supplier_count = sum(1 for item in contacts if item.get("contact_type") == "Fornecedor")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Contatos", len(contacts))
+    c2.metric("Clientes", client_count)
+    c3.metric("Fornecedores", supplier_count)
+
+    form_col, tip_col = st.columns([1.55, .85], gap="large")
+    with form_col, st.container(key="rz_panel_contacts_new"):
         st.caption("NOVO CONTATO")
-        with st.form("contact_form",clear_on_submit=True):
-            a,b=st.columns([1,2]); typ=a.segmented_control("Tipo",["Cliente","Fornecedor"],default="Cliente",selection_mode="single") or "Cliente"; name=b.text_input("Nome",placeholder="Nome ou razão social")
-            with st.expander("Mais detalhes (opcional)"):
-                a,b,c=st.columns(3); doc=a.text_input("CPF/CNPJ"); email=b.text_input("E-mail"); phone=c.text_input("Telefone")
-                notes=st.text_area("Observações")
-            save=st.form_submit_button("Salvar contato",type="primary",width="stretch")
+        with st.form("contact_form", clear_on_submit=True):
+            a, b = st.columns([1, 2])
+            typ = a.segmented_control(
+                "Tipo",
+                ["Cliente","Fornecedor"],
+                default="Cliente",
+                selection_mode="single",
+            ) or "Cliente"
+            name = b.text_input("Nome", placeholder="Nome ou razão social")
+            with st.expander("Adicionar detalhes"):
+                a, b, d = st.columns(3)
+                doc = a.text_input("CPF/CNPJ")
+                email = b.text_input("E-mail")
+                phone = d.text_input("Telefone")
+                notes = st.text_area("Observações")
+            save = st.form_submit_button("Salvar contato", type="primary", width="stretch")
             if save:
                 document_ok, document_error = cpf_or_cnpj_status(doc)
                 if not name.strip():
@@ -1536,43 +1607,99 @@ elif page == "Clientes e Fornecedores":
                 elif not document_ok:
                     st.error(document_error)
                 else:
-                    add_contact(uid,contact_type=typ,name=name.strip(),document=doc.strip(),email=email.strip(),phone=phone.strip(),notes=notes.strip())
+                    add_contact(
+                        uid, contact_type=typ, name=name.strip(),
+                        document=doc.strip(), email=email.strip(),
+                        phone=phone.strip(), notes=notes.strip(),
+                    )
                     st.rerun()
-    section("Contatos")
+
+    with tip_col, st.container(key="rz_panel_contacts_tip"):
+        st.caption("ORGANIZAÇÃO")
+        st.markdown("**Cadastre só o que você realmente usa.**")
+        st.caption("Nome é suficiente para começar; documento e contato podem ser preenchidos depois.")
+        st.markdown(
+            '<div class="rz-inline-meta"><span>Cliente</span><span>Fornecedor</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    section("Contatos", "Consulte e gerencie sua lista.")
     if not contacts:
-        empty_state("Nenhum cliente ou fornecedor", "Adicione seu primeiro contato para organizar quem compra de você e de quem sua empresa compra.", "◇")
+        empty_state(
+            "Nenhum cliente ou fornecedor",
+            "Adicione seu primeiro contato para organizar quem compra de você e de quem sua empresa compra.",
+            "◇",
+        )
     else:
-        cdf=pd.DataFrame(contacts); professional_table(cdf, max_visible_rows=10)
+        with st.container(key="rz_panel_contacts_list"):
+            cdf = pd.DataFrame(contacts)
+            professional_table(cdf, max_visible_rows=10)
         with st.expander("Excluir contato"):
-            cid=st.selectbox("Selecione",[c["id"] for c in contacts],format_func=lambda x:next(c["name"] for c in contacts if c["id"]==x),key="delcontact"); st.caption("A exclusão é definitiva.")
-            if st.button("Excluir contato selecionado",width="stretch"): delete_contact(uid,int(cid)); st.rerun()
+            cid = st.selectbox(
+                "Selecione",
+                [item["id"] for item in contacts],
+                format_func=lambda value: next(item["name"] for item in contacts if item["id"] == value),
+                key="delcontact",
+            )
+            st.caption("A exclusão é definitiva.")
+            if st.button("Excluir contato selecionado", key="delete_contact_btn", width="stretch"):
+                delete_contact(uid, int(cid))
+                st.rerun()
 
 elif page == "Empregado":
-    header("Empregado","Organize informações básicas quando o MEI possuir empregado registrado.")
-    with st.container(border=True):
-        st.caption("CADASTRO DO EMPREGADO")
-        with st.form("emp_form",clear_on_submit=True):
-            name=st.text_input("Nome",placeholder="Nome completo")
-            a,b=st.columns(2); admission=a.date_input("Data de admissão",value=date.today()); salary=b.number_input("Salário",min_value=0.0,step=50.0)
-            with st.expander("Mais detalhes (opcional)"):
-                cpf=st.text_input("CPF"); status=st.selectbox("Status",["Ativo","Inativo"]); notes=st.text_area("Observações")
-            save=st.form_submit_button("Salvar empregado",type="primary",width="stretch")
+    header("Empregado", "Mantenha as informações básicas do empregado junto da organização do MEI.")
+
+    active_employees = sum(1 for item in employees if item.get("status") == "Ativo")
+    e1, e2 = st.columns(2)
+    e1.metric("Cadastrados", len(employees))
+    e2.metric("Ativos", active_employees)
+
+    with st.container(key="rz_panel_employee_new"):
+        st.caption("CADASTRAR EMPREGADO")
+        with st.form("emp_form", clear_on_submit=True):
+            name = st.text_input("Nome", placeholder="Nome completo")
+            a, b = st.columns(2)
+            admission = a.date_input("Data de admissão", value=date.today())
+            salary = b.number_input("Salário", min_value=0.0, step=50.0)
+            with st.expander("Adicionar detalhes"):
+                cpf = st.text_input("CPF")
+                status = st.selectbox("Situação", ["Ativo","Inativo"])
+                notes = st.text_area("Observações")
+            save = st.form_submit_button("Salvar empregado", type="primary", width="stretch")
             if save:
                 if not name.strip():
                     st.error("Informe o nome do empregado.")
                 elif cpf.strip() and not valid_cpf(cpf):
                     st.error("CPF inválido.")
                 else:
-                    add_employee(uid,name=name.strip(),cpf=cpf.strip(),admission_date=admission,salary=salary,status=status,notes=notes.strip())
+                    add_employee(
+                        uid, name=name.strip(), cpf=cpf.strip(),
+                        admission_date=admission, salary=salary,
+                        status=status, notes=notes.strip(),
+                    )
                     st.rerun()
+
     section("Empregados cadastrados")
     if not employees:
-        empty_state("Nenhum empregado cadastrado", "Se o seu MEI possuir empregado, registre os dados básicos aqui para manter essa informação junto da gestão do negócio.", "♙")
+        empty_state(
+            "Nenhum empregado cadastrado",
+            "Se o MEI possuir empregado, registre aqui os dados básicos para manter a gestão organizada.",
+            "♙",
+        )
     else:
-        professional_table(pd.DataFrame(employees), max_visible_rows=10)
+        with st.container(key="rz_panel_employee_list"):
+            professional_table(pd.DataFrame(employees), max_visible_rows=10)
         with st.expander("Excluir empregado"):
-            eid=st.selectbox("Selecione",[e["id"] for e in employees],format_func=lambda x:next(e["name"] for e in employees if e["id"]==x),key="delemp"); st.caption("A exclusão é definitiva.")
-            if st.button("Excluir empregado selecionado",width="stretch"): delete_employee(uid,int(eid)); st.rerun()
+            eid = st.selectbox(
+                "Selecione",
+                [item["id"] for item in employees],
+                format_func=lambda value: next(item["name"] for item in employees if item["id"] == value),
+                key="delemp",
+            )
+            st.caption("A exclusão é definitiva.")
+            if st.button("Excluir empregado selecionado", key="delete_employee_btn", width="stretch"):
+                delete_employee(uid, int(eid))
+                st.rerun()
 
 elif page == "Documentos":
     header("Documentos", "Guarde comprovantes, notas, extratos e guias organizados por competência.")
@@ -1716,18 +1843,53 @@ elif page == "Documentos":
             professional_table(coverage, max_visible_rows=12)
 
 elif page == "Espaço do Contador":
-    header("Espaço do Contador", "Prepare um pacote organizado para compartilhar sem liberar sua senha.")
-    st.warning("Nunca compartilhe senha do gov.br, banco ou Razync. Envie apenas os relatórios e arquivos necessários.")
-    accountant_year = st.selectbox("Ano de referência", list(range(CURRENT_YEAR - 4, CURRENT_YEAR + 1)), index=4, key="accountant_year")
-    accountant_month = st.selectbox("Mês de referência", list(range(1, 13)), index=date.today().month - 1, format_func=lambda value: MONTH_NAMES_PT[value - 1], key="accountant_month")
-    summary_pdf = cached_financial_summary_pdf(profile, accountant_year, financial_analysis(transactions, accountant_year))
-    accountant_closing = monthly_closing(transactions, invoices, docs, das_rows, accountant_year, accountant_month)
-    closing_pdf = cached_closing_summary_pdf(profile, accountant_year, accountant_month, accountant_closing)
-    p1, p2 = st.columns(2)
-    p1.download_button("Resumo financeiro", summary_pdf, file_name=f"resumo_contador_{accountant_year}.pdf", mime="application/pdf", width="stretch")
-    p2.download_button("Fechamento do mês", closing_pdf, file_name=f"fechamento_{accountant_year}_{accountant_month:02d}.pdf", mime="application/pdf", width="stretch")
-    st.caption("Para documentos e dados completos, gere também o backup e compartilhe o arquivo por um canal seguro.")
-    if st.button("Preparar backup completo", width="stretch"):
+    header("Espaço do Contador", "Prepare relatórios e arquivos para compartilhar sem liberar senhas.")
+
+    a, b = st.columns(2)
+    accountant_year = a.selectbox(
+        "Ano de referência",
+        list(range(CURRENT_YEAR - 4, CURRENT_YEAR + 1)),
+        index=4,
+        key="accountant_year",
+    )
+    accountant_month = b.selectbox(
+        "Mês de referência",
+        list(range(1, 13)),
+        index=date.today().month - 1,
+        format_func=lambda value: MONTH_NAMES_PT[value - 1],
+        key="accountant_month",
+    )
+
+    analysis_data = financial_analysis(transactions, accountant_year)
+    accountant_closing = monthly_closing(
+        transactions, invoices, docs, das_rows,
+        accountant_year, accountant_month,
+    )
+    summary_pdf = cached_financial_summary_pdf(profile, accountant_year, analysis_data)
+    closing_pdf = cached_closing_summary_pdf(
+        profile, accountant_year, accountant_month, accountant_closing
+    )
+
+    with st.container(key="rz_panel_accountant_package"):
+        st.caption("PACOTE PARA O CONTADOR")
+        p1, p2 = st.columns(2)
+        p1.download_button(
+            "Baixar resumo financeiro",
+            summary_pdf,
+            file_name=f"resumo_contador_{accountant_year}.pdf",
+            mime="application/pdf",
+            width="stretch",
+        )
+        p2.download_button(
+            "Baixar fechamento do mês",
+            closing_pdf,
+            file_name=f"fechamento_{accountant_year}_{accountant_month:02d}.pdf",
+            mime="application/pdf",
+            width="stretch",
+        )
+        st.caption("Compartilhe apenas os arquivos necessários. Senhas de banco, gov.br e Razync não devem ser enviadas.")
+
+    if st.button("Preparar backup completo", key="accountant_backup", width="stretch"):
         st.session_state["_navigate_to"] = "Backup"
         st.rerun()
 
