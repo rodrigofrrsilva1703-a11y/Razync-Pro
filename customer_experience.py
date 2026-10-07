@@ -17,6 +17,14 @@ OFFICIAL_SERVICES = {
         "name": "Portal do Empreendedor",
         "url": "https://www.gov.br/mei",
     },
+    "monthly_report": {
+        "name": "Relatório Mensal de Receitas Brutas",
+        "url": "https://www.gov.br/pt-br/servicos/baixar-relatorio-mensal-de-receitas-brutas",
+    },
+    "dasn": {
+        "name": "DASN-SIMEI",
+        "url": "https://www.gov.br/pt-br/servicos/declarar-receita-bruta-anual-para-o-mei",
+    },
 }
 
 
