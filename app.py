@@ -1455,43 +1455,102 @@ elif page == "DAS":
         st.caption("A data e o valor impressos na guia oficial sempre prevalecem.")
 
 elif page == "DASN-SIMEI":
-    header("DASN-SIMEI","Prepare os dados anuais para conferir antes da declaração oficial.")
-    year=st.selectbox("Ano-calendário",list(range(CURRENT_YEAR-4,CURRENT_YEAR+1)),index=3,key="dasnyear")
-    services,sales=category_totals_for_dasn(transactions,year)
-    total=services+sales
-    c1,c2,c3=st.columns(3); c1.metric("Serviços",brl(services)); c2.metric("Comércio/indústria",brl(sales)); c3.metric("Receita bruta total",brl(total))
-    employee=st.checkbox("O MEI teve empregado no ano?",value=bool(profile.get("has_employee",False)))
-    pdf=cached_dasn_summary_pdf(profile, year, services, sales, employee)
-    st.download_button("Baixar resumo para conferência",pdf,file_name=f"resumo_DASN_{year}.pdf",mime="application/pdf")
-    st.warning("O Razync Pro organiza as informações, mas não transmite a DASN-SIMEI ao Portal do Simples Nacional.")
+    header("DASN-SIMEI", "Prepare e confira os números anuais antes de acessar a declaração oficial.")
+    year = st.selectbox("Ano-calendário", list(range(CURRENT_YEAR-4, CURRENT_YEAR+1)), index=3, key="dasnyear")
+    services, sales = category_totals_for_dasn(transactions, year)
+    total = services + sales
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Serviços", brl(services))
+    c2.metric("Comércio/indústria", brl(sales))
+    c3.metric("Receita bruta total", brl(total))
+
+    with st.container(key="rz_panel_dasn_summary"):
+        st.caption("RESUMO PARA CONFERÊNCIA")
+        employee = st.checkbox(
+            "O MEI teve empregado no ano?",
+            value=bool(profile.get("has_employee", False)),
+        )
+        pdf = cached_dasn_summary_pdf(profile, year, services, sales, employee)
+        st.download_button(
+            "Baixar resumo para conferência",
+            pdf,
+            file_name=f"resumo_DASN_{year}.pdf",
+            mime="application/pdf",
+            width="stretch",
+        )
+        st.caption("O Razync organiza as informações, mas não transmite a DASN-SIMEI ao Portal do Simples Nacional.")
 
 elif page == "Obrigações":
-    header("Obrigações","Use o calendário automático do MEI e acrescente tarefas específicas do seu negócio.")
-    obligation_year=st.selectbox("Ano",list(range(CURRENT_YEAR-1,CURRENT_YEAR+2)),index=1,key="obyear")
-    auto=automatic_obligations(obligation_year,opening)
-    manual=obligations
-    combined=[]
+    header("Prazos e Obrigações", "Acompanhe compromissos automáticos do MEI e tarefas específicas do negócio.")
+    obligation_year = st.selectbox("Ano", list(range(CURRENT_YEAR-1, CURRENT_YEAR+2)), index=1, key="obyear")
+    auto = automatic_obligations(obligation_year, opening)
+    manual = obligations
+    combined = []
     for row in auto:
-        combined.append({"Origem":"Automática","Obrigação":row["title"],"Tipo":row["category"],"Competência":row["competence"],"Vencimento":row["due_date"],"Status":row["status"],"Detalhes":row["details"]})
+        combined.append({
+            "Origem":"Automática","Obrigação":row["title"],"Tipo":row["category"],
+            "Competência":row["competence"],"Vencimento":row["due_date"],
+            "Status":row["status"],"Detalhes":row["details"],
+        })
     for row in manual:
-        combined.append({"Origem":"Manual","Obrigação":row["title"],"Tipo":row["category"],"Competência":"-","Vencimento":row["due_date"],"Status":row["status"],"Detalhes":row["notes"]})
+        combined.append({
+            "Origem":"Manual","Obrigação":row["title"],"Tipo":row["category"],
+            "Competência":"-","Vencimento":row["due_date"],
+            "Status":row["status"],"Detalhes":row["notes"],
+        })
+
+    pending_count = sum(1 for row in combined if row.get("Status") != "Concluído")
+    manual_count = len(manual)
+    o1, o2, o3 = st.columns(3)
+    o1.metric("Obrigações no ano", len(combined))
+    o2.metric("Pendentes", pending_count)
+    o3.metric("Personalizadas", manual_count)
+
     if combined:
-        obd=pd.DataFrame(combined).sort_values("Vencimento")
-        professional_table(obd, max_visible_rows=10, column_config={"Vencimento":st.column_config.DateColumn(format="DD/MM/YYYY")})
+        with st.container(key="rz_panel_obligations_list"):
+            obd = pd.DataFrame(combined).sort_values("Vencimento")
+            professional_table(
+                obd,
+                max_visible_rows=10,
+                column_config={"Vencimento": st.column_config.DateColumn(format="DD/MM/YYYY")},
+            )
     else:
-        empty_state("Nenhuma obrigação para exibir", "Quando houver tarefas automáticas ou personalizadas, elas aparecerão aqui organizadas por vencimento.", "✓")
+        empty_state(
+            "Nenhuma obrigação para exibir",
+            "Quando houver tarefas automáticas ou personalizadas, elas aparecerão aqui.",
+            "✓",
+        )
+
     with st.expander("Adicionar obrigação personalizada"):
-        with st.form("obl_form",clear_on_submit=True):
-            title=st.text_input("Título"); due=st.date_input("Vencimento",value=date.today()); cat=st.selectbox("Categoria",["Fiscal","Financeira","Administrativa","Trabalhista","Outra"]); notes=st.text_area("Observações")
-            if st.form_submit_button("Adicionar",width="stretch"):
-                if title.strip(): add_obligation(uid,title=title.strip(),due_date=due,status="Pendente",category=cat,notes=notes.strip()); st.rerun()
+        with st.form("obl_form", clear_on_submit=True):
+            title = st.text_input("Título")
+            due = st.date_input("Vencimento", value=date.today())
+            cat = st.selectbox("Categoria", ["Fiscal","Financeira","Administrativa","Trabalhista","Outra"])
+            notes = st.text_area("Observações")
+            if st.form_submit_button("Adicionar obrigação", type="primary", width="stretch"):
+                if title.strip():
+                    add_obligation(
+                        uid, title=title.strip(), due_date=due, status="Pendente",
+                        category=cat, notes=notes.strip(),
+                    )
+                    st.rerun()
+
     if manual:
-        with st.expander("Atualizar tarefas personalizadas"):
-            item=st.selectbox("Tarefa",[o["id"] for o in manual],format_func=lambda x:next(o["title"] for o in manual if o["id"]==x))
-            status=st.selectbox("Novo status",["Pendente","Concluído"],key="oblstatus")
-            c1,c2=st.columns(2)
-            if c1.button("Atualizar",width="stretch"): update_obligation_status(uid,int(item),status); st.rerun()
-            if c2.button("Excluir",width="stretch"): delete_obligation(uid,int(item)); st.rerun()
+        with st.expander("Gerenciar obrigações personalizadas"):
+            item = st.selectbox(
+                "Tarefa",
+                [o["id"] for o in manual],
+                format_func=lambda x: next(o["title"] for o in manual if o["id"] == x),
+            )
+            status = st.selectbox("Novo status", ["Pendente","Concluído"], key="oblstatus")
+            c1, c2 = st.columns(2)
+            if c1.button("Atualizar", width="stretch"):
+                update_obligation_status(uid, int(item), status)
+                st.rerun()
+            if c2.button("Excluir", width="stretch"):
+                delete_obligation(uid, int(item))
+                st.rerun()
 
 elif page == "Clientes e Fornecedores":
     header("Clientes e Fornecedores","Mantenha os contatos essenciais organizados para reutilizar em vendas, compras e documentos.")
@@ -1968,26 +2027,41 @@ elif page == "Meu MEI":
                     st.rerun()
 
 elif page == "Central de Notificações":
-    header("Central de Notificações", "Priorize vencimentos, resolva no local certo e leve os prazos para o calendário.")
+    header("Alertas e Calendário", "Veja somente o que exige atenção e leve os prazos importantes para seu calendário.")
     notification_items = build_notifications(das_rows, obligations, year_revenue, limit)
+    urgent_count = sum(1 for item in notification_items if item.get("level") == "urgent")
+
+    n1, n2 = st.columns(2)
+    n1.metric("Alertas ativos", len(notification_items))
+    n2.metric("Urgentes", urgent_count)
+
     if not notification_items:
         st.success("Nenhum alerta importante identificado agora.")
     else:
-        for idx, item in enumerate(notification_items):
-            level = "danger" if item["level"] == "urgent" else "warn"
-            if st.button(
-                f"**{item['title']}**\n\n{item['detail']}\n\nResolver agora →",
-                key=f"rz_action_card_{level}_notification_{idx}",
-                width="stretch",
-            ):
-                st.session_state["_navigate_to"] = item["page"]
-                st.rerun()
-        calendar_file = notification_calendar(notification_items, "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/")
-        st.download_button("Adicionar prazos ao calendário (.ics)", calendar_file, file_name="agenda_razync_mei.ics", mime="text/calendar", width="stretch")
-    st.caption("Os alertas são calculados com os dados cadastrados. Confirme sempre datas e valores nos documentos oficiais.")
+        with st.container(key="rz_panel_notifications"):
+            for idx, item in enumerate(notification_items):
+                level = "danger" if item["level"] == "urgent" else "warn"
+                if st.button(
+                    f"**{item['title']}**\n\n{item['detail']}\n\nResolver agora →",
+                    key=f"rz_action_card_{level}_notification_{idx}",
+                    width="stretch",
+                ):
+                    st.session_state["_navigate_to"] = item["page"]
+                    st.rerun()
+
+        app_url = secret_value("APP_URL") or "https://razync-pro-production.up.railway.app/"
+        calendar_file = notification_calendar(notification_items, app_url)
+        st.download_button(
+            "Adicionar prazos ao calendário (.ics)",
+            calendar_file,
+            file_name="agenda_razync_mei.ics",
+            mime="text/calendar",
+            width="stretch",
+        )
+    st.caption("Os alertas usam os dados cadastrados no Razync. Confirme datas e valores nos documentos oficiais.")
 
 elif page == "Integrações":
-    header("Integrações", "Veja o que já funciona, o que exige confirmação e o que depende de credenciais externas.")
+    header("Integrações", "Entenda o que já está conectado, o que é assistido e o que depende de terceiros.")
     runtime = database_runtime_info()
     integration_config = {
         key: secret_value(key)
@@ -1999,49 +2073,50 @@ elif page == "Integrações":
     catalog = integration_catalog(integration_config, runtime["persistent"])
     active_count = sum(1 for item in catalog if item["ready"])
     automatic_count = sum(1 for item in catalog if item["mode"] == "Automático")
+
     i1, i2, i3 = st.columns(3)
     i1.metric("Disponíveis", f"{active_count}/{len(catalog)}")
     i2.metric("Automáticas", automatic_count)
-    i3.metric("Sempre com confirmação", len(catalog) - automatic_count)
+    i3.metric("Com confirmação", len(catalog) - automatic_count)
 
-    section("Central de conexões", "Nenhuma integração envia dados ou mensagens sem autorização.")
+    section("Conexões", "Nenhuma integração envia dados ou mensagens sem autorização.")
     left, right = st.columns(2, gap="large")
     for idx, item in enumerate(catalog):
         target = left if idx % 2 == 0 else right
-        with target:
-            with st.container(border=True):
-                st.markdown(f"**{item['name']}**")
-                st.caption(f"{integration_maturity(item)} · {item['mode']} · {item['status']}")
-                st.write(item["detail"])
-                if item["page"] and st.button("Abrir recurso", key=f"integration_page_{idx}", width="stretch"):
-                    st.session_state["_navigate_to"] = item["page"]
-                    st.rerun()
-                if item["name"] == "DAS do MEI":
-                    st.link_button("Abrir portal oficial", OFFICIAL_SERVICES["das"]["url"], width="stretch")
-                elif item["name"] == "NFS-e Nacional":
-                    st.link_button("Abrir emissor oficial", OFFICIAL_SERVICES["nfse"]["url"], width="stretch")
+        with target, st.container(key=f"rz_panel_integration_{idx}"):
+            st.caption(item["mode"].upper())
+            st.markdown(f"**{item['name']}**")
+            st.caption(f"{integration_maturity(item)} · {item['status']}")
+            st.write(item["detail"])
+            if item["page"] and st.button("Abrir recurso", key=f"integration_page_{idx}", width="stretch"):
+                st.session_state["_navigate_to"] = item["page"]
+                st.rerun()
+            if item["name"] == "DAS do MEI":
+                st.link_button("Abrir portal oficial", OFFICIAL_SERVICES["das"]["url"], width="stretch")
+            elif item["name"] == "NFS-e Nacional":
+                st.link_button("Abrir emissor oficial", OFFICIAL_SERVICES["nfse"]["url"], width="stretch")
 
-    st.info("Open Finance direto exige um provedor participante e consentimento do cliente. WhatsApp automático exige conta Business e aprovação do provedor. Até lá, importação de extrato e mensagens revisadas continuam disponíveis.")
+    st.info("Open Finance e WhatsApp automático dependem de provedores externos e consentimento. A importação manual continua disponível sem essas integrações.")
 
 elif page == "Plano e Assinatura":
-    header("Plano e Assinatura", "Acompanhe os recursos disponíveis e, quando configurado, faça o upgrade por checkout seguro.")
-    if st.session_state.get("auth_provider") == "github":
-        st.success("Plano atual: Razync Pro — acesso de desenvolvimento")
-    else:
-        st.info("Plano atual: Essencial")
+    header("Plano e Assinatura", "Veja os recursos do plano atual e o status do checkout comercial.")
     plan_name = "Pro" if st.session_state.get("auth_provider") == "github" else "Essencial"
     plan = PLAN_CATALOG[plan_name]
-    st.caption(plan["description"])
-    for feature in plan["features"]:
-        st.write(f"✓ {feature}")
-    st.caption("Preços não ficam fixos no código; o checkout comercial é configurado por ambiente.")
+
+    with st.container(key="rz_panel_plan_current"):
+        st.caption("PLANO ATUAL")
+        st.markdown(f"### Razync {plan_name}")
+        st.caption(plan["description"])
+        for feature in plan["features"]:
+            st.write(f"✓ {feature}")
+
     config = {"CHECKOUT_PRO_URL": secret_value("CHECKOUT_PRO_URL")}
     payment_url = checkout_url(config, "pro")
     if payment_url:
         st.link_button("Assinar Razync Pro", payment_url, type="primary", width="stretch")
         st.caption("O pagamento é processado pelo provedor configurado; dados de cartão não passam pelo Razync.")
     else:
-        st.caption("Checkout comercial ainda não configurado. O uso atual permanece inalterado.")
+        st.info("O checkout comercial ainda não está configurado. O uso atual permanece inalterado.")
 
 elif page == "Segurança da Conta":
     header("Segurança da Conta", "Atualize sua senha e confira como sua sessão é protegida.")
