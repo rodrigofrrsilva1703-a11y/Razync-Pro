@@ -5,7 +5,6 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from activity_center import build_activity_items, render_activity_center
 from automation_tools import upcoming_deadlines
 from compact_cards import stat_card
 from customer_experience import build_today_plan
@@ -22,7 +21,7 @@ def render_dashboard_workspace(
     das_rows: list[dict], obligations: list[dict], documents: list[dict],
     annual_limit: float, annual_revenue: float, current_year: int, brl, navigate,
 ) -> None:
-    """Simple decision-first dashboard for the daily MEI routine."""
+    """Editorial home: numbers first, one focal action, quiet lists."""
     today = date.today()
     month_tx = transactions[
         (transactions["tx_date"].dt.year == current_year)
@@ -37,6 +36,7 @@ def render_dashboard_workspace(
     priorities = action_items(
         profile, transactions, invoices, das_rows, obligations, annual_limit, annual_revenue
     )
+
     raw_opening = profile.get("opening_date")
     if isinstance(raw_opening, str):
         try:
@@ -44,6 +44,7 @@ def render_dashboard_workspace(
         except ValueError:
             raw_opening = None
     opening_date = raw_opening if isinstance(raw_opening, date) else None
+
     automatic_upcoming = upcoming_automatic_obligations(
         current_year,
         opening_date,
@@ -66,157 +67,154 @@ def render_dashboard_workspace(
         today=today,
         days=30,
     )
+    insights = build_proactive_insights(
+        profile=profile,
+        transactions=transactions,
+        invoices=invoices,
+        das_rows=das_rows,
+        obligations=obligations,
+        documents=documents,
+        annual_limit=annual_limit,
+        current_year=current_year,
+        today=today,
+    )
 
+    business_name = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
+    cnpj = str(profile.get("cnpj") or "").strip()
+    business_meta = f"MEI · {current_year}"
+    if cnpj:
+        business_meta += f" · {cnpj}"
     st.markdown(
-        '<div class="rz-dash-intro"><div><span>SEU DIA EM ORDEM</span>'
-        '<p>Veja os números essenciais e resolva primeiro o que precisa de atenção.</p></div></div>',
+        f'<div class="rz-dash-intro"><span>{business_name}</span>'
+        f'<p>{business_meta}</p></div>',
         unsafe_allow_html=True,
     )
 
-    # The first scan of the page should answer: what came in, what went out,
-    # what is left, and how much of the MEI limit is already used.
+    # One quiet financial strip.
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        stat_card("Entradas do mês", brl(month_in), detail="Receitas registradas")
+        stat_card("Entradas", brl(month_in), detail="este mês")
     with m2:
-        stat_card("Saídas do mês", brl(month_out), detail="Despesas registradas")
+        stat_card("Saídas", brl(month_out), detail="este mês")
     with m3:
-        result_tone = "positive" if month_result >= 0 else "danger"
-        stat_card("Resultado do mês", brl(month_result), detail="Entradas menos saídas", tone=result_tone)
+        stat_card(
+            "Resultado",
+            brl(month_result),
+            detail="este mês",
+            tone="positive" if month_result >= 0 else "danger",
+        )
     with m4:
-        limit_tone = "warning" if limit_pct >= 80 else "neutral"
-        stat_card("Limite MEI usado", f"{limit_pct:.1f}%", detail="Faturamento anual", tone=limit_tone)
+        stat_card(
+            "Limite MEI",
+            f"{limit_pct:.1f}%",
+            detail=f"{brl(annual_revenue)} no ano",
+            tone="warning" if limit_pct >= 80 else "neutral",
+        )
 
-    focus, health = st.columns([1.55, 1], gap="large")
+    st.markdown("<div style='height:1.05rem'></div>", unsafe_allow_html=True)
+
+    # One focal block + one plain status rail.
+    focus, status = st.columns([1.65, 1], gap="large")
     with focus, st.container(key="dashboard_focus"):
-        st.caption("PRÓXIMO PASSO")
+        st.caption("O QUE MERECE ATENÇÃO AGORA")
         if tasks:
             task = tasks[0]
             st.markdown(f"### {task['title']}")
             st.write(task["detail"])
             if task["page"] != "Dashboard" and st.button(
-                "Resolver agora",
+                "Abrir",
                 key="dash_primary_next",
                 type="primary",
-                width="stretch",
             ):
                 navigate(task["page"])
         else:
-            st.markdown("### Tudo em dia por enquanto")
-            st.write("Quando houver algo importante para conferir, a próxima ação aparecerá aqui.")
+            st.markdown("### Nada urgente por enquanto")
+            st.write("Seu workspace não tem nenhuma ação prioritária neste momento.")
 
-    with health, st.container(key="dashboard_health"):
-        open_tasks = len([task for task in tasks if task.get("page") != "Dashboard"])
+    with status, st.container(key="dashboard_health"):
+        open_tasks = len([item for item in tasks if item.get("page") != "Dashboard"])
         st.markdown(
             f"""
             <div class="rz-health-head">
-              <strong>Visão rápida</strong>
-              <span class="rz-health-pill">MEI {current_year}</span>
+              <strong>Estado do workspace</strong>
+              <span class="rz-health-pill">{current_year}</span>
             </div>
-            <div class="rz-health-row"><span>Cadastro inicial</span><strong>{setup['percent']}%</strong></div>
+            <div class="rz-health-row"><span>Configuração</span><strong>{setup['percent']}%</strong></div>
             <div class="rz-health-row"><span>Faturamento anual</span><strong>{brl(annual_revenue)}</strong></div>
-            <div class="rz-health-row"><span>Próximos vencimentos</span><strong>{len(deadlines)}</strong></div>
-            <div class="rz-health-row"><span>Ações prioritárias</span><strong>{open_tasks}</strong></div>
+            <div class="rz-health-row"><span>Vencimentos em 30 dias</span><strong>{len(deadlines)}</strong></div>
+            <div class="rz-health-row"><span>Pontos de atenção</span><strong>{open_tasks}</strong></div>
             """,
             unsafe_allow_html=True,
         )
-        if setup["percent"] < 100:
-            if st.button("Continuar configuração", key="dash_health_setup", width="stretch"):
-                navigate("Primeiros Passos")
-        else:
-            if st.button("Ver dados do MEI", key="dash_health_mei", width="stretch"):
-                navigate("Meu MEI")
 
-    action_a, action_b, action_space = st.columns([1, 1, 2.1], gap="small")
-    with action_a:
-        if st.button("＋ Nova movimentação", key="dashboard_new_tx", type="primary", width="stretch"):
-            navigate("Movimentações")
-    with action_b:
-        if st.button("Importar extrato", key="dashboard_import_statement", width="stretch"):
-            navigate("Importar Extrato")
+    # Tiny utility row, not a command dashboard.
+    action_a, action_b, spacer = st.columns([1, 1, 2.8], gap="small")
+    if action_a.button("＋ Movimentação", key="dashboard_new_tx", type="primary", width="stretch"):
+        navigate("Movimentações")
+    if action_b.button("Importar extrato", key="dashboard_import_statement", width="stretch"):
+        navigate("Importar Extrato")
 
+    st.markdown("#### Hoje")
     task_col, deadline_col = st.columns(2, gap="large")
     with task_col:
-        st.markdown("#### Próximas tarefas")
+        st.caption("PRÓXIMAS TAREFAS")
         next_tasks = tasks[1:4] if len(tasks) > 1 else []
         if not next_tasks:
-            st.caption("Nenhuma outra tarefa importante para agora.")
+            st.write("Nenhuma outra tarefa importante.")
         for index, task in enumerate(next_tasks, start=1):
             with st.container(key=f"dashboard_task_{index}"):
                 st.markdown(f"**{task['title']}**")
                 st.caption(task["detail"])
 
     with deadline_col:
-        st.markdown("#### Próximos vencimentos")
+        st.caption("PRÓXIMOS VENCIMENTOS")
         if not deadlines:
-            st.caption("Nenhum vencimento identificado para os próximos 30 dias.")
+            st.write("Nenhum vencimento identificado nos próximos 30 dias.")
         for index, deadline in enumerate(deadlines[:3]):
             with st.container(key=f"dashboard_deadline_{index}"):
-                st.markdown(f"**{deadline['title']}** · {deadline['date'].strftime('%d/%m')}")
+                st.markdown(
+                    f"**{deadline['date'].strftime('%d/%m')}** · {deadline['title']}"
+                )
                 st.caption(deadline["status"])
-        if deadlines and st.button("Ver prazos e obrigações", key="dashboard_open_obligations", width="stretch"):
+        if deadlines and st.button(
+            "Ver agenda completa",
+            key="dashboard_open_obligations",
+        ):
             navigate("Obrigações")
 
-    with st.expander("Ver detalhes e histórico"):
-        st.markdown("##### Faturamento anual")
+    st.markdown("#### Movimento recente")
+    if transactions.empty:
+        st.caption("Nenhuma movimentação registrada.")
+    else:
+        recent = transactions.sort_values("tx_date", ascending=False).head(6).copy()
+        recent["Data"] = pd.to_datetime(recent["tx_date"]).dt.date
+        recent["Descrição"] = recent["description"].fillna("Sem descrição")
+        recent["Tipo"] = recent["tx_type"]
+        recent["Valor"] = recent["value"]
+        professional_table(
+            recent[["Data", "Tipo", "Descrição", "Valor"]],
+            max_visible_rows=6,
+            column_config={
+                "Data": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
+            },
+        )
+
+    with st.expander("Mais contexto"):
+        st.markdown("##### Limite anual")
         st.progress(min(max(annual_revenue / annual_limit, 0), 1) if annual_limit else 0)
         st.caption(
             f"{limit_pct:.1f}% do limite anual monitorado"
             if annual_limit else "Limite anual ainda não definido."
         )
 
-        st.markdown("##### Últimos lançamentos")
-        if transactions.empty:
-            st.caption("Nenhuma entrada ou saída cadastrada ainda.")
-        else:
-            recent = transactions.sort_values("tx_date", ascending=False).head(5).copy()
-            recent["Data"] = pd.to_datetime(recent["tx_date"]).dt.strftime("%d/%m")
-            recent["Valor"] = recent["value"].map(brl)
-            recent["Descrição"] = recent["description"].fillna("Sem descrição")
-            recent["Tipo"] = recent["tx_type"]
-            professional_table(
-                recent[["Data", "Tipo", "Descrição", "Valor"]],
-                max_visible_rows=5,
-            )
-            if st.button("Ver todas as entradas e saídas", key="dash_recent_all"):
-                navigate("Movimentações")
-
-        activity_items = build_activity_items(
-            profile=profile,
-            transactions=transactions,
-            das_rows=das_rows,
-            obligations=obligations,
-            documents=documents,
-            today=today,
-        )
-        render_activity_center(items=activity_items, navigate=navigate)
-
-        insights = build_proactive_insights(
-            profile=profile,
-            transactions=transactions,
-            invoices=invoices,
-            das_rows=das_rows,
-            obligations=obligations,
-            documents=documents,
-            annual_limit=annual_limit,
-            current_year=current_year,
-            today=today,
-        )
         if insights:
             st.markdown("##### Insights")
-        for index, insight in enumerate(insights[:2]):
-            st.markdown(f"**{insight['title']}**")
-            st.caption(insight["detail"])
-            c1, c2 = st.columns(2)
-            if c1.button("Ver análise", key=f"dash_insight_{index}", width="stretch"):
-                navigate(insight["page"])
-            if c2.button("Explicar com IA", key=f"dash_insight_ai_{index}", width="stretch"):
-                st.session_state["razync_ai_pending_question"] = insight["question"]
-                st.session_state["razync_ai_pending_context"] = {
-                    "source": "dashboard_insight",
-                    "title": insight["title"],
-                    "detail": insight["detail"],
-                    "page": insight["page"],
-                }
-                st.session_state["razync_floating_open"] = True
-                st.rerun()
+            for index, insight in enumerate(insights[:2]):
+                st.markdown(f"**{insight['title']}**")
+                st.caption(insight["detail"])
+                if st.button(
+                    "Abrir análise",
+                    key=f"dash_insight_{index}",
+                ):
+                    navigate(insight["page"])
