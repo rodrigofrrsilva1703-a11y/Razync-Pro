@@ -509,10 +509,25 @@ elif page == "Movimentações":
             value = a.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
             tx_date = b.date_input("Data", value=date.today())
             desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente ou compra de material")
+            revenue_categories = ["Serviços", "Comércio", "Indústria", "Outros"]
+            expense_categories = ["Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Serviços", "Outros"]
+            category_options = revenue_categories if tx_type == "Receita" else expense_categories
+            activity_type = str(profile.get("activity_type") or "")
+            default_revenue_category = (
+                "Serviços" if activity_type == "Serviços"
+                else "Comércio" if activity_type == "Comércio"
+                else "Indústria" if activity_type == "Indústria"
+                else "Outros"
+            )
+            default_category = default_revenue_category if tx_type == "Receita" else "Outros"
+            category = st.selectbox(
+                "Categoria",
+                category_options,
+                index=category_options.index(default_category),
+                help="A categoria das receitas alimenta o Relatório Mensal e a DASN-SIMEI.",
+            )
             with st.expander("Adicionar detalhes"):
-                a, b = st.columns(2)
-                category = a.selectbox("Categoria", ["Serviços","Comércio","Indústria","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
-                counterparty = b.text_input("Cliente ou fornecedor")
+                counterparty = st.text_input("Cliente ou fornecedor")
                 a, b = st.columns(2)
                 payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
                 doc = b.text_input("Nota ou documento")
@@ -607,7 +622,14 @@ elif page == "Movimentações":
                 edit_date = e2.date_input("Data", value=edit_row["tx_date"].date())
                 edit_description = st.text_input("Descrição", value=str(edit_row["description"] or ""))
                 e1, e2 = st.columns(2)
-                edit_category = e1.text_input("Categoria", value=str(edit_row["category"] or ""))
+                standard_edit_categories = ["Serviços", "Comércio", "Indústria", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"]
+                current_edit_category = str(edit_row["category"] or "Outros")
+                edit_category_options = list(dict.fromkeys([current_edit_category, *standard_edit_categories]))
+                edit_category = e1.selectbox(
+                    "Categoria",
+                    edit_category_options,
+                    index=0,
+                )
                 edit_value = e2.number_input("Valor", min_value=0.01, value=float(edit_row["value"]), step=10.0)
                 e1, e2 = st.columns(2)
                 edit_counterparty = e1.text_input("Cliente ou fornecedor", value=str(edit_row["counterparty"] or ""))
@@ -663,10 +685,25 @@ elif page == "Recorrências":
             a, b = st.columns(2)
             recurring_description = a.text_input("Descrição", placeholder="Ex.: aluguel, internet, mensalidade")
             recurring_value = b.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+            recurring_revenue_categories = ["Serviços", "Comércio", "Indústria", "Outros"]
+            recurring_expense_categories = ["Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Serviços", "Outros"]
+            recurring_category_options = (
+                recurring_revenue_categories
+                if recurring_type == "Receita"
+                else recurring_expense_categories
+            )
+            recurring_default_category = (
+                "Outros"
+                if recurring_type == "Despesa" or str(profile.get("activity_type") or "") == "Misto"
+                else str(profile.get("activity_type") or "Outros")
+            )
+            if recurring_default_category not in recurring_category_options:
+                recurring_default_category = "Outros"
             a, b, c3 = st.columns(3)
             recurring_category = a.selectbox(
                 "Categoria",
-                ["Serviços", "Comércio", "Indústria", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"],
+                recurring_category_options,
+                index=recurring_category_options.index(recurring_default_category),
             )
             recurring_frequency = b.selectbox("Frequência", ["Mensal", "Semanal", "Anual"])
             recurring_payment = c3.selectbox(
