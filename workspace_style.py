@@ -9,18 +9,18 @@ def inject_workspace_style() -> None:
         """
         <style>
         /* =========================================================
-           RAZYNC PRO · WORKSPACE V6
-           Modern, quiet, high-contrast SaaS UI with low visual noise.
+           RAZYNC PRO · WORKSPACE V7
+           Clean editorial SaaS UI: information first, actions second.
            ========================================================= */
 
         .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] {
             background:
-                radial-gradient(circle at 78% -12%, color-mix(in srgb, var(--rz-primary) 7%, transparent), transparent 28rem),
+                linear-gradient(180deg, color-mix(in srgb, var(--rz-bg) 96%, var(--rz-surface) 4%) 0%, var(--rz-bg) 18rem),
                 var(--rz-bg);
         }
         .stApp:has(.st-key-sidebar_navigation) [data-testid="stMain"] .block-container {
-            max-width: 1280px !important;
-            padding: 1.55rem 1.55rem 3.2rem !important;
+            max-width: 1220px !important;
+            padding: 1.7rem 1.7rem 3.4rem !important;
         }
 
         @keyframes rz-rise {
@@ -48,8 +48,8 @@ def inject_workspace_style() -> None:
             letter-spacing: -.048em !important;
         }
         .rz-page-sub {
-            max-width: 760px !important;
-            margin: .38rem 0 1.35rem !important;
+            max-width: 700px !important;
+            margin: .4rem 0 1.5rem !important;
             color: var(--rz-muted) !important;
             font-size: .88rem !important;
             line-height: 1.55 !important;
@@ -96,9 +96,9 @@ def inject_workspace_style() -> None:
             box-shadow: none !important;
         }
         [data-testid="stMain"] [data-testid="stMetric"] {
-            min-height: 84px !important;
-            padding: .78rem .9rem !important;
-            border-radius: 14px !important;
+            min-height: 76px !important;
+            padding: .68rem .78rem !important;
+            border-radius: 13px !important;
         }
         [data-testid="stMetricLabel"] p {
             color: var(--rz-muted) !important;
@@ -176,14 +176,62 @@ def inject_workspace_style() -> None:
             box-shadow: var(--rz-shadow-soft) !important;
         }
 
+        /* Quiet KPI cards: informative, never clickable */
+        .rz-stat-card {
+            position: relative;
+            min-height: 96px;
+            padding: .88rem .95rem .82rem;
+            border: 1px solid color-mix(in srgb, var(--rz-border) 72%, transparent);
+            border-radius: 15px;
+            background: color-mix(in srgb, var(--rz-surface) 96%, var(--rz-soft) 4%);
+            box-shadow: 0 1px 0 color-mix(in srgb, var(--rz-text) 4%, transparent);
+        }
+        .rz-stat-card::before {
+            content: "";
+            position: absolute;
+            top: .82rem;
+            left: 0;
+            width: 2px;
+            height: 30px;
+            border-radius: 0 999px 999px 0;
+            background: color-mix(in srgb, var(--rz-primary) 55%, transparent);
+            opacity: .55;
+        }
+        .rz-stat-card.is-warning::before { background: #d8a52d; opacity: .9; }
+        .rz-stat-card.is-danger::before { background: #d75d67; opacity: .9; }
+        .rz-stat-card.is-positive::before { background: var(--rz-primary); opacity: .9; }
+        .rz-stat-label {
+            display: block;
+            margin-bottom: .36rem;
+            color: var(--rz-muted) !important;
+            font-size: .69rem;
+            font-weight: 720;
+            letter-spacing: .01em;
+        }
+        .rz-stat-card strong {
+            display: block;
+            color: var(--rz-text) !important;
+            font-size: clamp(1.22rem, 1.8vw, 1.55rem);
+            line-height: 1.05;
+            font-weight: 790;
+            letter-spacing: -.04em;
+        }
+        .rz-stat-detail {
+            display: block;
+            margin-top: .38rem;
+            color: var(--rz-muted) !important;
+            font-size: .66rem;
+            line-height: 1.35;
+        }
+
         /* Compact cards */
         [class*="st-key-rz_metric_card_"] button {
-            min-height: 92px !important;
-            padding: .92rem 1rem !important;
+            min-height: 72px !important;
+            padding: .72rem .82rem !important;
             justify-content: flex-start !important;
             text-align: left !important;
             border: 1px solid var(--rz-border) !important;
-            border-radius: 15px !important;
+            border-radius: 13px !important;
             background: var(--rz-surface) !important;
             box-shadow: none !important;
         }
@@ -210,7 +258,7 @@ def inject_workspace_style() -> None:
         [class*="st-key-rz_nav_card_"] button,
         [class*="st-key-rz_quick_card_"] button,
         [class*="st-key-rz_action_card_"] button {
-            min-height: 56px !important;
+            min-height: 48px !important;
             justify-content: flex-start !important;
             padding: .7rem .85rem !important;
             text-align: left !important;
@@ -229,11 +277,11 @@ def inject_workspace_style() -> None:
 
         /* Reusable tool panels */
         [class*="st-key-rz_panel_"] {
-            padding: 1rem 1.05rem;
-            border: 1px solid var(--rz-border);
-            border-radius: 15px;
+            padding: .92rem 1rem;
+            border: 1px solid color-mix(in srgb, var(--rz-border) 76%, transparent);
+            border-radius: 14px;
             background: var(--rz-surface);
-            box-shadow: none;
+            box-shadow: 0 10px 28px color-mix(in srgb, var(--rz-text) 3%, transparent);
         }
         [class*="st-key-rz_panel_"] [data-testid="stCaptionContainer"]:first-child p {
             margin-bottom: .15rem !important;
@@ -546,9 +594,13 @@ def inject_workspace_style() -> None:
                 padding: 1rem;
                 border-radius: 15px;
             }
+            .rz-stat-card {
+                min-height: 82px;
+                padding: .75rem .8rem .7rem;
+            }
             [class*="st-key-rz_metric_card_"] button {
-                min-height: 76px !important;
-                padding: .75rem .82rem !important;
+                min-height: 64px !important;
+                padding: .65rem .72rem !important;
             }
             [data-testid="stMain"] [data-testid="stForm"] {
                 padding: .75rem !important;
