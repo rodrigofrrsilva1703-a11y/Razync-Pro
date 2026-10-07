@@ -259,29 +259,49 @@ def opening_date_from(profile: dict) -> date | None:
 
 def monthly_rows(df: pd.DataFrame, year: int) -> list[dict]:
     rows = []
-    for month in range(1,13):
-        cur = df[(df["tx_type"]=="Receita") & (df["tx_date"].dt.year==year) & (df["tx_date"].dt.month==month)] if not df.empty else df
+    for month in range(1, 13):
+        cur = (
+            df[
+                (df["tx_type"] == "Receita")
+                & (df["tx_date"].dt.year == year)
+                & (df["tx_date"].dt.month == month)
+            ]
+            if not df.empty else df
+        )
         if cur.empty:
-            services = sales = with_doc = without_doc = total = 0.0
+            services = commerce = industry = with_doc = without_doc = total = 0.0
         else:
-            services = float(cur[cur["category"].isin(["Serviços","Serviço"])]["value"].sum())
+            categories = cur["category"].fillna("").astype(str)
+            service_mask = categories.isin(["Serviços", "Serviço"])
+            industry_mask = categories.isin(["Indústria", "Industria", "Produtos industrializados"])
+            services = float(cur.loc[service_mask, "value"].sum())
+            industry = float(cur.loc[industry_mask, "value"].sum())
             total = float(cur["value"].sum())
-            sales = total - services
+            commerce = max(total - services - industry, 0.0)
             has_doc = cur["document_number"].fillna("").astype(str).str.strip().ne("")
-            with_doc = float(cur.loc[has_doc,"value"].sum())
+            with_doc = float(cur.loc[has_doc, "value"].sum())
             without_doc = total - with_doc
-        rows.append({"month":month,"month_name":MONTH_NAMES_PT[month - 1],"with_doc":with_doc,"without_doc":without_doc,"services":services,"sales":sales,"total":total})
+        rows.append({
+            "month": month,
+            "month_name": MONTH_NAMES_PT[month - 1],
+            "with_doc": with_doc,
+            "without_doc": without_doc,
+            "services": services,
+            "commerce": commerce,
+            "industry": industry,
+            "sales": commerce + industry,
+            "total": total,
+        })
     return rows
 
 
-def category_totals_for_dasn(df: pd.DataFrame, year: int) -> tuple[float,float]:
+def category_totals_for_dasn(df: pd.DataFrame, year: int) -> tuple[float, float]:
     if df.empty:
-        return 0.0,0.0
-    cur = df[(df["tx_type"]=="Receita") & (df["tx_date"].dt.year==year)]
-    services = float(cur[cur["category"].isin(["Serviços","Serviço"])]["value"].sum())
-    sales = float(cur["value"].sum()) - services
-    return services, sales
-
+        return 0.0, 0.0
+    cur = df[(df["tx_type"] == "Receita") & (df["tx_date"].dt.year == year)]
+    services = float(cur[cur["category"].isin(["Serviços", "Serviço"])]["value"].sum())
+    commerce_and_industry = float(cur["value"].sum()) - services
+    return services, commerce_and_industry
 
 def cashflow_monthly(df: pd.DataFrame, year: int) -> pd.DataFrame:
     rows = []
