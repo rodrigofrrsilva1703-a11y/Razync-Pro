@@ -2263,37 +2263,48 @@ elif page == "Empregado":
                 st.rerun()
 
 elif page == "Documentos":
-    header("Documentos", "Guarde comprovantes, notas, extratos e guias organizados por competência.")
+    header("Documentos", "Guarde o essencial sem transformar a tela em um arquivo cheio de controles.")
 
     d1, d2, d3 = st.columns(3)
-    d1.metric("Arquivos salvos", len(docs))
-    d2.metric("Tipos usados", len({str(item.get("category") or "") for item in docs if item.get("category")}))
-    d3.metric("Competências", len({str(item.get("reference_month") or "") for item in docs if item.get("reference_month")}))
+    with d1:
+        stat_card("Arquivos", str(len(docs)), detail="salvos")
+    with d2:
+        stat_card(
+            "Tipos",
+            str(len({str(item.get("category") or "") for item in docs if item.get("category")})),
+            detail="em uso",
+        )
+    with d3:
+        stat_card(
+            "Competências",
+            str(len({str(item.get("reference_month") or "") for item in docs if item.get("reference_month")})),
+            detail="organizadas",
+        )
 
-    upload_col, info_col = st.columns([1.45, .85], gap="large")
-    with upload_col, st.container(key="rz_panel_documents_upload"):
-        st.caption("ADICIONAR DOCUMENTO")
+    upload_col, helper_col = st.columns([1.7, .8], gap="large")
+    with upload_col:
+        st.markdown("#### Adicionar arquivo")
         up = st.file_uploader(
             "PDF ou imagem",
-            type=["pdf","png","jpg","jpeg"],
+            type=["pdf", "png", "jpg", "jpeg"],
             key="docup",
-            help="A leitura acontece dentro do aplicativo.",
+            label_visibility="collapsed",
         )
         suggestion = None
         if up is not None:
-            with st.spinner("Analisando o documento..."):
-                suggestion = cached_document_analysis(up.getvalue(), up.type or "", up.name)
+            with st.spinner("Analisando..."):
+                suggestion = cached_document_analysis(
+                    up.getvalue(),
+                    up.type or "",
+                    up.name,
+                )
+
+            st.caption("SUGESTÃO DO RAZYNC")
             s1, s2, s3 = st.columns(3)
             s1.metric("Tipo", suggestion["category"])
             s2.metric("Competência", suggestion["reference_month"] or "—")
             s3.metric("Confiança", suggestion["confidence"])
-            details = []
-            if suggestion["value"] is not None:
-                details.append(f"valor provável: {brl(suggestion['value'])}")
-            if suggestion["document_number"]:
-                details.append(f"identificador: {suggestion['document_number']}")
-            if details:
-                st.caption(" · ".join(details))
+
             if suggestion["warning"]:
                 st.info(suggestion["warning"])
             if suggestion["text_preview"]:
@@ -2304,7 +2315,7 @@ elif page == "Documentos":
         suggested_reference = suggestion["reference_month"] if suggestion else ""
         a, b = st.columns(2)
         category = a.selectbox(
-            "Tipo de documento",
+            "Tipo",
             DOCUMENT_CATEGORIES,
             index=DOCUMENT_CATEGORIES.index(suggested_category),
             key=f"doc_category_{up.name if up else 'empty'}",
@@ -2317,67 +2328,94 @@ elif page == "Documentos":
         )
         valid_reference = not reference.strip() or valid_competence(reference.strip())
         if not valid_reference:
-            st.warning("Use o formato AAAA-MM, por exemplo 2026-08.")
+            st.warning("Use AAAA-MM. Ex.: 2026-08.")
+
         if st.button(
             "Salvar documento",
             type="primary",
-            width="stretch",
             disabled=up is None or not valid_reference,
         ):
             if up:
                 try:
-                    save_uploaded_document(user, up, category, reference.strip())
+                    save_uploaded_document(
+                        user,
+                        up,
+                        category,
+                        reference.strip(),
+                    )
                 except Exception:
                     st.error("Não foi possível armazenar o documento agora.")
                 else:
-                    st.success("Documento salvo.")
                     st.rerun()
 
-    with info_col, st.container(key="rz_panel_documents_info"):
-        st.caption("ORGANIZAÇÃO")
-        st.markdown("**Use a competência para encontrar tudo depois.**")
-        st.caption("O Razync sugere o tipo e a competência, mas você sempre confirma antes de salvar.")
-        st.markdown(
-            '<div class="rz-inline-meta"><span>Nota Fiscal</span><span>DAS</span><span>Extrato</span><span>Comprovante</span></div>',
-            unsafe_allow_html=True,
+    with helper_col:
+        st.markdown("#### Organização")
+        st.caption(
+            "A competência é o que mais ajuda depois. O tipo pode ser ajustado antes de salvar."
         )
+        st.write("• Nota fiscal")
+        st.write("• DAS")
+        st.write("• Extrato")
+        st.write("• Comprovante")
+        st.write("• Outros")
+        st.caption("O Razync sugere. Você confirma.")
 
-    section("Biblioteca", "Abra, baixe ou exclua seus arquivos.")
+    st.markdown("#### Biblioteca")
     if not docs:
         empty_state(
             "Nenhum documento salvo",
-            "Adicione seus arquivos para facilitar fechamentos e conferências.",
+            "Adicione os arquivos que realmente ajudam no fechamento e na conferência.",
             "▱",
         )
     else:
-        with st.container(key="rz_panel_documents_library"):
-            ddf = pd.DataFrame(docs)
-            visible_columns = [
-                column for column in ["filename","category","reference_month","created_at"]
-                if column in ddf.columns
-            ]
-            professional_table(ddf[visible_columns], max_visible_rows=10)
+        ddf = pd.DataFrame(docs)
+        visible_columns = [
+            column
+            for column in ["filename", "category", "reference_month", "created_at"]
+            if column in ddf.columns
+        ]
+        professional_table(
+            ddf[visible_columns],
+            max_visible_rows=10,
+        )
+
+        manage_col, action_col = st.columns([1.7, .8], gap="large")
+        with manage_col:
             did = st.selectbox(
-                "Documento",
+                "Selecionar documento",
                 [d["id"] for d in docs],
                 format_func=lambda x: next(d["filename"] for d in docs if d["id"] == x),
             )
-            selected_meta = next(d for d in docs if int(d["id"]) == int(did))
+            selected_meta = next(
+                d for d in docs if int(d["id"]) == int(did)
+            )
+            st.caption(
+                f"{selected_meta.get('category') or 'Sem tipo'} · "
+                f"{selected_meta.get('reference_month') or 'Sem competência'}"
+            )
+
+        with action_col:
             prepared_key = f"_prepared_document_{uid}_{int(did)}"
-            if st.button("Preparar download", key=f"prepare_doc_{did}", width="stretch"):
+            if st.button(
+                "Preparar download",
+                key=f"prepare_doc_{did}",
+                type="primary",
+                width="stretch",
+            ):
                 try:
                     selected = get_document(uid, int(did))
                     if not selected:
                         raise RuntimeError("Documento não encontrado")
-                    content = document_bytes(selected)
+                    content_bytes = document_bytes(selected)
                 except Exception:
-                    st.error("Não foi possível baixar o documento agora.")
+                    st.error("Não foi possível preparar o arquivo.")
                 else:
                     st.session_state[prepared_key] = {
-                        "content": content,
+                        "content": content_bytes,
                         "filename": selected["filename"],
                         "mime_type": selected["mime_type"] or "application/octet-stream",
                     }
+
             prepared_document = st.session_state.get(prepared_key)
             if prepared_document:
                 st.download_button(
@@ -2388,20 +2426,24 @@ elif page == "Documentos":
                     width="stretch",
                 )
 
-        with st.expander("Excluir documento"):
-            st.caption("A exclusão remove o arquivo armazenado no Razync.")
-            if st.button("Excluir documento selecionado", key="delete_document_btn", width="stretch"):
-                try:
-                    remove_saved_document(uid, selected_meta)
-                except Exception:
-                    st.error("Não foi possível excluir o documento agora.")
-                else:
-                    st.session_state.pop(prepared_key, None)
-                    st.rerun()
-
-        with st.expander("Cobertura documental"):
-            coverage = document_coverage(docs, CURRENT_YEAR)
-            professional_table(coverage, max_visible_rows=12)
+        with st.expander("Gerenciar biblioteca"):
+            tab_coverage, tab_delete = st.tabs(["Cobertura", "Excluir"])
+            with tab_coverage:
+                coverage = document_coverage(docs, CURRENT_YEAR)
+                professional_table(coverage, max_visible_rows=12)
+            with tab_delete:
+                st.caption("A exclusão remove o arquivo armazenado no Razync.")
+                if st.button(
+                    "Excluir documento selecionado",
+                    key="delete_document_btn",
+                ):
+                    try:
+                        remove_saved_document(uid, selected_meta)
+                    except Exception:
+                        st.error("Não foi possível excluir o documento agora.")
+                    else:
+                        st.session_state.pop(prepared_key, None)
+                        st.rerun()
 
 elif page == "Espaço do Contador":
     header("Espaço do Contador", "Prepare relatórios e arquivos para compartilhar sem liberar senhas.")
