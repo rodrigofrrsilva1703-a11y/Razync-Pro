@@ -14,8 +14,8 @@ class DirectAccessVisualTests(unittest.TestCase):
         self.assertNotIn(".rz-login-benefits", self.workspace_source)
 
     def test_workspace_has_consistent_saas_surface(self):
-        self.assertIn("RAZYNC PRO · WORKSPACE V6", self.workspace_source)
-        self.assertIn("max-width: 1280px !important", self.workspace_source)
+        self.assertIn("RAZYNC PRO · WORKSPACE V7", self.workspace_source)
+        self.assertIn("max-width: 1220px !important", self.workspace_source)
         self.assertIn("var(--rz-surface)", self.workspace_source)
         self.assertIn("var(--rz-border)", self.workspace_source)
 
