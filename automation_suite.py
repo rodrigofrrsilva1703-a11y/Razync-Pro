@@ -90,16 +90,31 @@ def cash_forecast(transactions: pd.DataFrame, months: int = 3, today: date | Non
         tx = transactions.copy()
         tx["tx_date"] = pd.to_datetime(tx["tx_date"], errors="coerce")
         recent_start = pd.Timestamp(today) - pd.DateOffset(months=3)
-        recent = tx[tx["tx_date"] >= recent_start]
-        avg_revenue = float(recent[recent["tx_type"] == "Receita"]["value"].sum()) / 3
-        avg_expense = float(recent[recent["tx_type"] == "Despesa"]["value"].sum()) / 3
-        opening = float(tx[tx["tx_type"] == "Receita"]["value"].sum() - tx[tx["tx_type"] == "Despesa"]["value"].sum())
+        recent = tx[tx["tx_date"] >= recent_start].copy()
+        if recent.empty:
+            active_months = 1
+        else:
+            active_months = max(
+                recent["tx_date"].dt.to_period("M").nunique(),
+                1,
+            )
+        avg_revenue = float(recent[recent["tx_type"] == "Receita"]["value"].sum()) / active_months
+        avg_expense = float(recent[recent["tx_type"] == "Despesa"]["value"].sum()) / active_months
+        opening = float(
+            tx[tx["tx_type"] == "Receita"]["value"].sum()
+            - tx[tx["tx_type"] == "Despesa"]["value"].sum()
+        )
     rows = []
-    balance = opening
+    projected_result = opening
     for offset in range(1, max(1, months) + 1):
         target = pd.Timestamp(today) + pd.DateOffset(months=offset)
-        balance += avg_revenue - avg_expense
-        rows.append({"Mês": target.strftime("%m/%Y"), "Receitas previstas": avg_revenue, "Despesas previstas": avg_expense, "Saldo projetado": balance})
+        projected_result += avg_revenue - avg_expense
+        rows.append({
+            "Mês": target.strftime("%m/%Y"),
+            "Receitas previstas": avg_revenue,
+            "Despesas previstas": avg_expense,
+            "Resultado acumulado projetado": projected_result,
+        })
     return pd.DataFrame(rows)
 
 
