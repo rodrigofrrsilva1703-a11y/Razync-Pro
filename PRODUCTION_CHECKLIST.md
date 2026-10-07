@@ -7,11 +7,11 @@ Execute este checklist no ambiente publicado antes de liberar uma versão comerc
 - [ ] `streamlit run app.py` inicia sem exceção.
 - [ ] `requirements.txt` instala em Linux/Python suportado.
 - [ ] logo e favicon carregam usando caminhos relativos do projeto.
-- [ ] `.streamlit/config.toml` continua compatível com o Streamlit Cloud.
+- [ ] `.streamlit/config.toml` continua compatível com a execução do Streamlit no Railway.
 - [ ] nenhum caminho local do Windows é usado.
 - [ ] o deploy publicado abre sem erro de inicialização.
 
-## Autenticação real
+## Autenticação real — executar antes de reativar login comercial
 
 - [ ] cadastro cria usuário no Supabase Auth.
 - [ ] e-mail de confirmação funciona.
@@ -57,7 +57,7 @@ Execute este checklist no ambiente publicado antes de liberar uma versão comerc
 - [ ] a tela de exclusão exige a confirmação exata e o aceite de irreversibilidade.
 - [ ] a Edge Function `delete-account` exige JWT válido.
 - [ ] a exclusão remove Storage privado, dados internos e identidade Supabase Auth.
-- [ ] a chave administrativa usada pela Edge Function não existe nos Secrets do Streamlit.
+- [ ] a chave administrativa usada pela Edge Function não existe nas variáveis do serviço web.
 - [ ] uma conta de teste excluída não consegue mais autenticar nem recuperar os dados removidos.
 
 ## Tema e dispositivos
@@ -79,13 +79,13 @@ Execute este checklist no ambiente publicado antes de liberar uma versão comerc
 
 ## IA Razync
 
-- [ ] `OPENAI_API_KEY` está configurada somente nos Secrets do Streamlit.
+- [ ] `OPENAI_API_KEY` está configurada somente nas variáveis protegidas do ambiente.
 - [ ] `OPENAI_MODEL` usa um modelo disponível para o projeto da API.
 - [ ] o botão “Testar conexão da IA” retorna sucesso no ambiente publicado.
 - [ ] respostas externas usam `store=False` e somente contexto agregado.
 - [ ] CPF, CNPJ, credenciais, arquivos e descrições brutas não são enviados à IA.
 - [ ] `OPENAI_DAILY_REQUEST_LIMIT` está definido conforme o orçamento desejado; o padrão seguro é 20 respostas por dia.
-- [ ] a quota é persistida por conta em `ai_daily_usage`, não reinicia ao trocar de navegador ou reiniciar o Streamlit e usa o dia em UTC.
+- [ ] a quota é persistida por conta em `ai_daily_usage`, não reinicia ao trocar de navegador ou reiniciar o serviço e usa o dia em UTC.
 - [ ] duas sessões simultâneas não conseguem ultrapassar a quota por causa da reserva atômica no PostgreSQL.
 - [ ] falha da OpenAI devolve a reserva e não reduz a quota diária do usuário.
 - [ ] a 21ª tentativa com limite padrão usa o fallback local e não chama a OpenAI.
@@ -114,5 +114,5 @@ Execute este checklist no ambiente publicado antes de liberar uma versão comerc
 
 - [ ] `python -m compileall -q -x '^./scripts/' .` passa.
 - [ ] `python -m unittest discover -s tests -v` passa integralmente.
-- [ ] smoke test abre todas as páginas autenticadas sem exceção.
+- [ ] smoke test abre todas as páginas disponíveis no modo atual sem exceção.
 - [ ] nenhuma alteração crítica foi aplicada diretamente em produção sem branch/PR e revisão.
