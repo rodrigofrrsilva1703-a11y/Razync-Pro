@@ -242,3 +242,6 @@ hr { border-color: var(--rz-border); }
   .st-key-workspace_metrics_three .rz-stat-label { font-size: .65rem; }
 }
 [data-testid="stCaptionContainer"] { opacity: 1 !important; }
+[data-testid="stProgressBarTrack"] { background: var(--rz-border) !important; }
+[data-testid="stProgressBarTrack"] > div { background: var(--rz-primary) !important; }
+
