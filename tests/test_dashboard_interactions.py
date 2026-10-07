@@ -10,12 +10,11 @@ class DashboardInteractionTests(unittest.TestCase):
         cls.assistant = Path("assistant_workspace.py").read_text(encoding="utf-8")
         cls.app = Path("app.py").read_text(encoding="utf-8")
 
-    def test_priority_and_deadline_actions_have_explicit_routes(self):
+    def test_dashboard_keeps_one_primary_next_action(self):
         self.assertIn('key="dash_primary_next"', self.dashboard)
-        self.assertIn('key=f"dashboard_task_open_{index}"', self.dashboard)
-        self.assertIn('key=f"dashboard_deadline_open_{index}"', self.dashboard)
         self.assertIn('navigate(task["page"])', self.dashboard)
-        self.assertIn('navigate(deadline["page"])', self.dashboard)
+        self.assertNotIn('key=f"dashboard_task_open_{index}"', self.dashboard)
+        self.assertNotIn('key=f"dashboard_deadline_open_{index}"', self.dashboard)
 
     def test_insight_hands_structured_context_to_ai(self):
         self.assertIn("razync_ai_pending_question", self.dashboard)
@@ -23,17 +22,18 @@ class DashboardInteractionTests(unittest.TestCase):
         self.assertIn('"source": "dashboard_insight"', self.dashboard)
         self.assertIn("Contexto recebido do painel", self.assistant)
 
-    def test_interactive_cards_have_visible_hover_state(self):
-        self.assertIn('st-key-rz_metric_card_', self.ui)
-        self.assertIn("transform: translateY(-1px)", self.ui)
+    def test_kpis_are_informational_not_full_surface_actions(self):
+        self.assertIn(".rz-stat-card", self.ui)
+        self.assertIn("stat_card(", self.dashboard)
+        self.assertNotIn("metric_card(", self.dashboard)
 
     def test_dashboard_is_decision_first_and_compact(self):
         self.assertIn("PRÓXIMO PASSO", self.dashboard)
-        self.assertIn("Ações rápidas", self.dashboard)
+        self.assertIn("Nova movimentação", self.dashboard)
         self.assertIn("Próximos vencimentos", self.dashboard)
         self.assertIn("Ver detalhes e histórico", self.dashboard)
 
-    def test_notification_center_uses_clickable_card_pattern(self):
+    def test_notification_center_keeps_actionable_alerts(self):
         self.assertIn("rz_action_card_{level}_notification_", self.app)
         self.assertNotIn('key=f"notification_action_', self.app)
 
