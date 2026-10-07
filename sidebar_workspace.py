@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from command_center import render_command_center
-from navigation_config import SIDEBAR_GROUPS, SIDEBAR_ICONS, SIDEBAR_LABELS, SIDEBAR_SECONDARY_GROUPS
+from navigation_config import SIDEBAR_ICONS, SIDEBAR_LABELS
 from onboarding_tools import onboarding_progress
 
 
@@ -23,12 +23,12 @@ def _floating_chat_shell_styles() -> None:
         <style>
         .st-key-floating_ai_v7_shell {
             position: fixed !important;
-            right: .9rem !important;
-            bottom: .9rem !important;
+            right: .8rem !important;
+            bottom: .8rem !important;
             z-index: 999995 !important;
-            width: min(370px, calc(100vw - 1.2rem)) !important;
+            width: min(370px, calc(100vw - 1.1rem)) !important;
             height: 550px !important;
-            max-height: calc(100vh - 1.2rem) !important;
+            max-height: calc(100vh - 1.1rem) !important;
             margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
@@ -49,10 +49,10 @@ def _floating_chat_shell_styles() -> None:
         }
         @media (max-width: 700px) {
             .st-key-floating_ai_v7_shell {
-                right: .45rem !important;
-                bottom: .45rem !important;
-                width: calc(100vw - .9rem) !important;
-                height: min(520px, calc(100vh - .9rem)) !important;
+                right: .4rem !important;
+                bottom: .4rem !important;
+                width: calc(100vw - .8rem) !important;
+                height: min(520px, calc(100vh - .8rem)) !important;
             }
         }
         </style>
@@ -92,6 +92,17 @@ def _render_floating_assistant(page: str, user: dict, navigate) -> None:
             st.rerun()
 
 
+def _nav_button(destination: str, page: str, navigate, *, key_prefix: str = "main") -> None:
+    if st.button(
+        SIDEBAR_LABELS[destination],
+        key=f"{key_prefix}_nav_{destination}",
+        icon=SIDEBAR_ICONS.get(destination),
+        disabled=page == destination,
+        width="stretch",
+    ):
+        navigate(destination)
+
+
 def render_sidebar(
     *,
     profile: dict,
@@ -104,7 +115,7 @@ def render_sidebar(
     navigate,
     refresh_data,
 ) -> None:
-    business_sidebar = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
+    business_name = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
 
     with st.sidebar:
         st.markdown(
@@ -113,7 +124,7 @@ def render_sidebar(
               <img src="{brand_logo_data_uri}" alt="Razync Pro">
               <div>
                 <strong>Razync<em>PRO</em></strong>
-                <span>{escape(str(business_sidebar))}</span>
+                <span>{escape(str(business_name))}</span>
               </div>
             </div>
             """,
@@ -121,61 +132,37 @@ def render_sidebar(
         )
 
         with st.container(key="sidebar_navigation"):
-            st.caption("MENU PRINCIPAL")
-            if st.button(
-                SIDEBAR_LABELS["Dashboard"],
-                key="grouped_nav_dashboard",
-                icon=SIDEBAR_ICONS["Dashboard"],
-                disabled=page == "Dashboard",
-                width="stretch",
+            st.caption("WORKSPACE")
+            for destination in (
+                "Dashboard",
+                "Financeiro",
+                "Fiscal",
+                "Documentos",
+                "Clientes e Fornecedores",
             ):
-                navigate("Dashboard")
+                _nav_button(destination, page, navigate)
 
-            primary_destinations = ["Financeiro", "Fiscal", "Documentos", "Clientes e Fornecedores"]
-            for destination in primary_destinations:
+            with st.expander("Ferramentas", expanded=page in {"Produtividade", "Conta e Sistema"}):
+                _nav_button("Produtividade", page, navigate, key_prefix="tools")
+                _nav_button("Conta e Sistema", page, navigate, key_prefix="tools")
+
+            with st.expander("Buscar função"):
+                render_command_center(
+                    navigate=navigate,
+                    current_page=page,
+                    documents=documents,
+                )
+
+            setup = onboarding_progress(
+                profile,
+                not transactions.empty,
+                bool(das_rows),
+                bool(documents),
+            )
+            if setup["percent"] < 100:
+                st.caption("CONFIGURAÇÃO")
                 if st.button(
-                    SIDEBAR_LABELS[destination],
-                    key=f"grouped_nav_{destination}",
-                    icon=SIDEBAR_ICONS[destination],
-                    disabled=page == destination,
-                    width="stretch",
-                ):
-                    navigate(destination)
-
-            st.caption("ENCONTRE UMA FUNÇÃO")
-            render_command_center(navigate=navigate, current_page=page, documents=documents)
-
-            supporting_destinations = ["Produtividade", "Conta e Sistema"]
-            secondary_pages = supporting_destinations + [
-                item for pages in SIDEBAR_SECONDARY_GROUPS.values() for item in pages
-            ]
-            with st.expander("Mais áreas e ferramentas", expanded=page in secondary_pages):
-                for destination in supporting_destinations:
-                    if st.button(
-                        SIDEBAR_LABELS[destination],
-                        key=f"grouped_nav_{destination}",
-                        icon=SIDEBAR_ICONS[destination],
-                        disabled=page == destination,
-                        width="stretch",
-                    ):
-                        navigate(destination)
-                for section_name, destinations in SIDEBAR_SECONDARY_GROUPS.items():
-                    st.caption(section_name.upper())
-                    for destination in destinations:
-                        if st.button(
-                            SIDEBAR_LABELS[destination],
-                            key=f"secondary_nav_{destination}",
-                            icon=SIDEBAR_ICONS[destination],
-                            disabled=page == destination,
-                            width="stretch",
-                        ):
-                            navigate(destination)
-
-            setup_progress = onboarding_progress(profile, not transactions.empty, bool(das_rows), bool(documents))
-            if setup_progress["percent"] < 100:
-                st.divider()
-                if st.button(
-                    f"Configurar meu MEI · {setup_progress['percent']}%",
+                    f"Primeiros passos · {setup['percent']}%",
                     key="sidebar_onboarding",
                     icon=":material/checklist:",
                     disabled=page == "Primeiros Passos",
@@ -186,9 +173,11 @@ def render_sidebar(
         st.divider()
         with st.expander("Preferências"):
             st.selectbox(
-                "Aparência", ["Claro", "Escuro"],
+                "Aparência",
+                ["Claro", "Escuro"],
                 index=1 if st.session_state.get("ui_theme") == "Escuro" else 0,
-                key="appearance_select_v2", on_change=_apply_appearance_choice,
+                key="appearance_select_v2",
+                on_change=_apply_appearance_choice,
             )
             if st.button(
                 "Atualizar dados",
