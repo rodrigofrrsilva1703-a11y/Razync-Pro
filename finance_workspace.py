@@ -7,7 +7,7 @@ import streamlit as st
 
 from automation_tools import financial_projection
 from business_tools import financial_analysis
-from compact_cards import metric_card
+from compact_cards import stat_card
 from contextual_ai import contextual_ai_button
 from product_core import reconciliation_summary
 from table_ui import professional_table
@@ -36,17 +36,15 @@ def render_finance_workspace(
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        if metric_card("Entradas no mês", brl(month_in), key="fin_month_in", help_text="Ver lançamentos"):
-            navigate("Movimentações")
+        stat_card("Entradas no mês", brl(month_in))
     with c2:
-        if metric_card("Saídas no mês", brl(month_out), key="fin_month_out", help_text="Ver lançamentos"):
-            navigate("Movimentações")
+        stat_card("Saídas no mês", brl(month_out))
     with c3:
-        if metric_card("Resultado no mês", brl(month_in - month_out), key="fin_month_result", help_text="Abrir análise financeira"):
-            navigate("Análise Financeira")
+        month_result = month_in - month_out
+        stat_card("Resultado no mês", brl(month_result), tone="positive" if month_result >= 0 else "danger")
     with c4:
-        if metric_card("Resultado no ano", brl(year_in - year_out), key="fin_year_result", help_text="Abrir análise financeira"):
-            navigate("Análise Financeira")
+        year_result = year_in - year_out
+        stat_card("Resultado no ano", brl(year_result), tone="positive" if year_result >= 0 else "danger")
 
     projection = financial_projection(
         transactions,
@@ -62,16 +60,20 @@ def render_finance_workspace(
             f"Se o ritmo atual continuar, a projeção anual é {brl(projection['projected_revenue'])}.",
         )
 
-    section("Ações rápidas", "As rotinas mais usadas ficam sempre visíveis.")
-    a1, a2, a3, a4 = st.columns(4)
-    if a1.button("Nova movimentação", width="stretch"):
+    a1, a2, spacer = st.columns([1, 1, 2.1], gap="small")
+    if a1.button("＋ Nova movimentação", type="primary", width="stretch"):
         navigate("Movimentações")
     if a2.button("Importar extrato", width="stretch"):
         navigate("Importar Extrato")
-    if a3.button("Conciliar", width="stretch"):
-        navigate("Conciliação")
-    if a4.button("Recorrências", width="stretch"):
-        navigate("Recorrências")
+
+    with st.expander("Outras rotinas financeiras"):
+        x1, x2, x3 = st.columns(3)
+        if x1.button("Conciliação", width="stretch"):
+            navigate("Conciliação")
+        if x2.button("Recorrências", width="stretch"):
+            navigate("Recorrências")
+        if x3.button("Fluxo de caixa", width="stretch"):
+            navigate("Fluxo de Caixa")
 
     left, right = st.columns([1.55, 1], gap="large")
     with left:
@@ -123,11 +125,15 @@ def render_finance_workspace(
     with right:
         section("Conciliação", "O que ainda merece revisão.")
         rec = reconciliation_summary(transactions, invoices)
-        if metric_card("Notas pendentes", str(len(rec["pending_invoices"])), key="fin_pending_invoices", help_text="Abrir conciliação"):
-            navigate("Conciliação")
-        if metric_card("Possíveis duplicidades", str(rec["possible_duplicate_transactions"]), key="fin_duplicates", help_text="Abrir conciliação"):
-            navigate("Conciliação")
-        if not len(rec["pending_invoices"]) and not rec["possible_duplicate_transactions"]:
+        r1, r2 = st.columns(2)
+        with r1:
+            stat_card("Notas pendentes", str(len(rec["pending_invoices"])))
+        with r2:
+            stat_card("Duplicidades possíveis", str(rec["possible_duplicate_transactions"]))
+        if len(rec["pending_invoices"]) or rec["possible_duplicate_transactions"]:
+            if st.button("Revisar conciliação", key="finance_review_reconciliation", width="stretch"):
+                navigate("Conciliação")
+        else:
             st.success("Nenhuma pendência evidente encontrada.")
 
     with st.expander("Analisar com Razync IA"):
@@ -171,14 +177,11 @@ def render_finance_workspace(
         analysis = financial_analysis(transactions, current_year)
         x1, x2, x3 = st.columns(3)
         with x1:
-            if metric_card("Receitas no ano", brl(analysis["revenue"]), key="fin_year_revenue", help_text="Abrir análise financeira"):
-                navigate("Análise Financeira")
+            stat_card("Receitas no ano", brl(analysis["revenue"]))
         with x2:
-            if metric_card("Despesas no ano", brl(analysis["expense"]), key="fin_year_expense", help_text="Abrir análise financeira"):
-                navigate("Análise Financeira")
+            stat_card("Despesas no ano", brl(analysis["expense"]))
         with x3:
-            if metric_card("Margem", f"{analysis['margin']:.1f}%", key="fin_margin", help_text="Abrir análise financeira"):
-                navigate("Análise Financeira")
+            stat_card("Margem", f"{analysis['margin']:.1f}%")
 
         if not transactions.empty:
             recent = transactions.sort_values("tx_date", ascending=False).head(6).copy()
@@ -195,9 +198,7 @@ def render_finance_workspace(
             if st.button("Ver todas as movimentações", key="finance_all_transactions", width="stretch"):
                 navigate("Movimentações")
 
-    with st.expander("Ferramentas avançadas"):
-        b1, b2 = st.columns(2)
-        if b1.button("Fluxo de caixa", width="stretch"):
-            navigate("Fluxo de Caixa")
-        if b2.button("Análise financeira completa", width="stretch"):
+    with st.expander("Análises avançadas"):
+        st.caption("Abra apenas quando precisar investigar o financeiro com mais detalhe.")
+        if st.button("Abrir análise financeira completa", key="finance_open_full_analysis", width="stretch"):
             navigate("Análise Financeira")
