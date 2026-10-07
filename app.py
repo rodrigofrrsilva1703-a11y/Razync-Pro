@@ -13,7 +13,7 @@ from database import (
     delete_invoice, delete_obligation, delete_transaction, get_document, get_profile,
     init_db, list_contacts, list_das, list_documents, list_employees, list_invoices,
     list_obligations, list_transactions, save_document, save_profile,
-    update_contact, update_employee, update_obligation_status, update_transaction, upsert_das, link_transaction_document,
+    update_contact, update_employee, update_invoice, update_obligation_status, update_transaction, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_public_workspace_user, add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
     materialize_due_recurring, set_recurring_transaction_active, list_audit_logs, add_transactions_bulk,
@@ -1164,6 +1164,11 @@ elif page == "Fechamento Mensal":
     close_year = a.selectbox("Ano", list(range(CURRENT_YEAR-2, CURRENT_YEAR+1)), index=2, key="close_year")
     close_month = b.selectbox("Mês", list(range(1,13)), index=date.today().month-1, format_func=lambda m: MONTH_NAMES_PT[m - 1], key="close_month")
     closing = monthly_closing(transactions, invoices, docs, das_rows, close_year, close_month)
+    closing_tx = closing.get("transactions")
+    no_movement_registered = bool(closing_tx is not None and closing_tx.empty)
+
+    if no_movement_registered:
+        st.info("Não há movimentações registradas nesta competência. Se o mês realmente não teve movimento, o Razync ainda trata isso como uma informação a confirmar, não como erro fiscal.")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Receitas", brl(closing["revenue"]))
@@ -1194,10 +1199,10 @@ elif page == "Fechamento Mensal":
                     st.rerun()
 
     if closing["score"] == 100:
-        st.success("Fechamento pronto: todas as etapas foram concluídas.")
+        st.success("Organização do mês concluída com base nos dados cadastrados.")
     else:
         pending_count = sum(1 for item in closing["checklist"] if not item["OK"])
-        st.info(f"Faltam {pending_count} etapa(s) para concluir este fechamento.")
+        st.info(f"Há {pending_count} ponto(s) a revisar antes de considerar este mês organizado.")
 
     closing_pdf = cached_closing_summary_pdf(profile, close_year, close_month, closing)
     st.download_button(
@@ -1334,12 +1339,21 @@ elif page == "Notas Fiscais":
                 status = st.selectbox("Situação", ["Emitida","Cancelada"])
             submit = st.form_submit_button("Salvar nota", type="primary", width="stretch")
             if submit:
+                clean_number = number.strip()
+                existing_numbers = (
+                    set(invoices["number"].fillna("").astype(str).str.strip())
+                    if not invoices.empty and "number" in invoices.columns
+                    else set()
+                )
+                existing_numbers.discard("")
                 if amount <= 0:
                     st.error("Informe um valor maior que zero.")
+                elif clean_number and clean_number in existing_numbers:
+                    st.error("Já existe uma nota com esse número. Edite a nota existente em vez de criar uma duplicata.")
                 else:
                     add_invoice(
                         uid, issue_date=issue, invoice_type=inv_type,
-                        number=number.strip(), customer=customer.strip(),
+                        number=clean_number, customer=customer.strip(),
                         customer_document=custdoc.strip(), description=desc.strip(),
                         amount=amount, status=status,
                     )
@@ -1362,8 +1376,90 @@ elif page == "Notas Fiscais":
                     "issue_date": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"),
                 },
             )
+        with st.expander("Editar uma nota"):
+            edit_iid = st.selectbox(
+                "Nota",
+                invoices["id"].tolist(),
+                format_func=lambda value: (
+                    f"{invoices.loc[invoices['id'] == value, 'number'].iloc[0] or '#'+str(value)} · "
+                    f"{invoices.loc[invoices['id'] == value, 'customer'].iloc[0] or 'Sem cliente'}"
+                ),
+                key="editinv",
+            )
+            invoice_row = invoices.loc[invoices["id"] == edit_iid].iloc[0]
+            raw_issue = invoice_row["issue_date"]
+            issue_value = raw_issue.date() if hasattr(raw_issue, "date") else raw_issue
+            current_type = str(invoice_row.get("invoice_type") or "Serviço")
+            type_options = ["Serviço", "Comércio", "Indústria"]
+            if current_type not in type_options:
+                type_options = [current_type, *type_options]
+            with st.form("edit_invoice_form"):
+                a, b, d = st.columns(3)
+                edit_issue = a.date_input("Data de emissão", value=issue_value)
+                edit_type = b.selectbox(
+                    "Tipo",
+                    type_options,
+                    index=type_options.index(current_type),
+                )
+                edit_amount = d.number_input(
+                    "Valor",
+                    min_value=0.01,
+                    value=float(invoice_row.get("amount") or 0.01),
+                    step=10.0,
+                    format="%.2f",
+                )
+                a, b = st.columns(2)
+                edit_number = a.text_input("Número", value=str(invoice_row.get("number") or ""))
+                edit_customer = b.text_input("Cliente", value=str(invoice_row.get("customer") or ""))
+                edit_description = st.text_input("Descrição", value=str(invoice_row.get("description") or ""))
+                a, b = st.columns(2)
+                edit_customer_document = a.text_input(
+                    "CPF/CNPJ do cliente",
+                    value=str(invoice_row.get("customer_document") or ""),
+                )
+                current_status = str(invoice_row.get("status") or "Emitida")
+                edit_status = b.selectbox(
+                    "Situação",
+                    ["Emitida", "Cancelada"],
+                    index=1 if current_status == "Cancelada" else 0,
+                )
+                save_invoice_edit = st.form_submit_button("Salvar alterações", type="primary", width="stretch")
+            if save_invoice_edit:
+                clean_number = edit_number.strip()
+                other_numbers = set(
+                    invoices.loc[invoices["id"] != edit_iid, "number"]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                )
+                other_numbers.discard("")
+                if clean_number and clean_number in other_numbers:
+                    st.error("Outra nota já usa esse número.")
+                else:
+                    update_invoice(
+                        uid,
+                        int(edit_iid),
+                        issue_date=edit_issue,
+                        invoice_type=edit_type,
+                        number=clean_number,
+                        customer=edit_customer.strip(),
+                        customer_document=edit_customer_document.strip(),
+                        description=edit_description.strip(),
+                        amount=edit_amount,
+                        status=edit_status,
+                    )
+                    st.rerun()
+
         with st.expander("Excluir uma nota"):
-            iid = st.selectbox("Selecione", invoices["id"].tolist(), key="delinv")
+            iid = st.selectbox(
+                "Selecione",
+                invoices["id"].tolist(),
+                format_func=lambda value: (
+                    f"{invoices.loc[invoices['id'] == value, 'number'].iloc[0] or '#'+str(value)} · "
+                    f"{invoices.loc[invoices['id'] == value, 'customer'].iloc[0] or 'Sem cliente'}"
+                ),
+                key="delinv",
+            )
             st.caption("Confira antes de excluir: esta ação é definitiva.")
             if st.button("Excluir nota selecionada", key="delete_invoice_btn", width="stretch"):
                 delete_invoice(uid, int(iid))
@@ -1687,6 +1783,9 @@ elif page == "DASN-SIMEI":
     year = st.selectbox("Ano-calendário", list(range(CURRENT_YEAR-4, CURRENT_YEAR+1)), index=3, key="dasnyear")
     services, sales = category_totals_for_dasn(transactions, year)
     total = services + sales
+
+    if year == CURRENT_YEAR:
+        st.info("O ano-calendário ainda está em andamento. Este resumo é parcial e serve para acompanhamento; a declaração anual deve usar os valores finais do ano encerrado.")
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Serviços", brl(services))
