@@ -135,6 +135,7 @@ def financial_story(
     annual_limit: float,
     *,
     previous_revenue: float = 0.0,
+    period_label: str = "mês",
 ) -> list[dict]:
     """Explain financial indicators in plain Portuguese without giving tax advice."""
     revenue = float(revenue or 0)
@@ -147,21 +148,21 @@ def financial_story(
     if revenue <= 0 and expense <= 0:
         notes.append({
             "tone": "info",
-            "title": "Comece registrando o mês",
-            "detail": "Ainda não há entradas ou saídas suficientes para explicar o resultado.",
+            "title": f"Comece registrando o {period_label}",
+            "detail": f"Ainda não há entradas ou saídas suficientes para explicar o resultado do {period_label}.",
         })
     elif result >= 0:
         margin = (result / revenue * 100) if revenue else 0
         notes.append({
             "tone": "ok",
-            "title": "O mês está positivo",
+            "title": f"O {period_label} está positivo",
             "detail": f"Depois das despesas registradas, sobraram {margin:.1f}% das entradas.",
         })
     else:
         notes.append({
             "tone": "danger",
             "title": "As saídas superaram as entradas",
-            "detail": "Revise despesas e recebimentos pendentes antes de tomar novas decisões.",
+            "detail": f"Revise despesas e recebimentos do {period_label} antes de tomar novas decisões.",
         })
 
     if previous_revenue > 0 and revenue > 0:
@@ -169,7 +170,7 @@ def financial_story(
         direction = "cresceu" if change >= 0 else "caiu"
         notes.append({
             "tone": "info" if change >= 0 else "warn",
-            "title": f"Faturamento {direction} no mês",
+            "title": f"Faturamento {direction} no {period_label}",
             "detail": f"Variação de {abs(change):.1f}% em relação ao mês anterior.",
         })
 
