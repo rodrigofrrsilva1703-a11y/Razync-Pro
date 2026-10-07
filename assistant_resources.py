@@ -24,7 +24,7 @@ PRODUCT_AREAS = {
     "Recorrências": "receitas e despesas recorrentes",
     "Importar Extrato": "importação de extratos bancários",
     "Conciliação": "conciliação de notas e movimentações",
-    "Fluxo de Caixa": "entradas, saídas e saldo por mês",
+    "Fluxo de Caixa": "entradas, saídas e resultado acumulado por mês",
     "Análise Financeira": "resultado, margem e despesas por categoria",
     "Fiscal": "visão fiscal consolidada do MEI",
     "DAS": "controle mensal do DAS",
@@ -42,7 +42,7 @@ PRODUCT_AREAS = {
     "Central de Notificações": "alertas e calendário",
     "Integrações": "integrações disponíveis",
     "Backup": "backup dos dados",
-    "Conta e Sistema": "conta, privacidade e sistema",
+    "Conta e Sistema": "sistema, dados, privacidade e configurações",
 }
 
 REPORT_TYPES = (
@@ -90,7 +90,7 @@ def build_product_context(documents: Iterable[dict], current_page: str | None = 
         ],
         "assistant_limits": [
             "não executa pagamento, transmissão fiscal ou exclusão automaticamente",
-            "não acessa dados de outro usuário",
+            "trabalha apenas com os dados carregados no workspace atual",
             "não envia credenciais ou documentos brutos ao provedor de IA",
             "nomes de clientes e fornecedores usados em consultas específicas são processados localmente no Razync",
         ],
@@ -104,7 +104,7 @@ def suggest_route(question: str) -> tuple[str | None, str | None]:
         (("meu mei", "cadastro do mei", "atividade principal", "dados do mei", "cnpj"), "Meu MEI"),
         (("importar extrato", "extrato bancário", "extrato banco"), "Importar Extrato"),
         (("concilia", "conciliar", "vincular nota"), "Conciliação"),
-        (("fluxo de caixa", "saldo acumulado"), "Fluxo de Caixa"),
+        (("fluxo de caixa", "resultado acumulado", "saldo acumulado"), "Fluxo de Caixa"),
         (("análise financeira", "analise financeira", "margem", "despesas por categoria"), "Análise Financeira"),
         (("recorrência", "recorrencia", "recorrente"), "Recorrências"),
         (("movimentação", "movimentacao", "lançamento", "lancamento", "registrar receita", "registrar despesa", "cadastrar receita", "cadastrar despesa", "cadastro uma receita", "cadastro uma despesa", "cadastro uma nova receita", "cadastro uma nova despesa", "nova receita", "nova despesa"), "Movimentações"),
@@ -124,7 +124,7 @@ def suggest_route(question: str) -> tuple[str | None, str | None]:
         (("empregado", "funcionário", "funcionario"), "Empregado"),
         (("integração", "integracao"), "Integrações"),
         (("backup",), "Backup"),
-        (("conta", "privacidade", "segurança da conta", "seguranca da conta"), "Conta e Sistema"),
+        (("sistema", "dados", "privacidade", "configurações", "configuracoes"), "Conta e Sistema"),
     )
     for terms, route in rules:
         if any(term in text for term in terms):
@@ -149,18 +149,27 @@ def should_prepare_resources(question: str) -> bool:
 
 def _monthly_rows(transactions: pd.DataFrame, year: int, month: int) -> list[dict]:
     if transactions.empty:
-        return [{"month": month, "month_name": f"{month:02d}", "with_doc": 0.0, "without_doc": 0.0, "services": 0.0, "sales": 0.0, "total": 0.0}]
+        return [{
+            "month": month, "month_name": f"{month:02d}",
+            "with_doc": 0.0, "without_doc": 0.0,
+            "commerce": 0.0, "industry": 0.0, "services": 0.0,
+            "sales": 0.0, "total": 0.0,
+        }]
     cur = transactions[
         (transactions["tx_type"] == "Receita")
         & (transactions["tx_date"].dt.year == year)
         & (transactions["tx_date"].dt.month == month)
     ]
-    services = float(cur[cur["category"].isin(["Serviços", "Serviço"])]["value"].sum()) if not cur.empty else 0.0
-    total = float(cur["value"].sum()) if not cur.empty else 0.0
-    sales = total - services
     if cur.empty:
-        with_doc = without_doc = 0.0
+        services = commerce = industry = with_doc = without_doc = total = 0.0
     else:
+        categories = cur["category"].fillna("").astype(str)
+        service_mask = categories.isin(["Serviços", "Serviço"])
+        industry_mask = categories.isin(["Indústria", "Industria", "Produtos industrializados"])
+        services = float(cur.loc[service_mask, "value"].sum())
+        industry = float(cur.loc[industry_mask, "value"].sum())
+        total = float(cur["value"].sum())
+        commerce = max(total - services - industry, 0.0)
         has_doc = cur["document_number"].fillna("").astype(str).str.strip().ne("")
         with_doc = float(cur.loc[has_doc, "value"].sum())
         without_doc = total - with_doc
@@ -169,11 +178,12 @@ def _monthly_rows(transactions: pd.DataFrame, year: int, month: int) -> list[dic
         "month_name": f"{month:02d}",
         "with_doc": with_doc,
         "without_doc": without_doc,
+        "commerce": commerce,
+        "industry": industry,
         "services": services,
-        "sales": sales,
+        "sales": commerce + industry,
         "total": total,
     }]
-
 
 def _monthly_rows_for_period(transactions: pd.DataFrame, start: date, end: date) -> list[dict]:
     rows: list[dict] = []
@@ -392,7 +402,7 @@ def build_resource_bundle(
     if document_errors:
         notes.append("Alguns documentos encontrados não puderam ser preparados para download agora.")
     elif any(term in _normalize(question) for term in ("documento", "arquivo", "anexo", "anexado")) and not documents:
-        notes.append("Não há documentos salvos no Razync para esta conta.")
+        notes.append("Não há documentos salvos no workspace atual.")
 
     return {
         "route": route,
