@@ -8,14 +8,13 @@ import streamlit as st
 
 from database import (
     add_contact, add_employee, add_invoice, add_obligation, add_transaction,
-    authenticate, create_user, delete_contact, delete_document, delete_employee,
+    delete_contact, delete_document, delete_employee,
     delete_invoice, delete_obligation, delete_transaction, get_document, get_profile,
     init_db, list_contacts, list_das, list_documents, list_employees, list_invoices,
     list_obligations, list_transactions, save_document, save_profile,
     update_obligation_status, update_transaction, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
-    load_user_snapshot, data_version, DatabaseConnectionError, resolve_supabase_user,
-    resolve_trusted_developer_user, resolve_public_workspace_user, add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
+    load_user_snapshot, data_version, DatabaseConnectionError, resolve_public_workspace_user, add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
     materialize_due_recurring, set_recurring_transaction_active, list_audit_logs, add_transactions_bulk,
 )
 from database import database_runtime_info
@@ -32,8 +31,6 @@ from reconciliation_tools import smart_invoice_matches, duplicate_groups
 from automation_tools import financial_projection, upcoming_deadlines
 from ui_system import inject_design_system, page_header, section, business_card, alert_card, empty_state, helper_note, apply_plot_theme, tokens
 from ui_helpers import MONTH_NAMES_PT, filter_transactions, paginate_frame
-from login_security import login_attempt_guard
-from storage_service import download_document, remove_document, upload_document
 from growth_tools import (
     build_notifications, checkout_url, integration_readiness, normalize_nfse,
     notification_calendar, read_nfse_export, suggest_nfse_columns,
@@ -41,23 +38,10 @@ from growth_tools import (
 from automation_suite import (
     automation_overview, das_payment_matches, learned_category,
 )
-from auth_service import (
-    AuthServiceError, is_supabase_auth_configured, reset_password,
-    github_authorization_url, github_sign_in, is_developer_github_configured,
-    restore_session as supabase_restore_session,
-    sign_in as supabase_sign_in, sign_out as supabase_sign_out,
-    sign_up as supabase_sign_up, update_password as supabase_update_password,
-)
-from session_persistence import (
-    clear_persisted_session, persist_refresh_token,
-    persistent_session_controller, read_refresh_token,
-)
 from brand_assets import brand_logo_data_uri, ensure_brand_assets
-from demo_mode import render_demo
-from legal_content import PRIVACY_NOTICE, PRIVACY_VERSION, TERMS_OF_USE
 from customer_experience import (
     OFFICIAL_SERVICES, build_today_plan, das_journey, financial_story,
-    integration_catalog, next_onboarding_step, security_checklist,
+    integration_catalog, next_onboarding_step,
     transaction_restore_payload,
 )
 from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_GROUPS, SIDEBAR_ICONS
@@ -189,27 +173,9 @@ def secret_value(name: str) -> str:
         return ""
 
 
-def logout_current_user() -> None:
-    """Close the active session and return safely to the login screen."""
-    auth_enabled = is_supabase_auth_configured()
-    session_controller = persistent_session_controller() if auth_enabled else None
-    if session_controller is not None:
-        clear_persisted_session(session_controller)
-    if auth_enabled:
-        try:
-            supabase_sign_out(
-                st.session_state.get("access_token", ""),
-                st.session_state.get("refresh_token", ""),
-            )
-        except AuthServiceError:
-            pass
-    for key in list(st.session_state):
-        del st.session_state[key]
-    st.rerun()
-
-
 def document_bytes(document: dict) -> bytes:
     if document.get("storage_path"):
+        from storage_service import download_document
         return download_document(
             st.session_state.get("access_token", ""),
             st.session_state.get("refresh_token", ""),
@@ -222,6 +188,7 @@ def save_uploaded_document(
     user: dict, uploaded, category: str, reference_month: str
 ) -> None:
     if user.get("auth_user_id") and st.session_state.get("access_token"):
+        from storage_service import upload_document
         storage_path = upload_document(
             user["auth_user_id"],
             st.session_state["access_token"],
@@ -243,6 +210,7 @@ def save_uploaded_document(
 
 def remove_saved_document(user_id: int, document: dict) -> None:
     if document.get("storage_path"):
+        from storage_service import remove_document
         remove_document(
             st.session_state.get("access_token", ""),
             st.session_state.get("refresh_token", ""),
@@ -424,7 +392,6 @@ render_sidebar(
     brand_logo_data_uri=BRAND_LOGO_DATA_URI,
     navigate=navigate_to,
     refresh_data=refresh_snapshot,
-    logout=logout_current_user,
 )
 
 undo_transaction = st.session_state.get("_undo_transaction")
@@ -2118,66 +2085,6 @@ elif page == "Plano e Assinatura":
     else:
         st.info("O checkout comercial ainda não está configurado. O uso atual permanece inalterado.")
 
-elif page == "Segurança da Conta":
-    header("Segurança da Conta", "Atualize sua senha e confira como sua sessão é protegida.")
-    if st.session_state.get("auth_provider") == "github":
-        st.success(
-            f"Acesso de desenvolvedor conectado com GitHub: @{st.session_state.get('github_login', '')}."
-        )
-        st.info("A segurança e a senha deste acesso são administradas diretamente pelo GitHub.")
-    else:
-        with st.container(border=True):
-            st.subheader("Alterar senha")
-            with st.form("change_password_form", clear_on_submit=True):
-                new_password = st.text_input("Nova senha", type="password", help="Use pelo menos 8 caracteres.")
-                password_confirmation = st.text_input("Confirmar nova senha", type="password")
-                change_password = st.form_submit_button("Alterar senha", type="primary", width="stretch")
-            if change_password:
-                if new_password != password_confirmation:
-                    st.error("As senhas não coincidem.")
-                elif len(new_password) < 8:
-                    st.error("A nova senha deve ter pelo menos 8 caracteres.")
-                elif not is_supabase_auth_configured():
-                    st.error("A alteração de senha requer o Supabase Auth.")
-                else:
-                    try:
-                        supabase_update_password(st.session_state.get("access_token", ""), st.session_state.get("refresh_token", ""), new_password)
-                    except AuthServiceError as exc:
-                        st.error(str(exc))
-                    else:
-                        st.success("Senha alterada com sucesso.")
-    section("Verificação de segurança")
-    runtime = database_runtime_info()
-    storage_ready = bool(secret_value("SUPABASE_URL") and secret_value("SUPABASE_PUBLISHABLE_KEY"))
-    leaked_passwords_ready = secret_value("LEAKED_PASSWORD_PROTECTION_ENABLED").lower() in {"1", "true", "yes", "sim"}
-    checks = security_checklist(
-        auth_enabled=is_supabase_auth_configured() or st.session_state.get("auth_provider") == "github",
-        database_persistent=runtime["persistent"],
-        storage_enabled=storage_ready,
-        leaked_password_protection=leaked_passwords_ready,
-    )
-    security_cards = []
-    for check in checks:
-        state_class = "is-done" if check["done"] else "is-pending"
-        state_label = "Ativo" if check["done"] else "Revisar"
-        security_cards.append(
-            f'<div class="rz-status-step {state_class}"><strong>{escape(check["title"])}</strong>'
-            f'<span>{state_label} · {escape(check["detail"])}</span></div>'
-        )
-    st.markdown('<div class="rz-status-grid">' + "".join(security_cards) + "</div>", unsafe_allow_html=True)
-    if not leaked_passwords_ready:
-        st.link_button(
-            "Como ativar proteção contra senhas vazadas",
-            "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection",
-            width="stretch",
-        )
-
-    section("Sessão e privacidade")
-    st.write("✓ A opção **Manter conectado** armazena somente um token de renovação criptografado.")
-    st.write("✓ Ao sair, a sessão local e o token persistente são removidos.")
-    st.write("✓ Os dados de cada conta são isolados pelo usuário autenticado.")
-    st.info("Em dispositivo compartilhado, use sempre o botão Sair ao terminar.")
-
 elif page == "Histórico de Atividades":
     header("Histórico de Atividades","Consulte alterações registradas automaticamente nos seus dados do Razync.")
     audit_rows=list_audit_logs(uid,250)
@@ -2198,46 +2105,68 @@ elif page == "Histórico de Atividades":
         st.caption("Por segurança, senhas e conteúdo binário de documentos nunca são incluídos no histórico.")
 
 elif page == "Status do Sistema":
-    header("Status do Sistema","Veja se o Razync está usando uma infraestrutura adequada para produção.")
-    runtime=database_runtime_info()
-    c1,c2,c3=st.columns(3)
-    c1.metric("Banco",runtime["backend"]); c2.metric("Persistência","Ativa" if runtime["persistent"] else "Temporária"); c3.metric("Produção","Pronto" if runtime["production_ready"] else "Configuração necessária")
-    if runtime["persistent"]: st.success("O banco configurado é persistente.")
-    else: st.warning("O app está usando SQLite temporário. No Streamlit Cloud, configure DATABASE_URL com PostgreSQL/Supabase antes de colocar clientes reais.")
-    st.subheader("Integrações")
-    status_config = {key: secret_value(key) for key in ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "CHECKOUT_PRO_URL")}
-    for integration in integration_readiness(status_config, runtime["persistent"]):
-        marker = "✓" if integration["ready"] else "○"
-        st.write(f"{marker} **{integration['name']}** — {integration['detail']}")
-    st.write("○ **Integrações bancárias diretas** — importação inteligente de arquivo já disponível")
-    section("Prontidão de produção")
-    readiness = production_checklist(
-        persistent_db=runtime["persistent"],
-        auth_ready=is_supabase_auth_configured(),
-        storage_ready=bool(secret_value("SUPABASE_URL") and secret_value("SUPABASE_PUBLISHABLE_KEY")),
-        session_secret=bool(secret_value("SESSION_COOKIE_SECRET")),
-    )
-    for check in readiness:
-        marker = "✓" if check["ok"] else "○"
-        st.write(f"{marker} **{check['item']}** — {check['detail']}")
+    header("Status do Sistema", "Veja a infraestrutura ativa do Razync Pro e o que ainda é provisório.")
+    runtime = database_runtime_info()
+
+    s1, s2, s3 = st.columns(3)
+    s1.metric("Hospedagem", "Railway")
+    s2.metric("Persistência", "Ativa" if runtime["persistent"] else "Revisar")
+    s3.metric("Modo de acesso", "Direto")
+
+    with st.container(key="rz_panel_system_runtime"):
+        st.caption("INFRAESTRUTURA")
+        st.write(f"**Banco atual:** {runtime['backend']}")
+        st.write("**Servidor:** Railway · US East")
+        st.write("**Sleep do serviço:** desativado")
+        st.write("**Volume persistente:** ativo")
+        if runtime["persistent"]:
+            st.success("Os dados operacionais atuais estão em armazenamento persistente.")
+        else:
+            st.warning("A persistência precisa ser revisada antes de armazenar dados reais de clientes.")
+
+    status_config = {
+        key: secret_value(key)
+        for key in ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "CHECKOUT_PRO_URL")
+    }
+    with st.expander("Integrações e prontidão"):
+        for integration in integration_readiness(status_config, runtime["persistent"]):
+            marker = "✓" if integration["ready"] else "○"
+            st.write(f"{marker} **{integration['name']}** — {integration['detail']}")
+        st.write("✓ **Importação bancária por arquivo** — disponível")
+        st.write("○ **Autenticação de usuários** — temporariamente desativada por decisão de desenvolvimento")
+        st.write("○ **PostgreSQL definitivo** — conectar antes de reativar contas comerciais")
 
 elif page == "Backup":
-    header("Backup","Baixe um pacote dos dados para manter uma cópia independente.")
+    header("Backup", "Gere uma cópia independente dos dados e documentos do Razync.")
     backup_key = f"_prepared_backup_{uid}_{_current_data_version}"
-    st.caption("O backup é preparado somente quando você solicitar, evitando carregar todos os documentos ao abrir esta página.")
-    if st.button("Preparar backup completo", type="primary", width="stretch"):
-        with st.spinner("Preparando backup..."):
-            backup = build_backup_zip(
-                profile, transactions, invoices, das_rows, obligations, contacts, employees, docs,
-                lambda doc_id:(lambda d: {**d, "content": document_bytes(d)} if d else None)(get_document(uid,doc_id)),
-            )
-            st.session_state[backup_key] = backup
+
+    with st.container(key="rz_panel_backup"):
+        st.caption("CÓPIA COMPLETA")
+        st.markdown("**Seus dados só são reunidos quando você solicitar.**")
+        st.caption("Isso evita carregar documentos desnecessariamente durante a navegação normal.")
+        if st.button("Preparar backup completo", type="primary", width="stretch"):
+            with st.spinner("Preparando backup..."):
+                backup = build_backup_zip(
+                    profile, transactions, invoices, das_rows, obligations,
+                    contacts, employees, docs,
+                    lambda doc_id: (
+                        lambda d: {**d, "content": document_bytes(d)} if d else None
+                    )(get_document(uid, doc_id)),
+                )
+                st.session_state[backup_key] = backup
+
     backup = st.session_state.get(backup_key)
     if backup:
-        st.download_button("Baixar backup completo (.zip)",backup,file_name=f"backup_razync_{date.today().isoformat()}.zip",mime="application/zip",width="stretch")
-        st.caption("O pacote inclui dados em CSV/JSON, manifesto e os documentos disponíveis no Razync Pro.")
-        st.code(backup_checksum(backup), language=None)
-        st.caption("Guarde este código de integridade junto do arquivo para conferir se o backup não foi alterado.")
-
+        st.success("Backup preparado.")
+        st.download_button(
+            "Baixar backup completo (.zip)",
+            backup,
+            file_name=f"backup_razync_{date.today().isoformat()}.zip",
+            mime="application/zip",
+            width="stretch",
+        )
+        with st.expander("Código de integridade"):
+            st.code(backup_checksum(backup), language=None)
+            st.caption("Guarde este código junto do arquivo para verificar se o backup foi alterado.")
 st.divider()
 st.caption("Razync Pro • Ecossistema Razync • ferramenta de organização contábil e financeira para MEI")
