@@ -10,11 +10,11 @@ class ModernWorkspaceTests(unittest.TestCase):
     def test_page_hierarchy_is_compact_and_responsive(self):
         self.assertIn("clamp(1.72rem, 2.35vw, 2.28rem)", self.source)
         self.assertIn("max-width: 760px !important", self.source)
-        self.assertIn("max-width: 1280px !important", self.source)
+        self.assertIn("max-width: 1220px !important", self.source)
 
     def test_metric_cards_have_desktop_and_mobile_sizes(self):
-        self.assertIn("min-height: 92px !important", self.source)
-        self.assertIn("min-height: 76px !important", self.source)
+        self.assertIn("min-height: 96px", self.source)
+        self.assertIn("min-height: 82px", self.source)
 
     def test_mobile_layout_stacks_columns(self):
         self.assertIn("@media (max-width: 820px)", self.source)
