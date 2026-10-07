@@ -22,10 +22,8 @@ class CompactCardsTests(unittest.TestCase):
             self.assertNotIn("metric_card(", source)
 
     def test_primary_workspaces_keep_secondary_information_collapsed(self):
-        self.assertIn('st.expander("Resumo anual e últimos lançamentos")', self.finance)
-        self.assertIn('st.expander("Notas, documentos e relatórios")', self.fiscal)
-        self.assertIn('st.expander("Outras rotinas financeiras")', self.finance)
-        self.assertIn('st.expander("Outras rotinas fiscais")', self.fiscal)
+        self.assertIn('st.expander("Planejamento e ferramentas")', self.finance)
+        self.assertIn('st.expander("Relatórios e ferramentas")', self.fiscal)
 
     def test_main_actions_remain_meaningful(self):
         self.assertIn('navigate("Movimentações")', self.dashboard)
