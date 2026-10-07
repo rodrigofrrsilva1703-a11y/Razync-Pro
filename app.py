@@ -12,7 +12,7 @@ from database import (
     delete_invoice, delete_obligation, delete_transaction, get_document, get_profile,
     init_db, list_contacts, list_das, list_documents, list_employees, list_invoices,
     list_obligations, list_transactions, save_document, save_profile,
-    update_obligation_status, update_transaction, upsert_das, link_transaction_document,
+    update_contact, update_employee, update_obligation_status, update_transaction, upsert_das, link_transaction_document,
     dashboard_financial_summary, transaction_document_numbers, count_transactions, list_transactions_page,
     load_user_snapshot, data_version, DatabaseConnectionError, resolve_public_workspace_user, add_recurring_transaction, delete_recurring_transaction, list_recurring_transactions,
     materialize_due_recurring, set_recurring_transaction_active, list_audit_logs, add_transactions_bulk,
@@ -1854,6 +1854,47 @@ elif page == "Clientes e Fornecedores":
         with st.container(key="rz_panel_contacts_list"):
             cdf = pd.DataFrame(contacts)
             professional_table(cdf, max_visible_rows=10)
+        with st.expander("Editar contato"):
+            edit_cid = st.selectbox(
+                "Contato",
+                [item["id"] for item in contacts],
+                format_func=lambda value: next(item["name"] for item in contacts if item["id"] == value),
+                key="editcontact",
+            )
+            contact_row = next(item for item in contacts if int(item["id"]) == int(edit_cid))
+            with st.form("edit_contact_form"):
+                a, b = st.columns([1, 2])
+                edit_contact_type = a.selectbox(
+                    "Tipo",
+                    ["Cliente", "Fornecedor"],
+                    index=1 if contact_row.get("contact_type") == "Fornecedor" else 0,
+                )
+                edit_contact_name = b.text_input("Nome", value=str(contact_row.get("name") or ""))
+                a, b, d = st.columns(3)
+                edit_contact_doc = a.text_input("CPF/CNPJ", value=str(contact_row.get("document") or ""))
+                edit_contact_email = b.text_input("E-mail", value=str(contact_row.get("email") or ""))
+                edit_contact_phone = d.text_input("Telefone", value=str(contact_row.get("phone") or ""))
+                edit_contact_notes = st.text_area("Observações", value=str(contact_row.get("notes") or ""))
+                save_contact_edit = st.form_submit_button("Salvar alterações", type="primary", width="stretch")
+            if save_contact_edit:
+                document_ok, document_error = cpf_or_cnpj_status(edit_contact_doc)
+                if not edit_contact_name.strip():
+                    st.error("Informe o nome do contato.")
+                elif not document_ok:
+                    st.error(document_error)
+                else:
+                    update_contact(
+                        uid,
+                        int(edit_cid),
+                        contact_type=edit_contact_type,
+                        name=edit_contact_name.strip(),
+                        document=edit_contact_doc.strip(),
+                        email=edit_contact_email.strip(),
+                        phone=edit_contact_phone.strip(),
+                        notes=edit_contact_notes.strip(),
+                    )
+                    st.rerun()
+
         with st.expander("Excluir contato"):
             cid = st.selectbox(
                 "Selecione",
@@ -1913,6 +1954,66 @@ elif page == "Empregado":
     else:
         with st.container(key="rz_panel_employee_list"):
             professional_table(pd.DataFrame(employees), max_visible_rows=10)
+        with st.expander("Editar empregado"):
+            edit_eid = st.selectbox(
+                "Empregado",
+                [item["id"] for item in employees],
+                format_func=lambda value: next(item["name"] for item in employees if item["id"] == value),
+                key="editemp",
+            )
+            employee_row = next(item for item in employees if int(item["id"]) == int(edit_eid))
+            raw_admission = employee_row.get("admission_date")
+            if isinstance(raw_admission, str):
+                try:
+                    raw_admission = date.fromisoformat(raw_admission[:10])
+                except ValueError:
+                    raw_admission = date.today()
+            if not isinstance(raw_admission, date):
+                raw_admission = date.today()
+            with st.form("edit_employee_form"):
+                edit_employee_name = st.text_input("Nome", value=str(employee_row.get("name") or ""))
+                a, b = st.columns(2)
+                edit_employee_admission = a.date_input("Data de admissão", value=raw_admission)
+                edit_employee_salary = b.number_input(
+                    "Salário",
+                    min_value=0.0,
+                    value=float(employee_row.get("salary") or 0),
+                    step=50.0,
+                )
+                a, b = st.columns(2)
+                edit_employee_cpf = a.text_input("CPF", value=str(employee_row.get("cpf") or ""))
+                current_employee_status = str(employee_row.get("status") or "Ativo")
+                edit_employee_status = b.selectbox(
+                    "Situação",
+                    ["Ativo", "Inativo"],
+                    index=1 if current_employee_status == "Inativo" else 0,
+                )
+                edit_employee_notes = st.text_area("Observações", value=str(employee_row.get("notes") or ""))
+                save_employee_edit = st.form_submit_button("Salvar alterações", type="primary", width="stretch")
+            if save_employee_edit:
+                other_active = sum(
+                    1 for item in employees
+                    if int(item["id"]) != int(edit_eid) and item.get("status") == "Ativo"
+                )
+                if not edit_employee_name.strip():
+                    st.error("Informe o nome do empregado.")
+                elif edit_employee_cpf.strip() and not valid_cpf(edit_employee_cpf):
+                    st.error("CPF inválido.")
+                elif edit_employee_status == "Ativo" and other_active >= 1:
+                    st.error("Já existe outro empregado ativo. O MEI pode manter no máximo um empregado ativo pela regra vigente.")
+                else:
+                    update_employee(
+                        uid,
+                        int(edit_eid),
+                        name=edit_employee_name.strip(),
+                        cpf=edit_employee_cpf.strip(),
+                        admission_date=edit_employee_admission,
+                        salary=edit_employee_salary,
+                        status=edit_employee_status,
+                        notes=edit_employee_notes.strip(),
+                    )
+                    st.rerun()
+
         with st.expander("Excluir empregado"):
             eid = st.selectbox(
                 "Selecione",
