@@ -283,6 +283,27 @@ def inject_workspace_style() -> None:
             background: var(--rz-surface);
             box-shadow: 0 10px 28px color-mix(in srgb, var(--rz-text) 3%, transparent);
         }
+        /* Avoid card-inside-card visual noise */
+        [class*="st-key-rz_panel_"] [data-testid="stForm"] {
+            padding: .15rem 0 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        [class*="st-key-rz_panel_"] [data-testid="stVerticalBlockBorderWrapper"] {
+            border-color: color-mix(in srgb, var(--rz-border) 58%, transparent) !important;
+            background: transparent !important;
+        }
+        [class*="st-key-rz_panel_"] [data-testid="stExpander"] {
+            border-color: color-mix(in srgb, var(--rz-border) 60%, transparent) !important;
+            background: color-mix(in srgb, var(--rz-soft) 32%, transparent) !important;
+        }
+        [class*="st-key-rz_panel_"] label p {
+            font-size: .74rem !important;
+            font-weight: 650 !important;
+        }
+
         [class*="st-key-rz_panel_"] [data-testid="stCaptionContainer"]:first-child p {
             margin-bottom: .15rem !important;
             color: var(--rz-primary) !important;
