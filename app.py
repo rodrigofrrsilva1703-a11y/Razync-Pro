@@ -510,7 +510,7 @@ elif page == "Movimentações":
             desc = st.text_input("Descrição", placeholder="Ex.: pagamento do cliente ou compra de material")
             with st.expander("Adicionar detalhes"):
                 a, b = st.columns(2)
-                category = a.selectbox("Categoria", ["Serviços","Vendas","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
+                category = a.selectbox("Categoria", ["Serviços","Comércio","Indústria","Materiais","Aluguel","Transporte","Taxas","Marketing","Pró-labore/Retirada","Outros"])
                 counterparty = b.text_input("Cliente ou fornecedor")
                 a, b = st.columns(2)
                 payment = a.selectbox("Forma de pagamento", ["PIX","Dinheiro","Cartão","Boleto","Transferência","Outro"])
@@ -767,8 +767,8 @@ elif page == "Importar Extrato":
     with st.container(key="rz_panel_statement_upload"):
         st.caption("ARQUIVO BANCÁRIO")
         upload = st.file_uploader(
-            "CSV ou Excel",
-            type=["csv","xlsx","xls"],
+            "CSV, TXT ou Excel",
+            type=["csv","txt","xlsx","xls"],
             key="statement_file",
             help="O arquivo é analisado somente após você enviá-lo.",
         )
@@ -794,10 +794,18 @@ elif page == "Importar Extrato":
                     date_col = a.selectbox("Data", cols, index=suggested_index("date", 0))
                     desc_col = b.selectbox("Descrição", cols, index=suggested_index("description", 1))
                     value_col = cmap.selectbox("Valor", cols, index=suggested_index("value", 2))
+                    direction = st.segmented_control(
+                        "Como interpretar os valores",
+                        ["Sinal do valor", "Tudo como receita", "Tudo como despesa"],
+                        default="Sinal do valor",
+                        selection_mode="single",
+                        key="statement_direction",
+                        width="stretch",
+                    ) or "Sinal do valor"
                     if all(suggested_columns.values()):
                         st.caption("✓ O Razync identificou as colunas automaticamente. Confirme antes de continuar.")
 
-                prepared = prepare_statement(raw, date_col, desc_col, value_col)
+                prepared = prepare_statement(raw, date_col, desc_col, value_col, direction)
                 learned_suggestions = [
                     learned_category(
                         row["Descrição"], row["Tipo"], transactions,
