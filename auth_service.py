@@ -19,7 +19,7 @@ from supabase import Client, create_client
 DEFAULT_SUPABASE_URL = "https://etimfgenlludorrftapb.supabase.co"
 # Publishable keys are designed for public clients; authorization is enforced by RLS.
 DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_NYDzyw9J-lH9dMDuVOnLsg_m7B1H3mF"
-DEFAULT_APP_URL = "https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/"
+DEFAULT_APP_URL = "https://razync-pro-production.up.railway.app/"
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_API_URL = "https://api.github.com"
