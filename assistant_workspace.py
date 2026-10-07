@@ -885,7 +885,22 @@ def _render_pending_action(*, key_prefix: str) -> None:
                     )
                     updates["description"] = st.text_input("Descrição", value=str(payload.get("description") or ""), key=f"{key_prefix}_description")
                     updates["value"] = st.number_input("Valor", min_value=0.0, value=float(payload.get("value") or 0), step=10.0, key=f"{key_prefix}_value")
-                    updates["category"] = st.text_input("Categoria", value=str(payload.get("category") or "Outros"), key=f"{key_prefix}_category")
+                    tx_category_options = (
+                        ["Serviços", "Comércio", "Indústria", "Outros"]
+                        if updates["tx_type"] == "Receita"
+                        else ["Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Serviços", "Outros"]
+                    )
+                    current_category = str(payload.get("category") or "Outros")
+                    if current_category == "Vendas":
+                        current_category = "Comércio"
+                    if current_category not in tx_category_options:
+                        tx_category_options = [current_category, *tx_category_options]
+                    updates["category"] = st.selectbox(
+                        "Categoria",
+                        tx_category_options,
+                        index=tx_category_options.index(current_category),
+                        key=f"{key_prefix}_category",
+                    )
                     updates["payment_method"] = st.selectbox(
                         "Pagamento", ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"],
                         index=["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"].index(payload.get("payment_method")) if payload.get("payment_method") in ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"] else 5,
@@ -897,19 +912,47 @@ def _render_pending_action(*, key_prefix: str) -> None:
                         frequencies = ["Semanal", "Mensal", "Anual"]
                         updates["frequency"] = st.selectbox("Frequência", frequencies, index=frequencies.index(payload.get("frequency")) if payload.get("frequency") in frequencies else 1, key=f"{key_prefix}_frequency")
                 elif action_type == "invoice":
+                    invoice_types = ["Serviço", "Comércio", "Indústria"]
+                    current_invoice_type = str(payload.get("invoice_type") or "Serviço")
+                    if current_invoice_type == "Venda/Comércio":
+                        current_invoice_type = "Comércio"
+                    if current_invoice_type not in invoice_types:
+                        invoice_types = [current_invoice_type, *invoice_types]
+                    updates["invoice_type"] = st.selectbox(
+                        "Tipo",
+                        invoice_types,
+                        index=invoice_types.index(current_invoice_type),
+                        key=f"{key_prefix}_invoice_type",
+                    )
                     updates["number"] = st.text_input("Número da nota", value=str(payload.get("number") or ""), key=f"{key_prefix}_number")
                     updates["customer"] = st.text_input("Cliente", value=str(payload.get("customer") or ""), key=f"{key_prefix}_customer")
                     updates["description"] = st.text_input("Descrição", value=str(payload.get("description") or ""), key=f"{key_prefix}_description")
                     updates["amount"] = st.number_input("Valor", min_value=0.0, value=float(payload.get("amount") or 0), step=10.0, key=f"{key_prefix}_amount")
                     updates["issue_date"] = st.text_input("Data (AAAA-MM-DD)", value=str(payload.get("issue_date") or ""), key=f"{key_prefix}_date")
+                    invoice_statuses = ["Emitida", "Cancelada"]
+                    current_invoice_status = str(payload.get("status") or "Emitida")
+                    updates["status"] = st.selectbox(
+                        "Situação",
+                        invoice_statuses,
+                        index=1 if current_invoice_status == "Cancelada" else 0,
+                        key=f"{key_prefix}_invoice_status",
+                    )
                 elif action_type == "obligation":
                     updates["title"] = st.text_input("Lembrete", value=str(payload.get("title") or ""), key=f"{key_prefix}_title")
                     updates["due_date"] = st.text_input("Vencimento (AAAA-MM-DD)", value=str(payload.get("due_date") or ""), key=f"{key_prefix}_date")
                     updates["category"] = st.text_input("Categoria", value=str(payload.get("category") or "Administrativo"), key=f"{key_prefix}_category")
                     updates["notes"] = st.text_area("Observações", value=str(payload.get("notes") or ""), key=f"{key_prefix}_notes")
                 elif action_type == "contact":
-                    contact_types = ["Cliente", "Fornecedor", "Contato"]
-                    updates["contact_type"] = st.selectbox("Tipo", contact_types, index=contact_types.index(payload.get("contact_type")) if payload.get("contact_type") in contact_types else 2, key=f"{key_prefix}_contact_type")
+                    contact_types = ["—", "Cliente", "Fornecedor"]
+                    current_contact_type = str(payload.get("contact_type") or "—")
+                    updates["contact_type"] = st.selectbox(
+                        "Tipo",
+                        contact_types,
+                        index=contact_types.index(current_contact_type) if current_contact_type in contact_types else 0,
+                        key=f"{key_prefix}_contact_type",
+                    )
+                    if updates["contact_type"] == "—":
+                        updates["contact_type"] = ""
                     updates["name"] = st.text_input("Nome", value=str(payload.get("name") or ""), key=f"{key_prefix}_name")
                     updates["document"] = st.text_input("CPF ou CNPJ", value=str(payload.get("document") or ""), key=f"{key_prefix}_document")
                     updates["email"] = st.text_input("E-mail", value=str(payload.get("email") or ""), key=f"{key_prefix}_email")
@@ -940,7 +983,7 @@ def _render_pending_action(*, key_prefix: str) -> None:
         if confirm.button("Confirmar e salvar", key=f"{key_prefix}_confirm", type="primary", width="stretch", disabled=bool(missing)):
             user_id = _current_user_id()
             if user_id is None:
-                st.error("Sua sessão expirou. Entre novamente para salvar.")
+                st.error("Não consegui identificar o workspace atual. Atualize a página e tente novamente.")
                 return
             try:
                 with st.spinner("Salvando com segurança..."):
