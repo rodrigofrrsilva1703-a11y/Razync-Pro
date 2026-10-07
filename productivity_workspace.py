@@ -4,9 +4,6 @@ import streamlit as st
 
 
 def render_productivity_workspace(*, navigate) -> None:
-    st.caption("AUTOMAÇÃO E PRODUTIVIDADE")
-    st.caption("Acompanhe rotinas e alertas sem transformar a tela em um painel de atalhos.")
-
     left, right = st.columns(2, gap="large")
     with left, st.container(key="rz_panel_productivity_automation"):
         st.caption("AUTOMAÇÕES")
@@ -22,4 +19,4 @@ def render_productivity_workspace(*, navigate) -> None:
         if st.button("Abrir alertas", width="stretch"):
             navigate("Central de Notificações")
 
-    st.info("O Razync IA continua disponível pelo botão flutuante e não precisa de um terceiro card nesta tela.")
+    st.caption("Precisa de ajuda com alguma rotina? Converse com o Razync IA pelo botão no canto da tela.")

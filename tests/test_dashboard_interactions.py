@@ -6,7 +6,7 @@ class DashboardInteractionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dashboard = Path("dashboard_workspace.py").read_text(encoding="utf-8")
-        cls.ui = Path("workspace_style.py").read_text(encoding="utf-8")
+        cls.ui = Path("workspace.css").read_text(encoding="utf-8")
         cls.app = Path("app.py").read_text(encoding="utf-8")
 
     def test_dashboard_keeps_one_primary_next_action(self):
