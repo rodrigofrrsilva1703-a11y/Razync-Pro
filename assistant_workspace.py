@@ -375,7 +375,7 @@ def _safe_api_status_metadata(exc: APIStatusError) -> str:
 
 def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
     if not api_key.strip():
-        return False, "OPENAI_API_KEY não foi encontrada nos Secrets do Streamlit."
+        return False, "OPENAI_API_KEY não foi encontrada nas variáveis protegidas do ambiente."
 
     try:
         client = OpenAI(api_key=api_key.strip(), timeout=15.0, max_retries=0)
@@ -388,7 +388,7 @@ def _diagnose_openai(api_key: str, model: str) -> tuple[bool, str]:
             return False, "A OpenAI respondeu, mas não retornou texto. Tente novamente."
         return True, f"Conexão com a OpenAI funcionando. Modelo validado: {model}."
     except AuthenticationError:
-        return False, "A chave da OpenAI foi recusada. Gere uma nova API key e atualize OPENAI_API_KEY nos Secrets."
+        return False, "A chave da OpenAI foi recusada. Gere uma nova API key e atualize OPENAI_API_KEY nas variáveis protegidas do ambiente."
     except RateLimitError:
         return False, "A API recusou a chamada por limite de uso ou crédito. Verifique Billing/Usage do projeto da OpenAI."
     except APITimeoutError:
@@ -912,18 +912,6 @@ def _render_pending_action(*, key_prefix: str) -> None:
                         frequencies = ["Semanal", "Mensal", "Anual"]
                         updates["frequency"] = st.selectbox("Frequência", frequencies, index=frequencies.index(payload.get("frequency")) if payload.get("frequency") in frequencies else 1, key=f"{key_prefix}_frequency")
                 elif action_type == "invoice":
-                    invoice_types = ["Serviço", "Comércio", "Indústria"]
-                    current_invoice_type = str(payload.get("invoice_type") or "Serviço")
-                    if current_invoice_type == "Venda/Comércio":
-                        current_invoice_type = "Comércio"
-                    if current_invoice_type not in invoice_types:
-                        invoice_types = [current_invoice_type, *invoice_types]
-                    updates["invoice_type"] = st.selectbox(
-                        "Tipo",
-                        invoice_types,
-                        index=invoice_types.index(current_invoice_type),
-                        key=f"{key_prefix}_invoice_type",
-                    )
                     invoice_types = ["Serviço", "Comércio", "Indústria"]
                     current_invoice_type = str(payload.get("invoice_type") or "Serviço")
                     if current_invoice_type == "Venda/Comércio":
