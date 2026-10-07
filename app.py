@@ -646,39 +646,39 @@ elif page == "Movimentações":
                 st.rerun()
 
 elif page == "Recorrências":
-    header(
-        "Lançamentos recorrentes",
-        "Cadastre receitas e despesas que se repetem. O Razync gera cada ocorrência na data correta.",
-    )
-    with st.container(border=True):
+    header("Lançamentos Recorrentes", "Automatize receitas e despesas que se repetem sem perder o controle.")
+
+    recurring_items = list_recurring_transactions(uid)
+    active_recurring = sum(1 for item in recurring_items if item.get("active"))
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Recorrências", len(recurring_items))
+    r2.metric("Ativas", active_recurring)
+    r3.metric("Pausadas", len(recurring_items) - active_recurring)
+
+    create_col, guide_col = st.columns([1.5, .85], gap="large")
+    with create_col, st.container(key="rz_panel_recurring_new"):
         st.caption("NOVA RECORRÊNCIA")
         with st.form("recurring_form", clear_on_submit=True):
             recurring_type = st.segmented_control(
                 "Tipo", ["Receita", "Despesa"], default="Despesa", selection_mode="single"
             ) or "Despesa"
-            r1, r2 = st.columns(2)
-            recurring_description = r1.text_input("Descrição", placeholder="Ex.: aluguel, internet, mensalidade")
-            recurring_value = r2.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
-            r1, r2, r3 = st.columns(3)
-            recurring_category = r1.selectbox(
+            a, b = st.columns(2)
+            recurring_description = a.text_input("Descrição", placeholder="Ex.: aluguel, internet, mensalidade")
+            recurring_value = b.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+            a, b, c3 = st.columns(3)
+            recurring_category = a.selectbox(
                 "Categoria",
                 ["Serviços", "Vendas", "Materiais", "Aluguel", "Transporte", "Taxas", "Marketing", "Pró-labore/Retirada", "Outros"],
             )
-            recurring_frequency = r2.selectbox("Frequência", ["Mensal", "Semanal", "Anual"])
-            recurring_payment = r3.selectbox(
-                "Forma de pagamento", ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"]
+            recurring_frequency = b.selectbox("Frequência", ["Mensal", "Semanal", "Anual"])
+            recurring_payment = c3.selectbox(
+                "Pagamento", ["PIX", "Dinheiro", "Cartão", "Boleto", "Transferência", "Outro"]
             )
-            r1, r2 = st.columns(2)
-            recurring_start = r1.date_input("Primeira ocorrência", value=date.today())
-            has_end = r2.checkbox("Definir data final")
-            recurring_end = r2.date_input(
-                "Data final",
-                value=date.today(),
-                disabled=not has_end,
-            )
-            save_recurring = st.form_submit_button(
-                "Salvar recorrência", type="primary", width="stretch"
-            )
+            a, b = st.columns(2)
+            recurring_start = a.date_input("Primeira ocorrência", value=date.today())
+            has_end = b.checkbox("Definir data final")
+            recurring_end = b.date_input("Data final", value=date.today(), disabled=not has_end)
+            save_recurring = st.form_submit_button("Salvar recorrência", type="primary", width="stretch")
         if save_recurring:
             if not recurring_description.strip():
                 st.error("Informe uma descrição.")
@@ -703,8 +703,16 @@ elif page == "Recorrências":
                 st.success("Recorrência criada.")
                 st.rerun()
 
-    recurring_items = list_recurring_transactions(uid)
-    section("Recorrências cadastradas")
+    with guide_col, st.container(key="rz_panel_recurring_guide"):
+        st.caption("COMO FUNCIONA")
+        st.markdown("**O Razync gera a ocorrência quando a data chega.**")
+        st.caption("Você pode pausar ou excluir a regra a qualquer momento.")
+        st.markdown(
+            '<div class="rz-inline-meta"><span>Mensal</span><span>Semanal</span><span>Anual</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    section("Recorrências cadastradas", "Pause, reative ou exclua quando precisar.")
     if not recurring_items:
         empty_state(
             "Nenhuma recorrência cadastrada",
@@ -714,38 +722,33 @@ elif page == "Recorrências":
     else:
         recurring_df = pd.DataFrame(recurring_items)
         recurring_df["Situação"] = recurring_df["active"].map({True: "Ativa", False: "Pausada"})
-        professional_table(
-            recurring_df[["id", "description", "tx_type", "value", "frequency", "next_date", "Situação"]],
-            max_visible_rows=8,
-            column_config={
-                "id": None,
-                "description": "Descrição",
-                "tx_type": "Tipo",
-                "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-                "frequency": "Frequência",
-                "next_date": st.column_config.DateColumn("Próxima ocorrência", format="DD/MM/YYYY"),
-            },
-        )
-        labels = {
-            int(item["id"]): f"#{item['id']} · {item['description']} · {brl(float(item['value']))}"
-            for item in recurring_items
-        }
-        selected_recurring = st.selectbox(
-            "Gerenciar recorrência",
-            list(labels),
-            format_func=lambda item_id: labels[item_id],
-        )
-        selected_item = next(
-            item for item in recurring_items if int(item["id"]) == int(selected_recurring)
-        )
-        manage1, manage2 = st.columns(2)
-        toggle_label = "Pausar recorrência" if selected_item["active"] else "Reativar recorrência"
-        if manage1.button(toggle_label, width="stretch"):
-            set_recurring_transaction_active(uid, int(selected_recurring), not selected_item["active"])
-            st.rerun()
-        if manage2.button("Excluir recorrência", width="stretch"):
-            delete_recurring_transaction(uid, int(selected_recurring))
-            st.rerun()
+        with st.container(key="rz_panel_recurring_list"):
+            professional_table(
+                recurring_df[["id", "description", "tx_type", "value", "frequency", "next_date", "Situação"]],
+                max_visible_rows=8,
+                column_config={
+                    "id": None,
+                    "description": "Descrição",
+                    "tx_type": "Tipo",
+                    "value": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                    "frequency": "Frequência",
+                    "next_date": st.column_config.DateColumn("Próxima ocorrência", format="DD/MM/YYYY"),
+                },
+            )
+            labels = {
+                int(item["id"]): f"#{item['id']} · {item['description']} · {brl(float(item['value']))}"
+                for item in recurring_items
+            }
+            selected_recurring = st.selectbox("Gerenciar recorrência", list(labels), format_func=lambda item_id: labels[item_id])
+            selected_item = next(item for item in recurring_items if int(item["id"]) == int(selected_recurring))
+            manage1, manage2 = st.columns(2)
+            toggle_label = "Pausar recorrência" if selected_item["active"] else "Reativar recorrência"
+            if manage1.button(toggle_label, width="stretch"):
+                set_recurring_transaction_active(uid, int(selected_recurring), not selected_item["active"])
+                st.rerun()
+            if manage2.button("Excluir recorrência", width="stretch"):
+                delete_recurring_transaction(uid, int(selected_recurring))
+                st.rerun()
 
 elif page == "Importar Extrato":
     from bank_import import (
@@ -969,58 +972,115 @@ elif page == "Conciliação":
 
 elif page == "Fluxo de Caixa":
     import plotly.express as px
-    header("Fluxo de Caixa","Veja entradas, saídas, resultado e saldo acumulado por mês.")
-    year = st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3)
-    cf = cashflow_monthly(transactions,year)
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Entradas",brl(float(cf["Entradas"].sum()))); c2.metric("Saídas",brl(float(cf["Saídas"].sum()))); c3.metric("Resultado",brl(float(cf["Resultado"].sum())))
-    fig = px.bar(cf,x="Mês",y=["Entradas","Saídas"],barmode="group",template=PLOT_TEMPLATE)
-    apply_plot_theme(fig, UI_THEME)
-    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-    professional_table(cf, max_visible_rows=12, column_config={"Entradas":st.column_config.NumberColumn(format="R$ %.2f"),"Saídas":st.column_config.NumberColumn(format="R$ %.2f"),"Resultado":st.column_config.NumberColumn(format="R$ %.2f"),"Saldo acumulado":st.column_config.NumberColumn(format="R$ %.2f")})
+
+    header("Fluxo de Caixa", "Acompanhe entradas, saídas e saldo acumulado mês a mês.")
+    year = st.selectbox("Ano", list(range(CURRENT_YEAR-3, CURRENT_YEAR+1)), index=3, key="cashflow_year")
+    cf = cashflow_monthly(transactions, year)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Entradas", brl(float(cf["Entradas"].sum())))
+    c2.metric("Saídas", brl(float(cf["Saídas"].sum())))
+    c3.metric("Resultado", brl(float(cf["Resultado"].sum())))
+    c4.metric("Saldo acumulado", brl(float(cf["Saldo acumulado"].iloc[-1]) if not cf.empty else 0.0))
+
+    with st.container(key="rz_panel_cashflow_chart"):
+        st.caption("EVOLUÇÃO")
+        fig = px.bar(cf, x="Mês", y=["Entradas","Saídas"], barmode="group", template=PLOT_TEMPLATE)
+        apply_plot_theme(fig, UI_THEME, height=310)
+        fig.update_layout(margin=dict(l=8, r=8, t=18, b=8), legend_title_text=None)
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    with st.expander("Ver valores por mês", expanded=False):
+        professional_table(
+            cf,
+            max_visible_rows=12,
+            column_config={
+                "Entradas": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Saídas": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Resultado": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Saldo acumulado": st.column_config.NumberColumn(format="R$ %.2f"),
+            },
+        )
 
 elif page == "Análise Financeira":
     import plotly.express as px
-    header("Análise Financeira","Veja evolução, rentabilidade e pontos que merecem revisão antes de tomar decisões.")
-    analysis_year = st.selectbox("Ano da análise", list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)), index=3, key="analysis_year")
+
+    header("Análise Financeira", "Entenda evolução, margem, despesas e pontos que merecem atenção.")
+    analysis_year = st.selectbox("Ano da análise", list(range(CURRENT_YEAR-3, CURRENT_YEAR+1)), index=3, key="analysis_year")
     analysis = financial_analysis(transactions, analysis_year)
-    ac1,ac2,ac3,ac4 = st.columns(4)
-    ac1.metric("Receitas",brl(analysis["revenue"])); ac2.metric("Despesas",brl(analysis["expense"])); ac3.metric("Resultado",brl(analysis["result"])); ac4.metric("Margem",f"{analysis['margin']:.1f}%")
+
+    ac1, ac2, ac3, ac4 = st.columns(4)
+    ac1.metric("Receitas", brl(analysis["revenue"]))
+    ac2.metric("Despesas", brl(analysis["expense"]))
+    ac3.metric("Resultado", brl(analysis["result"]))
+    ac4.metric("Margem", f"{analysis['margin']:.1f}%")
+
     analysis_limit = annual_limit_for(opening, analysis_year, profile.get("annual_limit"))
-    section("Leitura automática", "O que os números cadastrados indicam, em linguagem simples.")
+    section("Leitura automática", "O que os números cadastrados indicam em linguagem simples.")
     for insight in financial_story(analysis["revenue"], analysis["expense"], analysis["revenue"], analysis_limit):
         alert_card(insight["tone"], insight["title"], insight["detail"])
+
     monthly = analysis["monthly"]
     if not monthly.empty:
-        fig = px.line(monthly,x="Mês",y=["Receitas","Despesas","Resultado"],markers=True,template=PLOT_TEMPLATE)
-        apply_plot_theme(fig, UI_THEME)
-        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-        professional_table(monthly, max_visible_rows=12, column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Receitas","Despesas","Resultado"]})
-    st.subheader("Despesas por categoria")
-    bycat = analysis["expense_categories"]
-    if bycat.empty: st.info("Sem despesas registradas neste ano.")
-    else:
-        fig2 = px.bar(bycat, x="Categoria", y="Valor", template=PLOT_TEMPLATE)
-        apply_plot_theme(fig2, UI_THEME)
-        st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
-    checks = consistency_checks(transactions,invoices,das_rows)
-    st.subheader("Revisões recomendadas")
-    if checks:
-        for item in checks: st.warning(item)
-    else: st.success("Nenhuma inconsistência relevante encontrada.")
+        with st.container(key="rz_panel_analysis_evolution"):
+            st.caption("EVOLUÇÃO MENSAL")
+            fig = px.line(monthly, x="Mês", y=["Receitas","Despesas","Resultado"], markers=True, template=PLOT_TEMPLATE)
+            apply_plot_theme(fig, UI_THEME, height=310)
+            fig.update_layout(margin=dict(l=8, r=8, t=18, b=8), legend_title_text=None)
+            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    left, right = st.columns([1.2, 1], gap="large")
+    with left:
+        section("Despesas por categoria")
+        bycat = analysis["expense_categories"]
+        if bycat.empty:
+            st.info("Sem despesas registradas neste ano.")
+        else:
+            fig2 = px.bar(bycat, x="Categoria", y="Valor", template=PLOT_TEMPLATE)
+            apply_plot_theme(fig2, UI_THEME, height=285)
+            fig2.update_layout(margin=dict(l=8, r=8, t=18, b=8))
+            st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
+    with right:
+        section("Revisões recomendadas")
+        checks = consistency_checks(transactions, invoices, das_rows)
+        if checks:
+            for item in checks:
+                st.warning(item)
+        else:
+            st.success("Nenhuma inconsistência relevante encontrada.")
+
+    with st.expander("Ver tabela mensal"):
+        if not monthly.empty:
+            professional_table(
+                monthly,
+                max_visible_rows=12,
+                column_config={col: st.column_config.NumberColumn(format="R$ %.2f") for col in ["Receitas","Despesas","Resultado"]},
+            )
+
     analysis_pdf = cached_financial_summary_pdf(profile, analysis_year, analysis)
-    st.download_button("Baixar análise financeira em PDF",analysis_pdf,file_name=f"analise_financeira_{analysis_year}.pdf",mime="application/pdf",width="stretch")
+    st.download_button(
+        "Baixar análise financeira em PDF",
+        analysis_pdf,
+        file_name=f"analise_financeira_{analysis_year}.pdf",
+        mime="application/pdf",
+        width="stretch",
+    )
 
 elif page == "Fechamento Mensal":
-    header("Fechamento Mensal","Confira documentos, notas, movimentações e DAS antes de considerar o mês organizado.")
-    c1,c2=st.columns(2)
-    close_year=c1.selectbox("Ano",list(range(CURRENT_YEAR-2,CURRENT_YEAR+1)),index=2,key="close_year")
-    close_month=c2.selectbox("Mês",list(range(1,13)),index=date.today().month-1,format_func=lambda m:MONTH_NAMES_PT[m - 1],key="close_month")
-    closing=monthly_closing(transactions,invoices,docs,das_rows,close_year,close_month)
-    a,b,c,d=st.columns(4)
-    a.metric("Receitas",brl(closing["revenue"])); b.metric("Despesas",brl(closing["expense"])); c.metric("Resultado",brl(closing["result"])); d.metric("Organização",f"{closing['score']}%")
-    st.progress(closing["score"]/100)
-    section("Etapas do fechamento", "Resolva as pendências na ordem sugerida e volte para conferir o progresso.")
+    header("Fechamento Mensal", "Confira o mês em uma sequência simples antes de considerá-lo organizado.")
+    a, b = st.columns(2)
+    close_year = a.selectbox("Ano", list(range(CURRENT_YEAR-2, CURRENT_YEAR+1)), index=2, key="close_year")
+    close_month = b.selectbox("Mês", list(range(1,13)), index=date.today().month-1, format_func=lambda m: MONTH_NAMES_PT[m - 1], key="close_month")
+    closing = monthly_closing(transactions, invoices, docs, das_rows, close_year, close_month)
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Receitas", brl(closing["revenue"]))
+    m2.metric("Despesas", brl(closing["expense"]))
+    m3.metric("Resultado", brl(closing["result"]))
+    m4.metric("Organização", f"{closing['score']}%")
+    st.progress(closing["score"] / 100)
+
+    section("Checklist do mês", "Resolva somente o que ainda estiver pendente.")
     closing_routes = {
         "Movimentações do mês revisadas": "Movimentações",
         "Receitas registradas": "Movimentações",
@@ -1029,16 +1089,17 @@ elif page == "Fechamento Mensal":
         "Lançamentos com documento informado": "Movimentações",
         "Notas fiscais conferidas": "Notas Fiscais",
     }
-    for index, item in enumerate(closing["checklist"], start=1):
-        status_col, detail_col, action_col = st.columns([.7, 4.8, 1.2])
-        status_col.markdown("### ✓" if item["OK"] else f"### {index}")
-        detail_col.write(f"**{item['Item']}**")
-        detail_col.caption(item["Detalhe"])
-        if not item["OK"]:
-            route = closing_routes[item["Item"]]
-            if action_col.button("Resolver", key=f"closing_step_{index}", width="stretch"):
-                st.session_state["_navigate_to"] = route
-                st.rerun()
+    with st.container(key="rz_panel_closing_steps"):
+        for index, item in enumerate(closing["checklist"], start=1):
+            status_col, detail_col, action_col = st.columns([.65, 4.5, 1.2])
+            status_col.markdown("### ✓" if item["OK"] else f"### {index}")
+            detail_col.write(f"**{item['Item']}**")
+            detail_col.caption(item["Detalhe"])
+            if not item["OK"]:
+                route = closing_routes[item["Item"]]
+                if action_col.button("Resolver", key=f"closing_step_{index}", width="stretch"):
+                    st.session_state["_navigate_to"] = route
+                    st.rerun()
 
     if closing["score"] == 100:
         st.success("Fechamento pronto: todas as etapas foram concluídas.")
@@ -1047,19 +1108,58 @@ elif page == "Fechamento Mensal":
         st.info(f"Faltam {pending_count} etapa(s) para concluir este fechamento.")
 
     closing_pdf = cached_closing_summary_pdf(profile, close_year, close_month, closing)
-    st.download_button("Baixar fechamento em PDF",closing_pdf,file_name=f"fechamento_{close_year}_{close_month:02d}.pdf",mime="application/pdf",width="stretch")
+    st.download_button(
+        "Baixar fechamento em PDF",
+        closing_pdf,
+        file_name=f"fechamento_{close_year}_{close_month:02d}.pdf",
+        mime="application/pdf",
+        width="stretch",
+    )
 
 elif page == "Relatório Mensal":
-    header("Relatório Mensal de Receitas Brutas","Gere o relatório mensal a partir das receitas cadastradas.")
-    year=st.selectbox("Ano",list(range(CURRENT_YEAR-3,CURRENT_YEAR+1)),index=3,key="rmyear")
-    rows=monthly_rows(transactions,year)
-    dfm=pd.DataFrame([{ "Mês":r["month_name"],"Com documento":r["with_doc"],"Sem documento":r["without_doc"],"Serviços":r["services"],"Vendas/Comércio":r["sales"],"Total":r["total"]} for r in rows])
-    professional_table(dfm, max_visible_rows=12, column_config={c:st.column_config.NumberColumn(format="R$ %.2f") for c in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]})
-    st.caption("O relatório é gerado com base nos dados cadastrados. Guarde os documentos comprobatórios conforme as regras aplicáveis ao MEI.")
-    month=st.selectbox("Mês do PDF",list(range(1,13)),format_func=lambda m:MONTH_NAMES_PT[m - 1],key="pdfmonth")
-    r=rows[month-1]
-    pdf=cached_monthly_report_pdf(profile, year, [r])
-    st.download_button("Baixar relatório em PDF",pdf,file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",mime="application/pdf")
+    header("Relatório Mensal", "Veja a composição das receitas e gere o PDF da competência desejada.")
+    year = st.selectbox("Ano", list(range(CURRENT_YEAR-3, CURRENT_YEAR+1)), index=3, key="rmyear")
+    rows = monthly_rows(transactions, year)
+    dfm = pd.DataFrame([
+        {
+            "Mês": r["month_name"],
+            "Com documento": r["with_doc"],
+            "Sem documento": r["without_doc"],
+            "Serviços": r["services"],
+            "Vendas/Comércio": r["sales"],
+            "Total": r["total"],
+        }
+        for r in rows
+    ])
+    total_year = float(dfm["Total"].sum()) if not dfm.empty else 0.0
+    r1, r2 = st.columns(2)
+    r1.metric("Receita no ano", brl(total_year))
+    r2.metric("Média mensal", brl(total_year / 12 if total_year else 0.0))
+
+    with st.container(key="rz_panel_monthly_report"):
+        st.caption("VISÃO ANUAL")
+        professional_table(
+            dfm,
+            max_visible_rows=12,
+            column_config={
+                col: st.column_config.NumberColumn(format="R$ %.2f")
+                for col in ["Com documento","Sem documento","Serviços","Vendas/Comércio","Total"]
+            },
+        )
+
+    with st.container(key="rz_panel_monthly_pdf"):
+        st.caption("GERAR PDF")
+        month = st.selectbox("Competência", list(range(1,13)), format_func=lambda m: MONTH_NAMES_PT[m - 1], key="pdfmonth")
+        selected_row = rows[month-1]
+        pdf = cached_monthly_report_pdf(profile, year, [selected_row])
+        st.download_button(
+            "Baixar relatório em PDF",
+            pdf,
+            file_name=f"relatorio_mensal_{year}_{month:02d}.pdf",
+            mime="application/pdf",
+            width="stretch",
+        )
+        st.caption("O relatório usa os dados cadastrados no Razync. Guarde também os documentos comprobatórios.")
 
 elif page == "Notas Fiscais":
     header("Notas Fiscais", "Organize as notas emitidas e acompanhe o que já entrou no financeiro.")
