@@ -1627,27 +1627,71 @@ elif page == "Obrigações":
     obligation_year = st.selectbox("Ano", list(range(CURRENT_YEAR-1, CURRENT_YEAR+2)), index=1, key="obyear")
     auto = automatic_obligations(obligation_year, opening)
     manual = obligations
+    today_value = date.today()
+    soon_limit = today_value.fromordinal(today_value.toordinal() + 15)
+
+    das_by_competence = {
+        str(item.get("competence") or ""): item
+        for item in das_rows
+    }
+
     combined = []
+    attention_count = 0
     for row in auto:
+        status_value = row["status"]
+        if str(row.get("title") or "").startswith("DAS "):
+            actual_das = das_by_competence.get(str(row.get("competence") or ""))
+            if actual_das:
+                status_value = das_status(
+                    actual_das.get("status", "Pendente"),
+                    actual_das.get("due_date"),
+                    today_value,
+                )
+            due_value = row.get("due_date")
+            if status_value == "Atrasado":
+                attention_count += 1
+            elif status_value == "Pendente" and due_value and today_value <= due_value <= soon_limit:
+                attention_count += 1
+        elif status_value == "Próxima":
+            attention_count += 1
+
         combined.append({
-            "Origem":"Automática","Obrigação":row["title"],"Tipo":row["category"],
-            "Competência":row["competence"],"Vencimento":row["due_date"],
-            "Status":row["status"],"Detalhes":row["details"],
-        })
-    for row in manual:
-        combined.append({
-            "Origem":"Manual","Obrigação":row["title"],"Tipo":row["category"],
-            "Competência":"-","Vencimento":row["due_date"],
-            "Status":row["status"],"Detalhes":row["notes"],
+            "Origem": "Automática",
+            "Obrigação": row["title"],
+            "Tipo": row["category"],
+            "Competência": row["competence"],
+            "Vencimento": row["due_date"],
+            "Status": status_value,
+            "Detalhes": row["details"],
         })
 
-    pending_count = sum(1 for row in combined if row.get("Status") != "Concluído")
+    for row in manual:
+        due_value = row.get("due_date")
+        if isinstance(due_value, str):
+            try:
+                due_value = date.fromisoformat(due_value[:10])
+            except ValueError:
+                due_value = None
+        manual_status = str(row.get("status") or "Pendente")
+        if manual_status != "Concluído" and due_value and due_value <= soon_limit:
+            attention_count += 1
+        combined.append({
+            "Origem": "Manual",
+            "Obrigação": row["title"],
+            "Tipo": row["category"],
+            "Competência": "-",
+            "Vencimento": due_value,
+            "Status": manual_status,
+            "Detalhes": row["notes"],
+        })
+
     manual_count = len(manual)
     o1, o2, o3 = st.columns(3)
-    o1.metric("Obrigações no ano", len(combined))
-    o2.metric("Pendentes", pending_count)
+    o1.metric("Itens no calendário", len(combined))
+    o2.metric("Atenção agora", attention_count)
     o3.metric("Personalizadas", manual_count)
 
+    st.caption("Prazos automáticos ajudam na organização. “Prazo passado” não confirma descumprimento; confira o que já foi realizado e os documentos oficiais.")
     if combined:
         with st.container(key="rz_panel_obligations_list"):
             obd = pd.DataFrame(combined).sort_values("Vencimento")
@@ -1676,6 +1720,8 @@ elif page == "Obrigações":
                         category=cat, notes=notes.strip(),
                     )
                     st.rerun()
+                else:
+                    st.error("Informe um título para a obrigação.")
 
     if manual:
         with st.expander("Gerenciar obrigações personalizadas"):
@@ -1684,7 +1730,14 @@ elif page == "Obrigações":
                 [o["id"] for o in manual],
                 format_func=lambda x: next(o["title"] for o in manual if o["id"] == x),
             )
-            status = st.selectbox("Novo status", ["Pendente","Concluído"], key="oblstatus")
+            selected_manual = next(o for o in manual if int(o["id"]) == int(item))
+            current_manual_status = str(selected_manual.get("status") or "Pendente")
+            status = st.selectbox(
+                "Novo status",
+                ["Pendente","Concluído"],
+                index=1 if current_manual_status == "Concluído" else 0,
+                key="oblstatus",
+            )
             c1, c2 = st.columns(2)
             if c1.button("Atualizar", width="stretch"):
                 update_obligation_status(uid, int(item), status)
