@@ -229,18 +229,14 @@ def das_journey(
 
 def integration_catalog(config: dict, database_persistent: bool) -> list[dict]:
     """Describe safe capabilities without pretending third-party credentials exist."""
-    supabase_ready = bool(
-        database_persistent
-        and config.get("SUPABASE_URL")
-        and config.get("SUPABASE_PUBLISHABLE_KEY")
-    )
+    data_ready = bool(database_persistent)
     return [
         {
             "name": "Dados e documentos",
-            "status": "Ativo" if supabase_ready else "Configurar",
-            "ready": supabase_ready,
+            "status": "Ativo" if data_ready else "Configurar",
+            "ready": data_ready,
             "mode": "Automático",
-            "detail": "Banco persistente, login e arquivos privados por usuário.",
+            "detail": "Armazenamento persistente ativo. O acesso por usuário está temporariamente desativado durante esta fase de desenvolvimento.",
             "page": "Status do Sistema",
             "url": "",
         },
