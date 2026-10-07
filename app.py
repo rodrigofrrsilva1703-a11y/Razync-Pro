@@ -2407,24 +2407,28 @@ elif page == "Integrações":
     st.info("Open Finance e WhatsApp automático dependem de provedores externos e consentimento. A importação manual continua disponível sem essas integrações.")
 
 elif page == "Plano e Assinatura":
-    header("Plano e Assinatura", "Veja os recursos do plano atual e o status do checkout comercial.")
-    plan_name = "Pro" if st.session_state.get("auth_provider") == "github" else "Essencial"
-    plan = PLAN_CATALOG[plan_name]
+    header("Planos e Recursos", "Compare o que o Razync pretende oferecer quando o acesso comercial for reativado.")
 
-    with st.container(key="rz_panel_plan_current"):
-        st.caption("PLANO ATUAL")
-        st.markdown(f"### Razync {plan_name}")
-        st.caption(plan["description"])
-        for feature in plan["features"]:
-            st.write(f"✓ {feature}")
+    if st.session_state.get("auth_provider") == "public":
+        st.info("O ambiente atual está em modo de desenvolvimento com acesso direto. Não existe assinatura individual ativa neste momento.")
+
+    p1, p2 = st.columns(2, gap="large")
+    for column, plan_name in zip((p1, p2), ("Essencial", "Pro")):
+        plan = PLAN_CATALOG[plan_name]
+        with column, st.container(key=f"rz_panel_plan_{plan_name.lower()}"):
+            st.caption(f"PLANO {plan_name.upper()}")
+            st.markdown(f"### Razync {plan_name}")
+            st.caption(plan["description"])
+            for feature in plan["features"]:
+                st.write(f"✓ {feature}")
 
     config = {"CHECKOUT_PRO_URL": secret_value("CHECKOUT_PRO_URL")}
     payment_url = checkout_url(config, "pro")
-    if payment_url:
+    if st.session_state.get("auth_provider") != "public" and payment_url:
         st.link_button("Assinar Razync Pro", payment_url, type="primary", width="stretch")
         st.caption("O pagamento é processado pelo provedor configurado; dados de cartão não passam pelo Razync.")
     else:
-        st.info("O checkout comercial ainda não está configurado. O uso atual permanece inalterado.")
+        st.caption("Checkout e cobrança permanecem desativados enquanto o sistema estiver em acesso direto.")
 
 elif page == "Histórico de Atividades":
     header("Histórico de Atividades", "Consulte inclusões, alterações e exclusões registradas pelo Razync.")
@@ -2478,6 +2482,8 @@ elif page == "Histórico de Atividades":
 elif page == "Status do Sistema":
     header("Status do Sistema", "Veja a infraestrutura ativa do Razync Pro e o que ainda é provisório.")
     runtime = database_runtime_info()
+    backend_name = str(runtime.get("backend") or "")
+    postgres_ready = "postgres" in backend_name.lower()
 
     s1, s2, s3 = st.columns(3)
     s1.metric("Hospedagem", "Railway")
@@ -2486,10 +2492,10 @@ elif page == "Status do Sistema":
 
     with st.container(key="rz_panel_system_runtime"):
         st.caption("INFRAESTRUTURA")
-        st.write(f"**Banco atual:** {runtime['backend']}")
-        st.write("**Servidor:** Railway · US East")
+        st.write(f"**Banco atual:** {backend_name or 'não identificado'}")
+        st.write("**Servidor:** Railway")
         st.write("**Sleep do serviço:** desativado")
-        st.write("**Volume persistente:** ativo")
+        st.write(f"**Persistência do workspace:** {'ativa' if runtime['persistent'] else 'revisar'}")
         if runtime["persistent"]:
             st.success("Os dados operacionais atuais estão em armazenamento persistente.")
         else:
@@ -2505,7 +2511,10 @@ elif page == "Status do Sistema":
             st.write(f"{marker} **{integration['name']}** — {integration['detail']}")
         st.write("✓ **Importação bancária por arquivo** — disponível")
         st.write("○ **Autenticação de usuários** — temporariamente desativada por decisão de desenvolvimento")
-        st.write("○ **PostgreSQL definitivo** — conectar antes de reativar contas comerciais")
+        st.write(
+            f"{'✓' if postgres_ready else '○'} **PostgreSQL definitivo** — "
+            + ("conectado" if postgres_ready else "conectar antes de reativar contas comerciais")
+        )
 
 elif page == "Backup":
     header("Backup", "Gere uma cópia independente dos dados e documentos do Razync.")
