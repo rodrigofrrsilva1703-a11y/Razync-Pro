@@ -34,7 +34,7 @@ def read_statement(uploaded_file) -> pd.DataFrame:
                 pass
         raise ValueError("Não foi possível identificar as colunas do arquivo CSV.")
 
-    raise ValueError("Formato não suportado. Use CSV ou XLSX.")
+    raise ValueError("Formato não suportado. Use CSV, TXT ou Excel.")
 
 
 def parse_money(value) -> float:
@@ -73,7 +73,7 @@ def suggest_statement_columns(df: pd.DataFrame) -> dict[str, str | None]:
             "descricao", "description", "historico", "detalhes", "memo",
             "estabelecimento", "favorecido",
         ),
-        "value": ("valor", "value", "amount", "montante", "valortransacao", "saldo"),
+        "value": ("valor", "value", "amount", "montante", "valortransacao"),
     }
     result: dict[str, str | None] = {}
     for field, aliases in rules.items():
@@ -133,7 +133,7 @@ def is_probable_duplicate(existing: pd.DataFrame, tx_date, tx_type: str, descrip
 def suggest_category(description: str, tx_type: str) -> str:
     text = description.lower()
     if tx_type == "Receita":
-        return "Serviços" if any(k in text for k in ["serv", "honor", "cliente", "nfse"]) else "Vendas"
+        return "Serviços" if any(k in text for k in ["serv", "honor", "cliente", "nfse"]) else "Comércio"
     rules = [
         (["imposto", "das", "tribut"], "Impostos"),
         (["alug", "loca"], "Aluguel"),
