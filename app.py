@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from html import escape
+import os
 
 import pandas as pd
 import streamlit as st
@@ -127,9 +128,9 @@ except DatabaseConnectionError as exc:
     safe_error("database_init_failed", exc, operation="init_db", backend="database")
     st.error("Não foi possível conectar o Razync Pro ao banco definitivo.")
     st.warning(str(exc))
-    st.markdown("**Confira os Secrets do Streamlit:**")
-    st.code('SUPABASE_DB_PASSWORD = "sua senha"\nSUPABASE_DB_HOST = "aws-0-sa-east-1.pooler.supabase.com"\nSUPABASE_DB_USER = "postgres.etimfgenlludorrftapb"\nSUPABASE_DB_PORT = "5432"', language="toml")
-    st.caption("A senha nunca é exibida pelo diagnóstico. Depois de corrigir os Secrets, salve e faça Reboot app.")
+    st.markdown("**Confira as variáveis protegidas do Railway:**")
+    st.code('SUPABASE_DB_PASSWORD\nSUPABASE_DB_HOST\nSUPABASE_DB_USER\nSUPABASE_DB_PORT', language=None)
+    st.caption("O diagnóstico nunca exibe senhas. Depois de corrigir as variáveis, faça um novo deploy do serviço.")
     st.stop()
 
 if "ui_theme" not in st.session_state:
@@ -167,8 +168,11 @@ def refresh_snapshot() -> None:
 
 
 def secret_value(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
     try:
-        return str(st.secrets.get(name, ""))
+        return str(st.secrets.get(name, "")).strip()
     except Exception:
         return ""
 
