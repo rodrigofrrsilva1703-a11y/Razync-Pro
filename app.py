@@ -49,7 +49,7 @@ from navigation_config import SIDEBAR_LABELS, SIDEBAR_GROUPS, SIDEBAR_SECONDARY_
 from finance_workspace import render_finance_workspace
 from fiscal_workspace import render_fiscal_workspace
 from workspace_style import inject_workspace_style
-from compact_cards import inject_compact_cards, metric_card
+from compact_cards import inject_compact_cards, stat_card
 from table_ui import professional_table
 from dashboard_workspace import render_dashboard_workspace
 from sidebar_workspace import render_sidebar
@@ -497,11 +497,16 @@ elif page == "Movimentações":
     month_despesa = float(month_view.loc[month_view["tx_type"] == "Despesa", "value"].sum()) if not month_view.empty else 0.0
     m1, m2, m3 = st.columns(3)
     with m1:
-        metric_card("Entradas neste mês", brl(month_receita), key="move_month_in")
+        stat_card("Entradas neste mês", brl(month_receita))
     with m2:
-        metric_card("Saídas neste mês", brl(month_despesa), key="move_month_out")
+        stat_card("Saídas neste mês", brl(month_despesa))
     with m3:
-        metric_card("Resultado neste mês", brl(month_receita - month_despesa), key="move_month_result")
+        movement_result = month_receita - month_despesa
+        stat_card(
+            "Resultado neste mês",
+            brl(movement_result),
+            tone="positive" if movement_result >= 0 else "danger",
+        )
 
     entry_col, help_col = st.columns([1.55, .85], gap="large")
     with entry_col, st.container(key="rz_panel_movement_entry"):
@@ -564,10 +569,11 @@ elif page == "Movimentações":
             '<div class="rz-inline-meta"><span>PIX</span><span>Cartão</span><span>Boleto</span><span>Dinheiro</span></div>',
             unsafe_allow_html=True,
         )
-        if st.button("Importar extrato em vez de digitar", key="movement_import_statement", width="stretch"):
+        if st.button("Importar extrato", key="movement_import_statement", type="primary", width="stretch"):
             navigate_to("Importar Extrato")
-        if st.button("Configurar recorrências", key="movement_recurring", width="stretch"):
-            navigate_to("Recorrências")
+        with st.expander("Mais opções"):
+            if st.button("Configurar recorrências", key="movement_recurring", width="stretch"):
+                navigate_to("Recorrências")
 
     section("Histórico", "Busque, filtre e revise seus lançamentos.")
     if transactions.empty:
