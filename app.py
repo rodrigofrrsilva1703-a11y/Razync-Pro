@@ -312,7 +312,7 @@ def cashflow_monthly(df: pd.DataFrame, year: int) -> pd.DataFrame:
         saidas = float(cur[cur["tx_type"] == "Despesa"]["value"].sum()) if not cur.empty else 0.0
         rows.append({"Mês": MONTH_NAMES_PT[month - 1], "Entradas": entradas, "Saídas": saidas, "Resultado": entradas-saidas})
     out = pd.DataFrame(rows)
-    out["Saldo acumulado"] = out["Resultado"].cumsum()
+    out["Resultado acumulado"] = out["Resultado"].cumsum()
     return out
 
 def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list, obligations: list) -> tuple[int, list[str]]:
@@ -997,7 +997,7 @@ elif page == "Fluxo de Caixa":
     c1.metric("Entradas", brl(float(cf["Entradas"].sum())))
     c2.metric("Saídas", brl(float(cf["Saídas"].sum())))
     c3.metric("Resultado", brl(float(cf["Resultado"].sum())))
-    c4.metric("Saldo acumulado", brl(float(cf["Saldo acumulado"].iloc[-1]) if not cf.empty else 0.0))
+    c4.metric("Resultado acumulado", brl(float(cf["Resultado acumulado"].iloc[-1]) if not cf.empty else 0.0))
 
     with st.container(key="rz_panel_cashflow_chart"):
         st.caption("EVOLUÇÃO")
@@ -1014,7 +1014,7 @@ elif page == "Fluxo de Caixa":
                 "Entradas": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Saídas": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Resultado": st.column_config.NumberColumn(format="R$ %.2f"),
-                "Saldo acumulado": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Resultado acumulado": st.column_config.NumberColumn(format="R$ %.2f"),
             },
         )
 
