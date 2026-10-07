@@ -987,6 +987,21 @@ def list_employees(user_id: int) -> list[dict[str, Any]]:
     return _cache_set("employees", user_id, [dict(r) for r in rows])
 
 
+def update_employee(user_id: int, item_id: int, **data: Any) -> bool:
+    allowed = {"name", "cpf", "admission_date", "salary", "status", "notes"}
+    payload = {key: value for key, value in data.items() if key in allowed}
+    if not payload:
+        return False
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(employees)
+            .where(employees.c.user_id == user_id, employees.c.id == item_id)
+            .values(**payload)
+        )
+    _cache_invalidate("employees", user_id)
+    return bool(result.rowcount)
+
+
 def delete_employee(user_id: int, item_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(delete(employees).where(employees.c.user_id == user_id, employees.c.id == item_id))
