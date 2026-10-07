@@ -103,7 +103,6 @@ def render_sidebar(
     brand_logo_data_uri: str,
     navigate,
     refresh_data,
-    logout,
 ) -> None:
     business_sidebar = profile.get("trade_name") or profile.get("business_name") or "Seu MEI"
 
