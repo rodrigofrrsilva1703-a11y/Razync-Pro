@@ -20,6 +20,7 @@ def render_finance_workspace(
     invoices: pd.DataFrame,
     annual_limit: float,
     current_year: int,
+    opening_date,
     theme: str,
     brl,
     navigate,
@@ -47,7 +48,13 @@ def render_finance_workspace(
         if metric_card("Resultado no ano", brl(year_in - year_out), key="fin_year_result", help_text="Abrir análise financeira"):
             navigate("Análise Financeira")
 
-    projection = financial_projection(transactions, annual_limit, current_year, today)
+    projection = financial_projection(
+        transactions,
+        annual_limit,
+        current_year,
+        today,
+        opening_date=opening_date,
+    )
     if projection.get("limit_risk"):
         alert_card(
             "warn",
