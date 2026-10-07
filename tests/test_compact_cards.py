@@ -14,22 +14,20 @@ class CompactCardsTests(unittest.TestCase):
         cls.account = Path("account_workspace.py").read_text(encoding="utf-8")
         cls.productivity = Path("productivity_workspace.py").read_text(encoding="utf-8")
 
-    def test_metric_cards_use_consistent_compact_surface(self):
-        self.assertIn('[class*="st-key-rz_metric_card_"] button', self.workspace)
-        self.assertIn("min-height: 92px !important", self.workspace)
-        self.assertIn("min-height: 76px !important", self.workspace)
-        self.assertIn("def metric_card", self.compact)
-
-    def test_primary_workspaces_use_compact_card_layer(self):
+    def test_kpis_are_quiet_and_not_buttons(self):
+        self.assertIn("def stat_card", self.compact)
+        self.assertIn(".rz-stat-card", self.workspace)
         for source in (self.dashboard, self.finance, self.fiscal):
-            self.assertIn("metric_card(", source)
-        self.assertIn("inject_compact_cards()", self.app)
+            self.assertIn("stat_card(", source)
+            self.assertNotIn("metric_card(", source)
 
-    def test_secondary_information_is_collapsed(self):
+    def test_primary_workspaces_keep_secondary_information_collapsed(self):
         self.assertIn('st.expander("Resumo anual e últimos lançamentos")', self.finance)
         self.assertIn('st.expander("Notas, documentos e relatórios")', self.fiscal)
+        self.assertIn('st.expander("Outras rotinas financeiras")', self.finance)
+        self.assertIn('st.expander("Outras rotinas fiscais")', self.fiscal)
 
-    def test_clickable_cards_have_meaningful_destinations(self):
+    def test_main_actions_remain_meaningful(self):
         self.assertIn('navigate("Financeiro")', self.dashboard)
         self.assertIn('navigate("Fiscal")', self.dashboard)
         self.assertIn('navigate("Conciliação")', self.finance)
@@ -41,11 +39,13 @@ class CompactCardsTests(unittest.TestCase):
             self.assertNotIn("delete_", source)
             self.assertNotIn("confirm_action(", source)
 
-    def test_secondary_hubs_use_calm_navigation_cards(self):
-        self.assertIn("def navigation_card", self.compact)
-        self.assertIn("navigation_card(", self.account)
-        self.assertIn("navigation_card(", self.productivity)
-        self.assertNotIn("st.container(border=True)", self.productivity)
+    def test_secondary_hubs_are_reduced_to_essential_actions(self):
+        self.assertIn("Dados do MEI", self.account)
+        self.assertIn("Backup e exportação", self.account)
+        self.assertIn("Abrir automações", self.productivity)
+        self.assertIn("Abrir alertas", self.productivity)
+        self.assertNotIn("navigation_card(", self.account)
+        self.assertNotIn("navigation_card(", self.productivity)
 
 
 if __name__ == "__main__":
