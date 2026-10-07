@@ -13,15 +13,15 @@ class DirectAccessVisualTests(unittest.TestCase):
         self.assertNotIn(".rz-login-shell", self.workspace_source)
         self.assertNotIn(".rz-login-benefits", self.workspace_source)
 
-    def test_workspace_has_consistent_saas_surface(self):
-        self.assertIn("RAZYNC PRO · WORKSPACE V7", self.workspace_source)
-        self.assertIn("max-width: 1220px !important", self.workspace_source)
-        self.assertIn("var(--rz-surface)", self.workspace_source)
-        self.assertIn("var(--rz-border)", self.workspace_source)
+    def test_workspace_uses_new_shell_architecture(self):
+        self.assertIn("RAZYNC PRO · SHELL V8", self.workspace_source)
+        self.assertIn("max-width: 1180px !important", self.workspace_source)
+        self.assertIn("--rz-v8-ink:", self.workspace_source)
+        self.assertIn("--rz-v8-accent:", self.workspace_source)
 
     def test_mobile_sidebar_does_not_cover_the_full_screen(self):
-        self.assertIn("width: min(300px, 88vw) !important", self.workspace_source)
-        self.assertIn("min-width: min(300px, 88vw) !important", self.workspace_source)
+        self.assertIn("width: min(278px, 88vw) !important", self.workspace_source)
+        self.assertIn("min-width: min(278px, 88vw) !important", self.workspace_source)
 
     def test_mobile_columns_stack_predictably(self):
         self.assertIn("@media (max-width: 520px)", self.workspace_source)
