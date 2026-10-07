@@ -262,68 +262,6 @@ hr {{ border-color:var(--rz-border); }}
 .rz-nav-label {{ font-size:.68rem; font-weight:760; text-transform:uppercase; letter-spacing:.08em; color:var(--rz-muted); margin:.45rem 0 .15rem; }}
 .rz-dev {{ background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:9px; padding:9px 10px; font-size:.72rem; color:var(--rz-muted); margin-top:.65rem; }}
 
-/* Experiência pública de autenticação. O :has limita os estilos às telas sem sessão. */
-.stApp:has(.rz-login-shell) [data-testid="stSidebar"] {{ display:none; }}
-.stApp:has(.rz-login-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stMain"] {{
-  background:
-    radial-gradient(circle at 8% 8%, rgba(8,185,239,.11), transparent 24rem),
-    radial-gradient(circle at 92% 86%, rgba(8,127,167,.07), transparent 28rem),
-    linear-gradient(160deg, var(--rz-bg) 0%, var(--rz-soft) 100%)!important;
-}}
-.stApp:has(.rz-login-shell) [data-testid="stMain"]::before {{
-  content:""; position:fixed; inset:0; pointer-events:none; opacity:.16;
-  background-image:linear-gradient(var(--rz-border) 1px,transparent 1px),linear-gradient(90deg,var(--rz-border) 1px,transparent 1px);
-  background-size:54px 54px; mask-image:linear-gradient(to bottom,black,transparent 68%);
-}}
-.stApp:has(.rz-login-shell) .block-container {{ position:relative; z-index:1; max-width:620px; padding-top:clamp(1.15rem,3vh,2.25rem); padding-bottom:2rem; }}
-.rz-login-shell {{ max-width:520px; margin:0 auto .65rem; text-align:center; }}
-.rz-login-brand {{ display:inline-flex; align-items:center; justify-content:center; gap:.58rem; margin-bottom:.72rem; padding:.34rem .62rem .34rem .4rem; border:1px solid var(--rz-border); border-radius:999px; background:color-mix(in srgb,var(--rz-surface) 90%,transparent); box-shadow:var(--rz-shadow-soft); backdrop-filter:blur(12px); }}
-.rz-login-brand strong {{ font-size:1.02rem; letter-spacing:-.045em; font-weight:900; }}
-.rz-login-brand span {{ color:var(--rz-primary); font-size:.54rem; font-weight:850; letter-spacing:.13em; margin-left:.22rem; vertical-align:.16rem; }}
-.rz-login-mark {{ width:29px; height:29px; display:block; object-fit:cover; border-radius:8px; border:1px solid rgba(16,189,242,.4); box-shadow:0 6px 18px rgba(8,185,239,.13); }}
-.rz-login-kicker {{ color:var(--rz-primary); font-size:.63rem; font-weight:820; letter-spacing:.12em; text-transform:uppercase; margin-bottom:.42rem; }}
-.rz-login-shell h1 {{ font-size:clamp(1.72rem,3.4vw,2.35rem); line-height:1.06; letter-spacing:-.05em; margin:0; font-weight:880; }}
-.rz-login-shell h1 em {{ color:var(--rz-primary); font-style:normal; }}
-.rz-login-lead {{ max-width:475px; margin:.52rem auto .72rem; color:var(--rz-muted)!important; font-size:.87rem; line-height:1.48; }}
-.rz-login-benefits, .rz-login-proof {{ display:none!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stButton"] {{ max-width:460px; margin:.08rem auto .42rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stButton"] button {{ min-height:2.1rem; background:transparent!important; border-color:transparent!important; color:var(--rz-muted)!important; box-shadow:none!important; font-size:.75rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stButton"] button:hover {{ background:var(--rz-primary-soft)!important; color:var(--rz-primary)!important; border-color:transparent!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] {{ max-width:460px; margin:0 auto; background:color-mix(in srgb,var(--rz-surface) 97%,transparent); border:1px solid var(--rz-border); border-radius:16px; padding:.65rem .9rem .82rem; box-shadow:0 16px 46px rgba(29,42,51,.10),0 2px 6px rgba(29,42,51,.04); backdrop-filter:blur(16px); }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tablist"] {{ gap:.16rem; background:var(--rz-soft); border:1px solid var(--rz-border); border-radius:9px; padding:.18rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] {{ flex:1; justify-content:center; border-radius:7px; min-height:2.12rem; font-weight:680; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"] p {{ font-size:.76rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{ color:var(--rz-primary)!important; background:var(--rz-surface); box-shadow:0 1px 5px rgba(29,42,51,.08); }}
-.rz-auth-heading {{ text-align:left; padding:.52rem 0 0; }}
-.rz-auth-heading strong {{ display:block; color:var(--rz-text); font-size:1.04rem; letter-spacing:-.02em; margin-bottom:.1rem; }}
-.rz-auth-heading span {{ color:var(--rz-muted); font-size:.73rem; }}
-.stApp:has(.rz-login-shell) [data-testid="stTabs"] [data-testid="stForm"] {{ border:0!important; padding:.42rem 0 0; box-shadow:none!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stTextInput"] label p {{ font-size:.73rem; font-weight:710; color:var(--rz-text)!important; }}
-.stApp:has(.rz-login-shell) [data-baseweb="input"] {{ background:var(--rz-soft)!important; border:1px solid var(--rz-border)!important; border-radius:9px!important; overflow:hidden; }}
-.stApp:has(.rz-login-shell) input {{ min-height:2.58rem; border-radius:9px; background:transparent!important; padding-left:.74rem!important; }}
-.stApp:has(.rz-login-shell) [data-baseweb="input"]:focus-within {{ border-color:var(--rz-primary)!important; box-shadow:0 0 0 3px rgba(8,185,239,.10)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button {{ min-height:2.62rem; border-radius:9px; font-weight:780; background:linear-gradient(135deg,var(--rz-primary),#087fa7)!important; color:white!important; border:0!important; box-shadow:0 8px 20px rgba(8,185,239,.18)!important; transition:transform .16s ease,box-shadow .16s ease; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button p {{ color:white!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stFormSubmitButton"] button:hover {{ transform:translateY(-1px); box-shadow:0 11px 25px rgba(8,185,239,.24)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a {{ min-height:2.62rem; display:flex; align-items:center; justify-content:center; border:1px solid var(--rz-border)!important; background:var(--rz-surface)!important; color:var(--rz-text)!important; font-weight:720; box-shadow:none!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a p {{ color:var(--rz-text)!important; }}
-.stApp:has(.rz-login-shell) [data-testid="stLinkButton"] a:hover {{ border-color:var(--rz-primary)!important; color:var(--rz-primary)!important; transform:none; }}
-.stApp:has(.rz-login-shell) [data-testid="stExpander"] {{ max-width:460px; margin:.55rem auto 0; box-shadow:none; background:transparent; }}
-.rz-login-security {{ max-width:460px; margin:.52rem auto 0; text-align:center; color:var(--rz-muted); font-size:.64rem; }}
-.stApp:has(.rz-login-shell) footer {{ display:none; }}
-.stApp:has(.rz-demo-shell) [data-testid="stHeader"] {{ background:transparent!important; border-bottom:0!important; }}
-.stApp:has(.rz-demo-shell) [data-testid="stMain"] {{ background:linear-gradient(150deg,var(--rz-bg),var(--rz-soft))!important; }}
-.rz-demo-shell {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.2rem 0 1rem; }}
-.rz-demo-brand {{ font-size:1.18rem; font-weight:900; letter-spacing:-.04em; }}
-.rz-demo-brand span {{ color:var(--rz-primary); font-size:.62rem; letter-spacing:.12em; margin-left:.25rem; }}
-.rz-demo-badge {{ color:var(--rz-primary); background:var(--rz-primary-soft); border:1px solid color-mix(in srgb,var(--rz-primary) 28%,transparent); border-radius:999px; padding:.38rem .68rem; font-size:.7rem; font-weight:760; }}
-.rz-next-action {{ background:linear-gradient(135deg,var(--rz-surface),var(--rz-soft)); border:1px solid var(--rz-border); border-left:4px solid var(--rz-primary); border-radius:14px; padding:15px 17px; box-shadow:var(--rz-shadow-soft); }}
-.rz-next-action strong {{ display:block; font-size:.92rem; margin-bottom:.22rem; }}
-.rz-next-action span {{ color:var(--rz-muted); font-size:.79rem; line-height:1.45; }}
-
-{native}
-
 /* Campos com limites claros em ambos os temas. Os seletores usam data-testid
    e data-baseweb, evitando classes internas geradas pelo Streamlit. */
 [data-testid="stTextInput"] [data-baseweb="input"],
