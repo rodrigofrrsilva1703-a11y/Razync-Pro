@@ -121,7 +121,7 @@ def cached_reconciliation(transactions_data: pd.DataFrame, invoices_data: pd.Dat
     )
 
 
-st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Razync Pro", page_icon=BRAND_LOGO_PATH, layout="wide", initial_sidebar_state="auto")
 try:
     init_db()
     _runtime_info = database_runtime_info()
@@ -451,7 +451,6 @@ if undo_transaction:
 
 # Dashboard V2 uses only the local snapshot while navigating.
 if page == "Dashboard":
-    header("Início", "Seu negócio, seus números e o que realmente precisa de atenção.")
     render_dashboard_workspace(
         profile=profile, transactions=transactions, invoices=invoices,
         das_rows=das_rows, obligations=obligations, documents=docs,
@@ -1263,8 +1262,8 @@ elif page == "Fechamento Mensal":
     m1.metric("Receitas", brl(closing["revenue"]))
     m2.metric("Despesas", brl(closing["expense"]))
     m3.metric("Resultado", brl(closing["result"]))
-    m4.metric("Organização", f"{closing['score']}%")
-    st.progress(closing["score"] / 100)
+    m4.metric("Organização", f"{closing['score']}%" if closing["has_records"] else "Não iniciado")
+    st.progress(closing["score"] / 100 if closing["has_records"] else 0)
 
     section("Checklist do mês", "Resolva somente o que ainda estiver pendente.")
     closing_routes = {
@@ -2571,7 +2570,7 @@ elif page == "Central de Automações":
     closing = automation["closing"]
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Fechamento", f"{closing['score']}%")
+    c1.metric("Fechamento", f"{closing['score']}%" if closing["has_records"] else "Não iniciado")
     c2.metric("Conciliações", len(automation["invoice_matches"]))
     c3.metric("DAS encontrados", len(automation["das_matches"]))
     c4.metric("Sem documento", automation["documents"]["missing_count"])
@@ -2604,7 +2603,7 @@ elif page == "Central de Automações":
 
     with closing_tab:
         st.caption(f"Fechamento de {date.today().month:02d}/{CURRENT_YEAR}")
-        st.progress(closing["score"] / 100)
+        st.progress(closing["score"] / 100 if closing["has_records"] else 0)
         professional_table(pd.DataFrame(closing["checklist"]), max_visible_rows=7)
         if st.button("Abrir fechamento mensal", key="automation_closing", width="stretch"):
             st.session_state["_navigate_to"] = "Fechamento Mensal"

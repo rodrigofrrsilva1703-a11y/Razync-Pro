@@ -50,6 +50,7 @@ def monthly_closing(transactions: pd.DataFrame, invoices: pd.DataFrame, document
     difference = revenue - invoice_total
 
     return {
+        "has_records": bool(not tx.empty or invoice_count or docs_month or das),
         "revenue": revenue,
         "expense": expenses,
         "expenses": expenses,

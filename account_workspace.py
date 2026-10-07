@@ -4,9 +4,6 @@ import streamlit as st
 
 
 def render_account_workspace(*, navigate, developer_access: bool) -> None:
-    st.caption("SISTEMA E DADOS")
-    st.caption("Configurações e dados do Razync em uma área mais simples.")
-
     a1, a2, spacer = st.columns([1, 1, 1.5], gap="small")
     if a1.button("Dados do MEI", type="primary", width="stretch"):
         navigate("Meu MEI")

@@ -6,7 +6,7 @@ class CompactCardsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.compact = Path("compact_cards.py").read_text(encoding="utf-8")
-        cls.workspace = Path("workspace_style.py").read_text(encoding="utf-8")
+        cls.workspace = Path("workspace.css").read_text(encoding="utf-8")
         cls.dashboard = Path("dashboard_workspace.py").read_text(encoding="utf-8")
         cls.finance = Path("finance_workspace.py").read_text(encoding="utf-8")
         cls.fiscal = Path("fiscal_workspace.py").read_text(encoding="utf-8")

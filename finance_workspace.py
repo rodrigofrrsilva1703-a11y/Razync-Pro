@@ -10,7 +10,7 @@ from business_tools import financial_analysis
 from compact_cards import stat_card
 from product_core import reconciliation_summary
 from table_ui import professional_table
-from ui_system import alert_card, apply_plot_theme
+from ui_system import alert_card, apply_plot_theme, empty_state
 
 
 def render_finance_workspace(
@@ -42,25 +42,26 @@ def render_finance_workspace(
     month_result = month_in - month_out
     year_result = year_in - year_out
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        stat_card("Entradas", brl(month_in), detail="mês atual")
-    with c2:
-        stat_card("Saídas", brl(month_out), detail="mês atual")
-    with c3:
-        stat_card(
-            "Resultado",
-            brl(month_result),
-            detail="mês atual",
-            tone="positive" if month_result >= 0 else "danger",
-        )
-    with c4:
-        stat_card(
-            "Resultado anual",
-            brl(year_result),
-            detail=f"{current_year}",
-            tone="positive" if year_result >= 0 else "danger",
-        )
+    with st.container(key="workspace_metrics"):
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            stat_card("Entradas", brl(month_in), detail="Sem lançamentos no mês" if month_tx.empty else "mês atual")
+        with c2:
+            stat_card("Saídas", brl(month_out), detail="Sem lançamentos no mês" if month_tx.empty else "mês atual")
+        with c3:
+            stat_card(
+                "Resultado",
+                brl(month_result),
+                detail="Sem lançamentos no mês" if month_tx.empty else "mês atual",
+                tone="neutral" if month_tx.empty else "positive" if month_result >= 0 else "danger",
+            )
+        with c4:
+            stat_card(
+                "Resultado anual",
+                brl(year_result),
+                detail=f"{current_year}",
+                tone="neutral" if year_tx.empty else "positive" if year_result >= 0 else "danger",
+            )
 
     projection = financial_projection(
         transactions,
@@ -85,9 +86,13 @@ def render_finance_workspace(
     st.markdown("#### Evolução")
     chart_col, review_col = st.columns([1.7, 1], gap="large")
 
-    with chart_col:
+    with chart_col, st.container(key="overview_panel_finance_chart"):
         if year_tx.empty:
-            st.caption("Registre movimentações para visualizar a evolução do ano.")
+            empty_state(
+                "Seu financeiro começa aqui",
+                "Registre a primeira entrada ou despesa, ou importe seu extrato nos botões acima. A evolução do ano aparecerá neste espaço.",
+                "↗",
+            )
         else:
             import plotly.express as px
 
@@ -114,9 +119,9 @@ def render_finance_workspace(
                 y=["Receita", "Despesa", "Resultado"],
                 markers=True,
                 color_discrete_map={
-                    "Receita": "#12bce8",
-                    "Despesa": "#97a3ae",
-                    "Resultado": "#243646",
+                    "Receita": "#168f80",
+                    "Despesa": "#b8756b",
+                    "Resultado": "#6b97a8",
                 },
             )
             apply_plot_theme(fig, theme, height=310)
@@ -128,7 +133,7 @@ def render_finance_workspace(
             )
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
-    with review_col:
+    with review_col, st.container(key="overview_panel_finance_review"):
         st.caption("REVISÃO")
         rec = reconciliation_summary(transactions, invoices)
         st.markdown(
@@ -143,6 +148,8 @@ def render_finance_workspace(
         if len(rec["pending_invoices"]) or rec["possible_duplicate_transactions"]:
             if st.button("Abrir conciliação", key="finance_review_reconciliation"):
                 navigate("Conciliação")
+        elif transactions.empty and invoices.empty:
+            st.caption("A conciliação será exibida após cadastrar movimentações e notas.")
         else:
             st.caption("Nenhuma pendência evidente.")
 

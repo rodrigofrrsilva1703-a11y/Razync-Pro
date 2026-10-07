@@ -123,16 +123,22 @@ def render_sidebar(
             <div class="rz-side-brand">
               <img src="{brand_logo_data_uri}" alt="Razync Pro">
               <div>
-                <strong>Razync<em>PRO</em></strong>
-                <span>{escape(str(business_name))}</span>
+                <strong>razync<em>PRO</em></strong>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+        initials = "".join(word[0] for word in str(business_name).split()[:2]).upper() or "ME"
+        st.markdown(
+            f'<div class="rz-workspace-switch"><div class="rz-avatar">{escape(initials)}</div>'
+            f'<div><strong>{escape(str(business_name))}</strong><small>Meu espaço de trabalho</small></div></div>',
+            unsafe_allow_html=True,
+        )
+
         with st.container(key="sidebar_navigation"):
-            st.caption("WORKSPACE")
+            st.caption("PRINCIPAL")
             for destination in (
                 "Dashboard",
                 "Financeiro",
@@ -142,9 +148,9 @@ def render_sidebar(
             ):
                 _nav_button(destination, page, navigate)
 
-            with st.expander("Ferramentas", expanded=page in {"Produtividade", "Conta e Sistema"}):
-                _nav_button("Produtividade", page, navigate, key_prefix="tools")
-                _nav_button("Conta e Sistema", page, navigate, key_prefix="tools")
+            st.caption("FERRAMENTAS")
+            _nav_button("Produtividade", page, navigate, key_prefix="tools")
+            _nav_button("Conta e Sistema", page, navigate, key_prefix="tools")
 
             with st.expander("Buscar função"):
                 render_command_center(
@@ -160,15 +166,17 @@ def render_sidebar(
                 bool(documents),
             )
             if setup["percent"] < 100:
-                st.caption("CONFIGURAÇÃO")
-                if st.button(
-                    f"Primeiros passos · {setup['percent']}%",
-                    key="sidebar_onboarding",
-                    icon=":material/checklist:",
-                    disabled=page == "Primeiros Passos",
-                    width="stretch",
-                ):
-                    navigate("Primeiros Passos")
+                with st.container(key="sidebar_setup"):
+                    st.markdown("**Um passo de cada vez**")
+                    st.caption(f"{setup['done']} de {setup['total']} etapas concluídas")
+                    st.progress(setup["percent"] / 100)
+                    if st.button(
+                        "Concluir configuração",
+                        key="sidebar_onboarding",
+                        disabled=page == "Primeiros Passos",
+                        width="stretch",
+                    ):
+                        navigate("Primeiros Passos")
 
         st.divider()
         with st.expander("Preferências"):
@@ -186,5 +194,7 @@ def render_sidebar(
                 width="stretch",
             ):
                 refresh_data()
+
+        st.markdown('<div class="rz-sidebar-footer">Razync Pro · Gestão para o seu MEI</div>', unsafe_allow_html=True)
 
     _render_floating_assistant(page, user, navigate)

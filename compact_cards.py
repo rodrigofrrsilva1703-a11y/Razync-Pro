@@ -17,16 +17,22 @@ def stat_card(
     detail: str | None = None,
     tone: str = "neutral",
 ) -> None:
-    """Render a quiet, non-interactive KPI. Numbers should not look like buttons."""
+    """Render an informational card in the shared workspace design."""
     safe_tone = tone if tone in {"neutral", "positive", "warning", "danger"} else "neutral"
     detail_html = (
         f'<span class="rz-stat-detail">{escape(detail)}</span>'
         if detail else ""
     )
+    symbol = {
+        "Entradas": "↙", "Saídas": "↗", "Resultado": "≈", "Resultado anual": "↗",
+        "Limite MEI": "◉", "Documentos": "▤", "Notas": "▤", "DAS em atraso": "!",
+        "DAS pendentes": "◷",
+    }.get(label, "◈")
     st.markdown(
         (
             f'<div class="rz-stat-card is-{safe_tone}">'
-            f'<span class="rz-stat-label">{escape(label)}</span>'
+            f'<div class="rz-stat-top"><span class="rz-stat-label">{escape(label)}</span>'
+            f'<span class="rz-stat-symbol" aria-hidden="true">{symbol}</span></div>'
             f'<strong>{escape(value)}</strong>'
             f'{detail_html}'
             f'</div>'

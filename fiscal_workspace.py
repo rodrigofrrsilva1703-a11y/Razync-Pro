@@ -67,29 +67,37 @@ def render_fiscal_workspace(
         days_ahead=90,
     )
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        stat_card(
-            "DAS em atraso",
-            str(len(overdue_das)),
-            detail="competências",
-            tone="danger" if overdue_das else "neutral",
-        )
-    with c2:
-        stat_card(
-            "DAS pendentes",
-            str(len(pending_das)),
-            detail="competências",
-            tone="warning" if pending_das else "neutral",
-        )
-    with c3:
-        stat_card("Notas", str(len(invoices)), detail="cadastradas")
-    with c4:
-        stat_card(
-            "Limite MEI",
-            f"{limit_pct:.1f}%",
-            detail=f"{brl(annual_revenue)} no ano",
-            tone="warning" if limit_pct >= 80 else "neutral",
+    with st.container(key="workspace_metrics"):
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            stat_card(
+                "DAS em atraso",
+                str(len(overdue_das)) if das_rows else "—",
+                detail="competências" if das_rows else "Nenhuma guia cadastrada",
+                tone="danger" if overdue_das else "neutral",
+            )
+        with c2:
+            stat_card(
+                "DAS pendentes",
+                str(len(pending_das)) if das_rows else "—",
+                detail="competências" if das_rows else "Nenhuma guia cadastrada",
+                tone="warning" if pending_das else "neutral",
+            )
+        with c3:
+            stat_card("Notas", str(len(invoices)), detail="cadastradas")
+        with c4:
+            stat_card(
+                "Limite MEI",
+                f"{limit_pct:.1f}%".replace(".", ","),
+                detail=f"{brl(annual_revenue)} no ano",
+                tone="warning" if limit_pct >= 80 else "neutral",
+            )
+
+    if not das_rows:
+        alert_card(
+            "info",
+            "Situação do DAS ainda não verificada",
+            "Cadastre suas guias para acompanhar pagamentos e atrasos. Os prazos abaixo são lembretes, não uma consulta à Receita Federal.",
         )
 
     if overdue_das:
@@ -114,7 +122,7 @@ def render_fiscal_workspace(
     st.markdown("#### Situação fiscal")
     das_col, closing_col = st.columns([1.65, 1], gap="large")
 
-    with das_col:
+    with das_col, st.container(key="overview_panel_fiscal_das"):
         st.caption("COMPETÊNCIAS CONTROLADAS")
         if not das_rows:
             st.caption("Nenhuma competência do DAS foi cadastrada.")
@@ -141,7 +149,7 @@ def render_fiscal_workspace(
                 },
             )
 
-    with closing_col:
+    with closing_col, st.container(key="overview_panel_fiscal_closing"):
         st.caption("FECHAMENTO DO MÊS")
         closing = monthly_closing(
             transactions,
@@ -151,9 +159,11 @@ def render_fiscal_workspace(
             today.year,
             today.month,
         )
+        has_closing_data = closing["has_records"]
+        closing_label = f"{closing['score']}%" if has_closing_data else "Não iniciado"
         st.markdown(
             f"""
-            <div class="rz-health-row"><span>Organização</span><strong>{closing['score']}%</strong></div>
+            <div class="rz-health-row"><span>Organização</span><strong>{closing_label}</strong></div>
             <div class="rz-health-row"><span>Notas cadastradas</span><strong>{len(invoices)}</strong></div>
             <div class="rz-health-row"><span>Documentos</span><strong>{len(documents)}</strong></div>
             <div class="rz-health-row"><span>Obrigações vencidas</span><strong>{len(overdue_obligations)}</strong></div>
@@ -161,6 +171,8 @@ def render_fiscal_workspace(
             unsafe_allow_html=True,
         )
         pending = [item for item in closing["checklist"] if not item["OK"]]
+        if not has_closing_data:
+            st.caption("Adicione os registros do mês para iniciar a conferência.")
         if pending:
             st.caption("Pontos a revisar:")
             for item in pending[:3]:
