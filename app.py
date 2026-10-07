@@ -315,16 +315,26 @@ def mei_health_score(profile: dict, revenue: float, limit: float, das_rows: list
 
 user = ensure_login()
 uid = int(user["id"])
-try:
-    generated_recurring = materialize_due_recurring(uid)
-except DatabaseConnectionError:
-    generated_recurring = 0
-except Exception as exc:
-    # Recurrence maintenance must not prevent a restored GitHub/session login
-    # from reaching the read-only snapshot. The database snapshot below owns
-    # the user-facing connection recovery/error flow.
-    safe_error("recurring_materialize_failed", exc, operation="materialize_due_recurring", backend="database")
-    generated_recurring = 0
+
+# Recurring entries only need one maintenance pass per session/day.
+_recurring_check_key = f"_recurring_materialized_on_{uid}"
+_today_key = date.today().isoformat()
+generated_recurring = 0
+if st.session_state.get(_recurring_check_key) != _today_key:
+    try:
+        generated_recurring = materialize_due_recurring(uid)
+    except DatabaseConnectionError:
+        generated_recurring = 0
+    except Exception as exc:
+        safe_error(
+            "recurring_materialize_failed",
+            exc,
+            operation="materialize_due_recurring",
+            backend="database",
+        )
+        generated_recurring = 0
+    finally:
+        st.session_state[_recurring_check_key] = _today_key
 if generated_recurring:
     st.toast(f"{generated_recurring} lançamento(s) recorrente(s) gerado(s).", icon="✓")
 
@@ -378,7 +388,7 @@ year_revenue = float(year_tx[year_tx["tx_type"] == "Receita"]["value"].sum()) if
 year_expense = float(year_tx[year_tx["tx_type"] == "Despesa"]["value"].sum()) if not year_tx.empty else 0.0
 limit_pct = (year_revenue / limit * 100.0) if limit else 0.0
 
-# Um único padrão de densidade para todas as ferramentas após a autenticação.
+# Um único padrão de densidade para todas as ferramentas do workspace.
 inject_compact_cards()
 
 
@@ -397,7 +407,7 @@ render_sidebar(
 undo_transaction = st.session_state.get("_undo_transaction")
 if undo_transaction:
     undo_text, undo_action = st.columns([5, 1.2])
-    undo_text.info(f"“{undo_transaction.get('description') or 'Lançamento'}” foi excluído. Você pode desfazer esta ação enquanto estiver conectado.")
+    undo_text.info(f"“{undo_transaction.get('description') or 'Lançamento'}” foi excluído. Você pode desfazer esta ação nesta sessão.")
     if undo_action.button("Desfazer", key="undo_deleted_transaction", width="stretch"):
         try:
             add_transaction(uid, **transaction_restore_payload(undo_transaction))
@@ -426,7 +436,7 @@ elif page == "Produtividade":
     render_productivity_workspace(navigate=navigate_to)
 
 elif page == "Conta e Sistema":
-    header("Conta e sistema", "Dados, privacidade, segurança e operação do Razync Pro.")
+    header("Sistema e dados", "Preferências, integrações, histórico, backup e operação do Razync Pro.")
     render_account_workspace(
         navigate=navigate_to,
         developer_access=st.session_state.get("auth_provider") == "github",
