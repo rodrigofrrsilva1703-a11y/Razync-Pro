@@ -4,12 +4,12 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 
 ## Acessar o Razync Pro
 
-[🌐 Abrir o Razync Pro](https://razync-pro-je8appbtpfqcrg33nn6u5r8.streamlit.app/)
+[🌐 Abrir o Razync Pro](https://razync-pro-production.up.railway.app/)
 
 ## Funcionalidades
 
-- Login, cadastro, confirmação de e-mail e recuperação de senha com Supabase Auth
-- Dados isolados por usuário
+- Acesso direto temporário durante a fase atual de desenvolvimento
+- Estrutura de Supabase Auth preservada para reativação futura de contas por usuário
 - Dashboard com receita, despesas, resultado, uso do limite e alertas
 - Movimentações financeiras, recorrências, importação de extrato e conciliação
 - Fluxo de caixa e análise financeira
@@ -18,7 +18,7 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 - Controle mensal do DAS, leitura assistida da guia e resumo anual para DASN-SIMEI
 - Agenda de obrigações e central de notificações
 - Cadastro de clientes, fornecedores e empregado
-- Cofre de documentos em Supabase Storage privado
+- Documentos persistidos no workspace atual; Storage privado do Supabase permanece disponível para a futura reativação de contas
 - Assistente Razync com IA opcional via OpenAI, contexto agregado e fallback local
 - Espaço do contador sem compartilhamento de senha
 - Cadastro completo do MEI
@@ -27,7 +27,7 @@ Razync Pro é uma plataforma em Streamlit focada em Microempreendedores Individu
 
 ## Experiência do produto
 
-A navegação prioriza poucas áreas principais: Início, Financeiro, Fiscal MEI, Gestão, Produtividade e Conta/Sistema. Ferramentas detalhadas continuam disponíveis internamente, sem remoção de funcionalidades.
+A navegação prioriza poucas áreas principais: Início, Financeiro, Fiscal MEI, Gestão, Produtividade e Sistema/Dados. Ferramentas detalhadas continuam disponíveis internamente, sem remoção de funcionalidades.
 
 O catálogo comercial diferencia **Essencial** e **Pro** por capacidade, mas preços não ficam fixos no código. Checkout e integrações externas são configurados por ambiente para evitar promessas de serviços que ainda não estejam conectados.
 
@@ -52,7 +52,7 @@ sqlite:///razync_pro.db
 
 ## Segurança e arquitetura
 
-- Supabase Auth para identidades e sessões
+- acesso direto temporário no ambiente atual, com autenticação por usuário preservada no código para reativação futura
 - RLS por proprietário em todas as tabelas de negócio
 - RPC de snapshot sem privilégio `SECURITY DEFINER`
 - bucket privado com pasta exclusiva por usuário
@@ -60,8 +60,6 @@ sqlite:///razync_pro.db
 - migrações versionadas em `supabase/migrations`
 - testes automatizados e validação contínua no GitHub Actions
 - logs operacionais estruturados sem PII pelo módulo `monitoring.py`
-
-Contas criadas antes do Supabase Auth são vinculadas com segurança no primeiro acesso confirmado usando o mesmo e-mail.
 
 ## Produção
 
@@ -73,12 +71,12 @@ Exemplo com PostgreSQL + psycopg:
 DATABASE_URL=postgresql+psycopg://USUARIO:SENHA@HOST:5432/BANCO
 ```
 
-Para Streamlit Community Cloud, configure `DATABASE_URL`, `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` nos Secrets do aplicativo. Não coloque a senha do banco nem chaves secretas no repositório.
+O ambiente publicado atual roda no Railway. Configure variáveis de ambiente diretamente no serviço e nunca coloque senha de banco nem chaves secretas no repositório.
 
 Documentos operacionais:
 
 - `PRODUCTION_SETUP.md` — configuração de produção;
-- `PRODUCTION_CHECKLIST.md` — validação real no Streamlit Cloud;
+- `PRODUCTION_CHECKLIST.md` — validação do ambiente publicado no Railway;
 - `OPERATIONS_RUNBOOK.md` — backup, restauração, monitoramento, LGPD e incidentes.
 
 ## Banco de dados
@@ -89,9 +87,9 @@ As principais tabelas incluem usuários, perfil do MEI, movimentações, recorr�
 
 ## Preparação comercial
 
-O produto já possui autenticação, recuperação de senha, confirmação de e-mail, políticas de isolamento por usuário, armazenamento privado, exportação de dados, registro de atividades e uma navegação consolidada. Antes de operação comercial em escala, mantenha revisão contínua de LGPD, termos de uso, política de privacidade, retenção de logs, backups automáticos, teste de restauração, observabilidade e procedimentos de suporte.
+O produto já possui navegação consolidada, persistência, exportação de dados, registro de atividades e a estrutura de autenticação pronta para ser reativada. O ambiente atual está deliberadamente em modo de acesso direto. Antes de operação comercial em escala, mantenha revisão contínua de LGPD, termos de uso, política de privacidade, retenção de logs, backups automáticos, teste de restauração, observabilidade e procedimentos de suporte.
 
-A exclusão de uma identidade Supabase deve ser processada por backend administrativo seguro ou procedimento operacional autorizado; o aplicativo Streamlit não deve receber `service_role` para executar essa tarefa.
+Quando as contas por usuário forem reativadas, a exclusão de uma identidade Supabase deve ser processada por backend administrativo seguro; o aplicativo não deve receber `service_role` para executar essa tarefa.
 
 ## Observação fiscal
 
