@@ -9,6 +9,7 @@ from business_tools import monthly_closing
 from compact_cards import metric_card
 from contextual_ai import contextual_ai_button
 from fiscal_rules import das_status
+from mei_obligations import upcoming_automatic_obligations
 from fiscal_timeline import build_fiscal_timeline, render_fiscal_timeline
 from table_ui import professional_table
 from ui_system import alert_card, section
@@ -50,6 +51,21 @@ def render_fiscal_workspace(
             overdue_obligations.append(row)
 
     limit_pct = (annual_revenue / annual_limit * 100) if annual_limit else 0.0
+
+    raw_opening = profile.get("opening_date")
+    if isinstance(raw_opening, str):
+        try:
+            raw_opening = date.fromisoformat(raw_opening[:10])
+        except ValueError:
+            raw_opening = None
+    opening_date = raw_opening if isinstance(raw_opening, date) else None
+    automatic_upcoming = upcoming_automatic_obligations(
+        current_year,
+        opening_date,
+        das_rows,
+        today=today,
+        days_ahead=90,
+    )
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -139,7 +155,7 @@ def render_fiscal_workspace(
         st.caption("DAS e obrigações organizados por urgência e vencimento.")
         timeline_items = build_fiscal_timeline(
             das_rows=das_rows,
-            obligations=obligations,
+            obligations=[*obligations, *automatic_upcoming],
             today=today,
             days_ahead=90,
         )
@@ -195,8 +211,13 @@ def render_fiscal_workspace(
                 navigate("Relatório Mensal")
 
         q1, q2, q3 = st.columns(3)
-        if q1.button("Importar NFS-e", width="stretch"):
-            navigate("Importar NFS-e")
+        activity_type = str(profile.get("activity_type") or "")
+        if activity_type in {"Serviços", "Misto"} or not activity_type:
+            if q1.button("Importar NFS-e", width="stretch"):
+                navigate("Importar NFS-e")
+        else:
+            if q1.button("Notas fiscais", width="stretch"):
+                navigate("Notas Fiscais")
         if q2.button("Relatório mensal", width="stretch"):
             navigate("Relatório Mensal")
         if q3.button("Documentos", width="stretch"):
